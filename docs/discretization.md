@@ -19,6 +19,13 @@ Shells have no through-thickness degree of freedom. Higher-order, folded,
 degenerate and nonplanar shell elements fail before solving. Fixed geometry is
 assumed; no thermal expansion is modeled. Input remains bounded to one MiB.
 
+Shells enforce zero normal heat flux by eliminating the unresolved normal
+gradient: `K_shell = K - (K n)(n^T K)/(n^T K n)`. Its full temperature derivative
+enters the Jacobian. This supports tensor coupling across the midsurface without
+inventing an unmodeled through-thickness heat flow. Constant cross-coupled tensors,
+rotated shell planes and temperature-dependent coupled tensors have independent
+flux and finite-difference derivative checks.
+
 At each quadrature point, conduction is
 `K_ij = volume * grad(N_i)^T * conductivity * grad(N_j)`. Conductivity is sampled
 at interpolated temperature and its derivative enters the nonlinear Jacobian.

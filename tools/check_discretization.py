@@ -95,6 +95,13 @@ def check(worker, report):
         out=field(v)
         for c in out['cells']:
             for a,b in zip(c['heat_flux_W_per_m2'],[-6,-6,-16]):near(a,b)
+        v=plate(tensor=[[2,0,1],[0,3,0],[1,0,4]])
+        for c in field(v)['cells']:
+            for a,b in zip(c['heat_flux_W_per_m2'],[-3.5,-9,0]):near(a,b)
+        v=plate(tensor=[[4,1,0],[1,3,0],[0,0,2]])
+        for p in v['spatial']['points']:p['position']=[0,p['position'][1],p['position'][0]]
+        for c in field(v)['cells']:
+            for a,b in zip(c['heat_flux_W_per_m2'],[0,-8.25,-8]):near(a,b)
     def jacobian():
         v=plate(1,1,conductivity=2)
         material=next(e for e in v['model']['entities'] if e['kind']=='material')
@@ -229,10 +236,10 @@ def check(worker, report):
             result=execute(parser.parse_args(['spatial-solve',str(source),'--worker',str(worker),'--output',str(destination)]))
             assert result['status']=='passed' and json.loads(destination.read_bytes())['model_hash']==semantic_hash(v['model'])
     def tensor_law():
-        v=plate(tensor=[[4,0,0],[0,5,0],[0,0,6]],rotation=[[0,-1,0],[1,0,0],[0,0,1]])
+        v=plate(tensor=[[4,0,.5],[0,5,0],[.5,0,6]],rotation=[[0,-1,0],[1,0,0],[0,0,1]])
         material=next(e for e in v['model']['entities'] if e['kind']=='material')
         v['spatial']['tensor_laws']=[dict(material_id=material['id'],frame_id=material['frame_id'],reference_temperature_K=300,
-            temperatures_K=[1,5000],tensors_W_per_mK=[[[1.01,0,0],[0,2.01,0],[0,0,3.01]],[[51,0,0],[0,52,0],[0,0,53]]],
+            temperatures_K=[1,5000],tensors_W_per_mK=[[[1.01,0,.5],[0,2.01,0],[.5,0,3.01]],[[51,0,.5],[0,52,0],[.5,0,53]]],
             interpolation='linear',extrapolation='error')]
         out=field(v,lambda p:400+2*p[0]+3*p[1]);matrix={(int(i),int(j)):a for i,j,a in out['jacobian']}
         p=coordinate(v);t=[400+2*p[n['id']][0]+3*p[n['id']][1] for n in nodes(v)]

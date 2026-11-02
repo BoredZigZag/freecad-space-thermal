@@ -22,7 +22,7 @@ struct Contact {
   std::vector<std::pair<std::size_t,double>> from, to;
   double area, coefficient, gap, minimum_temperature, maximum_temperature, maximum_power;
 };
-struct Quadrature { double volume; std::vector<double> shape; std::vector<Vector> gradient; };
+struct Quadrature { double volume; std::vector<double> shape; std::vector<Vector> gradient; Vector normal; };
 struct PreparedCell { Cell cell; std::vector<Quadrature> quadrature; };
 struct Discretization {
   std::string mesh_revision;

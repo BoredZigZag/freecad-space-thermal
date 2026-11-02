@@ -15,6 +15,18 @@ Vector sub(Vector a,Vector b) { for (std::size_t i=0;i<3;++i) a[i]-=b[i]; return
 double dot(Vector a,Vector b) { double v=0; for (std::size_t i=0;i<3;++i) v+=a[i]*b[i];return finite(v); }
 Vector cross(Vector a,Vector b) { return {a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}; }
 Vector mul(const thermal::Tensor& k,Vector v) { Vector r{};for (std::size_t i=0;i<3;++i) r[i]=dot(k[i],v);return r; }
+thermal::TensorSample shell_tensor(thermal::TensorSample tensor,Vector normal) {
+  // Eliminate the unresolved normal gradient using n.q=0 (Schur complement).
+  const auto kn=mul(tensor.value,normal),dn=mul(tensor.derivative,normal);
+  const double denominator=positive(dot(normal,kn)),derivative=dot(normal,dn);
+  const auto original=tensor;
+  for(std::size_t i=0;i<3;++i)for(std::size_t j=0;j<3;++j) {
+    const double a=kn[i]/denominator,b=kn[j]/denominator;
+    tensor.value[i][j]=finite(original.value[i][j]-a*kn[j]);
+    tensor.derivative[i][j]=finite(original.derivative[i][j]-dn[i]*b-a*dn[j]+a*(b*derivative));
+  }
+  return tensor;
+}
 // Reference derivatives map through the inverse metric/Jacobian, supporting shells in any plane.
 Quadrature quadrature(const Cell& c,std::span<const Point> points,std::vector<double> shape,std::vector<Vector> reference,double weight,bool shell) {
   thermal::Tensor j{};
@@ -23,11 +35,12 @@ Quadrature quadrature(const Cell& c,std::span<const Point> points,std::vector<do
     for (std::size_t a=0;a<3;++a) for (std::size_t b=0;b<3;++b) j[a][b]+=delta[a]*reference[i][b];
   }
   Vector a{j[0][0],j[1][0],j[2][0]}, b{j[0][1],j[1][1],j[2][1]}, d{j[0][2],j[1][2],j[2][2]};
-  std::vector<Vector> gradient(reference.size()); double measure=0;
+  std::vector<Vector> gradient(reference.size()); double measure=0;Vector normal{};
   if (shell) {
     const double aa=dot(a,a),bb=dot(b,b),ab=dot(a,b),det=positive(aa*bb-ab*ab);
     if (det<=1e-24*aa*bb) throw Error("spatial_geometry",c.id);
     measure=std::sqrt(det)*positive(c.thickness);
+    normal=cross(a,b);for(double& v:normal)v/=std::sqrt(det);
     for (std::size_t i=0;i<reference.size();++i) for (std::size_t k=0;k<3;++k)
       gradient[i][k]=finite(((bb*reference[i][0]-ab*reference[i][1])*a[k]+(aa*reference[i][1]-ab*reference[i][0])*b[k])/det);
   } else {
@@ -40,7 +53,7 @@ Quadrature quadrature(const Cell& c,std::span<const Point> points,std::vector<do
   }
   // Enforce partition-of-unity in floating point, independently of absolute coordinates.
   for (std::size_t k=0;k<3;++k) {gradient[0][k]=0;for (std::size_t i=1;i<gradient.size();++i)gradient[0][k]-=gradient[i][k];}
-  return {positive(measure*weight),std::move(shape),std::move(gradient)};
+  return {positive(measure*weight),std::move(shape),std::move(gradient),normal};
 }
 double area(const Surface& s,std::span<const Point> points) {
   const auto a=sub(points[s.points[1]].position,points[s.points[0]].position),b=sub(points[s.points[2]].position,points[s.points[0]].position);
@@ -170,7 +183,9 @@ Evaluation evaluate(const Discretization& mesh,const thermal::Data& d,std::span<
         temperature+=q.shape[i]*(value-origin);
         for (std::size_t k=0;k<3;++k)gradient[k]+=q.gradient[i][k]*(value-origin);
       }
-      const auto tensor=m.tensor_sample(temperature);const auto& k=tensor.value;const auto law=m.conductivity.sample(temperature);
+      auto tensor=m.tensor_sample(temperature);
+      if(e.cell.topology=="tri3" || e.cell.topology=="quad4")tensor=shell_tensor(tensor,q.normal);
+      const auto& k=tensor.value;const auto law=m.conductivity.sample(temperature);
       if (jacobian && law.discontinuous) throw Error("nondifferentiable");
       const auto kg=mul(k,gradient);volume+=q.volume;
       for (std::size_t a=0;a<3;++a)flux[a]-=q.volume*kg[a];
