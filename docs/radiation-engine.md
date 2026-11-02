@@ -6,7 +6,8 @@ diffuse-gray radiosity and thermal residual/Jacobian bindings. It runs on the
 supported Windows build without Python, FreeCAD, Embree or licensed solvers.
 Python is used by the unattended qualification driver and independent reference
 calculations. Specular, transmissive and wavelength-dependent transport remain
-WP-20; orbital/projected environmental loads remain WP-17.
+WP-20. The [WP-17 environment engine](environment-engine.md) supplies projected
+incident loads for native transient solves.
 
 Each triangle has a stable facet ID, surface ID, full thermal-node index, group,
 SI coordinates and separately activated front/back optics. Winding defines the
@@ -101,8 +102,8 @@ and declared resource budgets. The steady envelope embeds `thermal_input` and
 omits `temperatures_K`; it supports one diffuse radiation entity and its sole
 environment, checks facet IDs, areas, active sides and optical assignments against
 the normalized thermal model, and uses canonical full-node order. Case overlays
-and nonzero environmental solar flux reject in this command until their WP-17
-integration exists. Native callback bindings also support WP-11 transient solves;
+and nonzero environmental solar flux use `--environment-transient`. Native
+callback bindings also support WP-11 transient solves;
 durable jobs and GUI wiring retain their existing separate qualification gates.
 
 `tools/check_radiation.py` executes native acceptance, installed-worker boundary

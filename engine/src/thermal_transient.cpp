@@ -57,6 +57,9 @@ std::string configuration(const Assembly& a,const TransientOptions& o) {
     <<o.linear.pivot_tolerance<<':'<<o.linear.backward_error_tolerance<<':'<<o.linear.maximum_refinements;
   write_vector(s,o.temperature_tolerances); write_state(s,a.operating_state());
   for (const auto& schedule:o.schedules) { s<<schedule.load_id<<':'; for (const auto& p:schedule.points) s<<p.time<<':'<<p.factor<<';'; }
+  for(const auto& event:o.callback_events)
+    s<<"callback-event:"<<event.time<<':'<<event.entity_id.size()<<':'<<event.entity_id
+     <<':'<<event.kind.size()<<':'<<event.kind<<':'<<event.before<<':'<<event.after<<';';
   return thermal_digest(s.str());
 }
 class TimedLinear final : public LinearBackend {
@@ -173,16 +176,17 @@ struct Engine {
     return result;
   }
   struct Trial { std::vector<double> mid, end; double error=0; EnergyBudget energy; };
-  Trial trial(const Assembly& a,double t,std::span<const double> x,double h) {
-    auto full=nonlinear(a,t+h,x,h,false);
-    auto mid=nonlinear(a,t+h/2,x,h/2,false); auto end=nonlinear(a,t+h,mid,h/2,false);
+  Trial trial(const Assembly& a,double t,std::span<const double> x,double h,std::optional<double> endpoint={}) {
+    double evaluation_time=endpoint.value_or(t+h);
+    auto full=nonlinear(a,evaluation_time,x,h,false);
+    auto mid=nonlinear(a,t+h/2,x,h/2,false); auto end=nonlinear(a,evaluation_time,mid,h/2,false);
     Trial result{std::move(mid),std::move(end),0,{}};
     for (std::size_t i=0;i<x.size();++i) {
       double limit=(o.temperature_tolerances.empty()?o.absolute_temperature_tolerance:o.temperature_tolerances[i])+
         o.relative_temperature_tolerance*std::max(std::abs(x[i]),std::abs(result.end[i]));
       result.error=std::max(result.error,finite(std::abs(result.end[i]-full[i])/limit));
     }
-    result.energy=energy(a,t+h/2,x,result.mid,h/2); add(result.energy,energy(a,t+h,result.mid,result.end,h/2));
+    result.energy=energy(a,t+h/2,x,result.mid,h/2); add(result.energy,energy(a,evaluation_time,result.mid,result.end,h/2));
     return result;
   }
 };
@@ -199,6 +203,13 @@ void validate(const Assembly& a,const TransientOptions& o) {
   if (!o.temperature_tolerances.empty()) { values(o.temperature_tolerances,a.sparsity()->dimension()); for(double v:o.temperature_tolerances) if(v<=0)throw Error("range"); }
   if (a.has_callbacks() && !digest(o.callback_revision)) throw Error("callback_revision");
   if (!o.callback_revision.empty() && !digest(o.callback_revision)) throw Error("callback_revision");
+  if(o.callback_events.size()>o.maximum_events || (!o.callback_events.empty() && !a.has_callbacks()))throw Error("callback_events");
+  double previous_event=o.start;
+  for(const auto& e:o.callback_events) {
+    if(finite(e.time)<=previous_event || e.time>o.end || e.entity_id.empty() ||
+       (e.kind!="environment" && e.kind!="eclipse"))throw Error("callback_events");
+    finite(e.before);finite(e.after);previous_event=e.time;
+  }
   if (o.schedules.size()>10000) throw Error("limit"); std::string previous;
   for (const auto& s:o.schedules) {
     if (s.load_id<=previous || s.points.empty() || s.points.size()>10000 || s.points.front().time>o.start) throw Error("schedule");
@@ -301,6 +312,9 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       if(++attempts>o.maximum_attempts)throw Failure{"attempt_limit",{}};
       auto output=std::upper_bound(o.output_times.begin(),o.output_times.end(),c.time);
       double stop=std::min(next_schedule(o,c.time),output==o.output_times.end()?o.end:*output);
+      auto event=std::upper_bound(o.callback_events.begin(),o.callback_events.end(),c.time,
+        [](double t,const CallbackEvent& e){return t<e.time;});
+      if(event!=o.callback_events.end())stop=std::min(stop,event->time);
       double h=std::min({c.next_step,o.maximum_step,stop-c.time});
       // A capped step can leave a floating-point remainder smaller than the
       // minimum step at an exact output/schedule boundary. Split the remaining
@@ -309,8 +323,13 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       const double remaining=stop-c.time;
       if(h<remaining && remaining-h<o.minimum_step && remaining/2>=o.minimum_step)h=remaining/2;
       if(h<o.minimum_step || c.time+h==c.time || c.time+h/2==c.time)throw Failure{"step_underflow",{}};
+      auto endpoint=[&](double duration)->std::optional<double> {
+        if(event!=o.callback_events.end() && event->time==stop && (duration==remaining || c.time+duration>=stop))
+          return std::nextafter(stop,c.time);
+        return {};
+      };
       Engine::Trial trial; std::string failure;
-      try { trial=engine.trial(a,c.time,c.temperature,h); }
+      try { trial=engine.trial(a,c.time,c.temperature,h,endpoint(h)); }
       catch(const Failure& f) {
         failure=f.reason;
         if(f.reason=="energy_imbalance") {
@@ -327,13 +346,14 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       // solves the implicit path again; no interpolated temperatures are accepted.
       std::map<std::string,double> roots;
       for(const auto& control:a.model().data().controls) {
-        bool middle=engine.triggered(a,control,c.time+h/2,trial.mid), end=engine.triggered(a,control,c.time+h,trial.end);
+        bool middle=engine.triggered(a,control,c.time+h/2,trial.mid),
+             end=engine.triggered(a,control,endpoint(h).value_or(c.time+h),trial.end);
         if(!middle && !end)continue;
         double lo=middle?0:h/2,hi=middle?h/2:h;
         for(unsigned probe=0;probe<80 && hi-lo>o.event_time_tolerance;++probe) {
           double mid=lo+(hi-lo)/2; if(c.time+mid==c.time+lo || c.time+mid==c.time+hi)break;
-          ++out.profile.event_probes; auto test=engine.trial(a,c.time,c.temperature,mid);
-          if(engine.triggered(a,control,c.time+mid,test.end))hi=mid;else lo=mid;
+          ++out.profile.event_probes; auto test=engine.trial(a,c.time,c.temperature,mid,endpoint(mid));
+          if(engine.triggered(a,control,endpoint(mid).value_or(c.time+mid),test.end))hi=mid;else lo=mid;
         }
         roots.emplace(control.id,hi);
       }
@@ -341,12 +361,16 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       if(!roots.empty()) {
         double first=h; for(const auto& [id,t]:roots) { (void)id; first=std::min(first,t); }
         for(const auto& [id,t]:roots) if(t-first<=o.event_time_tolerance)located.insert(id);
-        h=first; trial=engine.trial(a,c.time,c.temperature,h);
+        h=first; trial=engine.trial(a,c.time,c.temperature,h,endpoint(h));
         if(trial.error>1) {reserve_values(4);out.steps.push_back({c.time,c.time+h,trial.error,false,"event_tolerance",{}});++c.rejected_steps;c.next_step=h/2;continue;}
       }
       reserve_values(8+a.model().data().nodes.size()*4);
       auto committed=c;
-      const double old_time=c.time; c.time=old_time+h; if(located.empty() && std::abs(c.time-stop)<=4*std::numeric_limits<double>::epsilon()*std::max(1.,std::abs(stop)))c.time=stop;
+      const double old_time=c.time;
+      const bool callback_event=endpoint(h).has_value();
+      c.time=old_time+h;
+      if(callback_event || ((event==o.callback_events.end() || stop!=event->time) && located.empty() &&
+         std::abs(c.time-stop)<=4*std::numeric_limits<double>::epsilon()*std::max(1.,std::abs(stop))))c.time=stop;
       for(const auto& [id,on]:c.operating.heaters)if(on)c.on_seconds[id]=finite(c.on_seconds[id]+h);
       c.temperature=trial.end; add(c.run_energy,trial.energy); ++c.accepted_steps;
       c.next_step=std::clamp(h*(trial.error==0?2:std::clamp(.9/std::sqrt(trial.error),.5,2.)),o.minimum_step,o.maximum_step);
@@ -361,7 +385,10 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       const auto events_before=out.events.size();
       bool scheduled=false;
       for(const auto& schedule:o.schedules)for(const auto& point:schedule.points)if(point.time==c.time)scheduled=true;
-      try { if(scheduled || !located.empty())update_events(false,located); }
+      try {
+        if(callback_event)record_event(event->entity_id,event->kind,event->before,event->after);
+        if(callback_event || scheduled || !located.empty())update_events(false,located);
+      }
       catch(...) {c=committed;out.events.resize(events_before);throw;}
       out.steps.push_back({old_time,c.time,trial.error,true,"accepted",trial.energy}); snapshot();
       if(std::binary_search(o.output_times.begin(),o.output_times.end(),c.time) || out.events.size()!=events_before)sample();

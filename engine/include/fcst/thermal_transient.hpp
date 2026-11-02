@@ -6,6 +6,7 @@ namespace fcst::thermal {
 // All records use SI and immutable model/equation order. No host/runtime solver.
 struct SchedulePoint { double time, factor; };
 struct LoadSchedule { std::string load_id; std::vector<SchedulePoint> points; };
+struct CallbackEvent { double time; std::string entity_id, kind; double before, after; };
 struct TransientOptions {
   double start=0, end=1, initial_step=.01, minimum_step=1e-12, maximum_step=1;
   double absolute_temperature_tolerance=1e-5, relative_temperature_tolerance=1e-6;
@@ -16,6 +17,7 @@ struct TransientOptions {
   std::vector<double> output_times; // Strictly increasing, exact step boundaries, includes start/end.
   std::vector<double> temperature_tolerances; // Optional per-equation absolute K tolerances.
   std::vector<LoadSchedule> schedules; // Right continuous; first point must cover start.
+  std::vector<CallbackEvent> callback_events; // Strictly increasing time; pre-event endpoint integration.
   // Exact compiled callback registration/build digest; required when callbacks exist.
   std::string callback_revision;
   SparseLuSettings linear;
@@ -54,7 +56,7 @@ struct StepRecord {
 };
 struct EventRecord {
   double time=0;
-  std::string entity_id, kind; // schedule or heater; schedules first, then UUID order.
+  std::string entity_id, kind; // Callback events, then schedules, then heaters in UUID order.
   double before=0, after=0;
 };
 struct TransientCheckpoint {

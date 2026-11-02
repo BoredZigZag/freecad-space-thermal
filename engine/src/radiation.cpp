@@ -212,6 +212,14 @@ std::optional<Hit> Mesh::Impl::intersect(const Ray& r,std::optional<std::size_t>
   return best;
 }
 struct Sampler {
+  struct Basis { Vec3 normal,tangent,bitangent; };
+  static Basis basis(const Facet& facet,bool back) {
+    auto n=mul(normal(facet),back?-1:1);
+    Vec3 axis=std::abs(n[0])<.8?Vec3{1,0,0}:Vec3{0,1,0};
+    auto tangent=cross(axis,n);
+    tangent=mul(tangent,1/norm(tangent));
+    return {n,tangent,cross(n,tangent)};
+  }
   static Row row(const Mesh& mesh,std::size_t source,const Sampling& settings,const IntersectionBackend* backend) {
     if (source>=mesh.patches().size() || !settings.samples || settings.samples>1000000000 || !settings.maximum_entries) throw Error("radiation_limit");
     const auto& patch=mesh.patches()[source]; Random random{mix(settings.seed)^identity(patch.id)};
@@ -220,6 +228,11 @@ struct Sampler {
     // A row owns its bounded cache, so meshes stay immutable and concurrent rows
     // need no shared mutation. Large meshes compute only geometry actually hit.
     Mesh::Impl::TraceCache cache;
+    std::vector<Basis> bases;
+    if(members.size()<=256 && settings.samples>=members.size()) {
+      bases.reserve(members.size());
+      for(const auto& member:members)bases.push_back(basis(mesh.facets()[member.first],patch.back));
+    }
     if(mesh.facets().size()<=cache.geometry.size()) {
       for(std::size_t i=0;i<mesh.facets().size();++i)cache.geometry[i]=Mesh::Impl::trace_geometry(mesh.facets()[i]);
     } else cache.keys.fill(std::numeric_limits<std::size_t>::max());
@@ -230,9 +243,8 @@ struct Sampler {
       auto i=member->first; const auto& f=mesh.facets()[i];
       double a=std::sqrt(random.next()),b=random.next();
       auto origin=add(mul(f.vertices[0],1-a),add(mul(f.vertices[1],a*(1-b)),mul(f.vertices[2],a*b)));
-      auto normal_=mul(normal(f),patch.back?-1:1);
-      Vec3 axis=std::abs(normal_[0])<.8 ? Vec3{1,0,0}:Vec3{0,1,0};
-      auto tangent=cross(axis,normal_); tangent=mul(tangent,1/norm(tangent)); auto bitangent=cross(normal_,tangent);
+      const auto [normal_,tangent,bitangent]=bases.empty()?basis(f,patch.back):
+        bases[static_cast<std::size_t>(member-members.begin())];
       double radial=std::sqrt(random.next()),angle=2*std::numbers::pi*random.next();
       auto direction=add(mul(normal_,std::sqrt(1-radial*radial)),add(mul(tangent,radial*std::cos(angle)),mul(bitangent,radial*std::sin(angle))));
       // Offset by representable coordinates toward the emitting hemisphere.
@@ -367,6 +379,8 @@ void options(const Exchange& e,const RadiosityOptions& o) {
   if(!std::isfinite(o.tolerance) || o.tolerance<=0 || o.tolerance>1e-4 || !o.maximum_iterations || o.maximum_iterations>1000000 ||
     (!o.solar_incident.empty() && o.solar_incident.size()!=e.patches().size())) throw Error("radiation_options");
   for(double x:o.solar_incident) if(!std::isfinite(x) || x<0) throw Error("radiation_options");
+  if(!o.infrared_incident.empty() && o.infrared_incident.size()!=e.patches().size()) throw Error("radiation_options");
+  for(double x:o.infrared_incident) if(!std::isfinite(x) || x<0) throw Error("radiation_options");
   // A zero source does not prove uniqueness in a perfectly reflecting cavity.
   for(bool solar:{false,true}) {
     if(solar && o.solar_incident.empty()) continue;
@@ -382,12 +396,16 @@ void options(const Exchange& e,const RadiosityOptions& o) {
   }
 }
 struct Powers { std::vector<double> internal_power,environment; };
-Powers powers(const Exchange& e,std::span<const double> j,double background,std::span<const double> solar={}) {
+Powers powers(const Exchange& e,std::span<const double> j,double background,std::span<const double> solar={},
+              std::span<const double> infrared={}) {
   Powers p{std::vector<double>(j.size()),std::vector<double>(j.size())};
   for(const auto& edge:e.edges()) if(edge.first!=edge.second) {
     double q=checked(edge.area_factor*(j[edge.second]-j[edge.first])); p.internal_power[edge.first]+=q; p.internal_power[edge.second]-=q;
   }
-  for(std::size_t i=0;i<j.size();++i) p.environment[i]=checked(e.patches()[i].area*e.escape()[i]*(background-j[i])+(solar.empty()?0:solar[i]));
+  for(std::size_t i=0;i<j.size();++i) {
+    double irradiation=infrared.empty()?e.escape()[i]*background:infrared[i];
+    p.environment[i]=checked(e.patches()[i].area*(irradiation-e.escape()[i]*j[i])+(solar.empty()?0:solar[i]));
+  }
   return p;
 }
 }
@@ -397,7 +415,8 @@ Evaluation evaluate(const Exchange& e,std::span<const double> t,const RadiosityO
   for(std::size_t i=0;i<n;++i) {
     const auto& p=e.patches()[i]; if(p.node>=t.size()) throw Error("radiation_mapping");
     if(t[p.node]<p.optics.dataset.minimum_temperature || t[p.node]>p.optics.dataset.maximum_temperature) throw Error("radiation_optical_domain");
-    rhs[i]=p.optics.ir_emittance*emission(t[p.node])+(1-p.optics.ir_emittance)*e.escape()[i]*background;
+    double irradiation=o.infrared_incident.empty()?e.escape()[i]*background:o.infrared_incident[i];
+    rhs[i]=p.optics.ir_emittance*emission(t[p.node])+(1-p.optics.ir_emittance)*irradiation;
   }
   Evaluation result; result.radiosity=solve(e,rhs,false,o,result.iterations,result.linear_defect);
   std::vector<double> solar(n);
@@ -406,7 +425,8 @@ Evaluation evaluate(const Exchange& e,std::span<const double> t,const RadiosityO
     result.solar_radiosity=solve(e,rhs,true,o,result.iterations,result.linear_defect); auto h=incident(e,result.solar_radiosity);
     for(std::size_t i=0;i<n;++i) solar[i]=checked(e.patches()[i].area*e.patches()[i].optics.solar_absorptance*(h[i]+o.solar_incident[i]));
   }
-  auto p=powers(e,result.radiosity,background,solar); result.internal_power=std::move(p.internal_power); result.environment=std::move(p.environment);
+  auto p=powers(e,result.radiosity,background,solar,o.infrared_incident);
+  result.internal_power=std::move(p.internal_power); result.environment=std::move(p.environment);
   return result;
 }
 std::vector<thermal::PowerBinding> bind(std::shared_ptr<const Exchange> exchange,std::string radiation_id,std::string environment_id,RadiosityOptions o,std::size_t maximum) {
@@ -414,7 +434,7 @@ std::vector<thermal::PowerBinding> bind(std::shared_ptr<const Exchange> exchange
   options(*exchange,o); std::set<std::size_t> node_set;
   for(const auto& p:exchange->patches()) node_set.insert(p.node);
   std::vector<std::size_t> nodes(node_set.begin(),node_set.end());
-  if(!maximum || nodes.size()>maximum/nodes.size()) throw Error("radiation_limit");
+  if(!maximum || nodes.empty() || nodes.size()>maximum/nodes.size()) throw Error("radiation_limit");
   std::vector<thermal::Entry> dependencies;
   for(auto i:nodes) for(auto j:nodes) dependencies.push_back({i,j});
   auto callback=[exchange,o,nodes,dependencies](bool external,double,std::span<const double> t,bool jacobian) {

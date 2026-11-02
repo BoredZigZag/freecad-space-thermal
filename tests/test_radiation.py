@@ -77,7 +77,7 @@ class RadiationTests(unittest.TestCase):
 
     def report(self):
         runs = self.runs()
-        cases = self.policy['native_cases'] + ['fixed-ensemble', 'independent-quadrature-and-radiosity', 'worker-input-boundary', 'worker-replay', 'worker-coupled-steady', 'million-facet-scaling']
+        cases = self.policy['native_cases'] + ['fixed-ensemble', 'independent-quadrature-and-radiosity', 'worker-input-boundary', 'worker-replay', 'worker-coupled-steady', 'worker-environment-transient', 'million-facet-scaling']
         curves = []
         for size in self.policy['scaling_subdivisions']:
             for n in self.policy['scaling_samples']:

@@ -4,6 +4,7 @@ import argparse
 from copy import deepcopy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -23,8 +24,151 @@ def input_hashes():
     paths = ['ci/radiation-acceptance-v1.json', 'ci/numerical-criteria-v1.json', 'tools/check_radiation.py',
              'python/fcst_tools/radiation.py', 'engine/src/radiation.cpp', 'engine/src/radiation_loading.inc',
              'engine/include/fcst/radiation.hpp', 'engine/tests/radiation_fixtures.hpp', 'engine/tests/radiation_tests.cpp',
-             'engine/tests/radiation_subject.cpp', 'tests/fixtures/radiation/plates.json', 'tests/fixtures/radiation/steady.json']
+             'engine/tests/radiation_subject.cpp', 'tests/fixtures/radiation/plates.json', 'tests/fixtures/radiation/steady.json',
+             'engine/include/fcst/environment.hpp', 'engine/src/environment.cpp',
+             'engine/src/thermal_transient.cpp', 'engine/include/fcst/thermal_transient.hpp',
+             'engine/src/thermal_execution.inc', 'engine/src/thermal_loading.inc', 'engine/worker/main.cpp']
     return {p: digest(ROOT/p) for p in paths}
+
+
+def check_environment(execute, worker, steady_fixture):
+    from scipy.integrate import solve_ivp
+
+    fixture = deepcopy(steady_fixture)
+    fixture.pop('environment')
+    fixture['sampling']['samples'] = 128
+    thermal = fixture['thermal_input']
+    entities = thermal['model']['entities']
+    environment = next(e for e in entities if e['kind'] == 'environment')
+    environment['solar_flux']['value'] = 20
+    environment['background_temperature']['value'] = 0
+    facet = fixture['facets'][0]
+    facet['vertices_m'] = [[0, 0, 0], [0, 2, 0], [0, 0, 1]]
+    start, end = 0, 2*math.pi
+    entry, exit_ = math.pi-math.pi/6, math.pi+math.pi/6
+    fixture['transient'] = dict(start=start, end=end, output_times=[start, end], maximum_step=.1,
+                                absolute_temperature_tolerance=1e-5, relative_temperature_tolerance=1e-7,
+                                include_steps=False)
+    load = next(e for e in entities if e['kind'] == 'load')
+    fixture['transient']['schedules'] = [dict(load_id=load['id'], points=[dict(time=0, factor=1),
+                                                                         dict(time=entry, factor=.5)])]
+    fixture['mission'] = dict(sun_direction_inertial=[1, 0, 0], maximum_interval_s=2,
+                              orbit=dict(radius_m=2, body_radius_m=1, gravitational_parameter_m3_s2=8,
+                                         phase_rad=0, plane_to_inertial=[1, 0, 0, 0]),
+                              attitude=[dict(time_s=0, rotation=[1, 0, 0, 0])])
+
+    def run(value, name, passed=True):
+        r = execute(worker, ['--environment-transient'], 'environment-'+name, json.dumps(value).encode())
+        report = json.loads(r.stdout)
+        require(not r.stderr and r.returncode == (0 if passed else 1)
+                and report['status'] == ('passed' if passed else 'failed'))
+        return report
+
+    result = run(fixture, 'orbit')
+    events = [e for e in result['events'] if e['kind'] == 'eclipse']
+    require(len(events) == 2 and abs(events[0]['time_s']-entry) < 1e-12
+            and abs(events[1]['time_s']-exit_) < 1e-12 and [e['after'] for e in events] == [1, 0])
+    require([e['kind'] for e in result['events'] if e['time_s'] == entry] == ['eclipse', 'schedule'])
+    require(result['exchange_builds'] == 1)
+    require(all(abs(row['solar_W']-(0 if row['eclipsed'] else 20)) < 1e-12
+                for row in result['loading_history']))
+    # Independent scalar ODE after eliminating the algebraic series resistor.
+    # Capacity is 2 kg times the tabulated linear specific heat.
+    t = 300.
+    sigma = 5.670374419e-8
+    for first, last, solar, heat in [(start, entry, 20, 5), (entry, exit_, 0, 2.5), (exit_, end, 20, 2.5)]:
+        ref = solve_ivp(lambda _, y: (300+heat+solar-y-sigma*y**4)/(6+.02*(y-300)),
+                        (first, last), [t], rtol=1e-11, atol=1e-12)
+        require(ref.success)
+        t = ref.y[0, -1]
+    require(abs(result['samples'][-1]['temperature_K'][0]-t) < .02)
+    require(abs(result['samples'][-1]['run_energy']['defect_J']) < 1e-7)
+    require(result['samples'][0]['environment_in_W'][0] < 0)
+
+    # At full phase an unobstructed panel normal to the body disk sees R²/r².
+    body = deepcopy(fixture)
+    next(e for e in body['thermal_input']['model']['entities'] if e['kind']=='environment')['background_temperature']['value'] = 250
+    body['transient'].update(end=.25, output_times=[0, .25])
+    body['transient'].pop('schedules')
+    body['facets'][0]['vertices_m'].reverse()
+    body['mission'].update(albedo=.3, body_exitance_W_m2=100)
+    report = run(body, 'body-disk')
+    row = report['loading_history'][0]
+    require(abs(row['body_ir_W']-25) < 1e-10 and abs(row['albedo_W']-1) < 1e-10 and row['solar_W'] == 0)
+    expected_power = 25+1+sigma*(.75*250**4-300**4)
+    require(abs(report['samples'][0]['environment_in_W'][0]-expected_power) < 1e-10)
+    chamber = deepcopy(body)
+    for key in ('orbit', 'albedo', 'body_exitance_W_m2'):
+        chamber['mission'].pop(key)
+    report = run(chamber, 'chamber')
+    require(report['exchange_builds'] == 1
+            and abs(report['samples'][0]['environment_in_W'][0]-sigma*(250**4-300**4)) < 1e-10)
+
+    # A rotating panel has exact projected power P cos(theta). The hold
+    # refinement must reduce integrated heating error at fixed geometry.
+    moving = deepcopy(fixture)
+    moving['mission'].pop('orbit')
+    next(e for e in moving['thermal_input']['model']['entities'] if e['kind']=='environment')['background_temperature']['value'] = 300
+    moving['mission']['joints'] = [dict(id='panel', facets=[facet['id']], pivot_m=[0, 0, 0], axis=[0, 1, 0],
+                                        angles=[dict(time_s=0, angle_rad=0), dict(time_s=1, angle_rad=math.pi/2)])]
+    moving['transient'].update(end=1, output_times=[0, 1])
+    moving['transient'].pop('schedules')
+    errors = []
+    for interval in [.5, .25, .125]:
+        moving['mission']['maximum_interval_s'] = interval
+        report = run(moving, f'motion-{interval}')
+        rows = report['loading_history']
+        require(report['exchange_builds'] == len(rows))
+        for row in rows:
+            require(abs(row['solar_W']-20*math.cos(math.pi*row['time_s']/2)) < 1e-11)
+        integral = sum((right['time_s']-left['time_s'])*left['solar_W'] for left, right in zip(rows, rows[1:]))
+        errors.append(abs(integral-40/math.pi))
+    require(errors[2] < errors[1] < errors[0] and errors[2] < 1.3)
+    interrupted = deepcopy(moving)
+    interrupted['transient']['maximum_attempts'] = 10
+    partial = run(interrupted, 'interrupted', False)
+    checkpoint = partial['checkpoint']
+    require(partial['reason'] == 'attempt_limit' and 0 < checkpoint['time'] < 1)
+    resume = deepcopy(moving)
+    resume['checkpoint'] = checkpoint
+    replay = run(resume, 'restart')
+    require(replay['checkpoint']['checksum'] == report['checkpoint']['checksum'])
+    changed = deepcopy(moving)
+    changed['checkpoint'] = checkpoint
+    changed['mission']['joints'][0]['angles'][1]['angle_rad'] = 1.4
+    require(run(changed, 'reject-stale-motion', False).get('code') == 'checkpoint')
+    changed = deepcopy(moving)
+    changed['checkpoint'] = checkpoint
+    changed['facets'][0]['front']['dataset']['condition'] = 'EOL'
+    require(run(changed, 'reject-stale-optics', False).get('code') == 'checkpoint')
+
+    case = deepcopy(moving)
+    case['mission'].pop('joints')
+    model = case['thermal_input']['model']
+    next(e for e in model['entities'] if e['kind']=='environment')['background_temperature']['value'] = 295
+    node = next(e for e in model['entities'] if e['kind'] == 'node')
+    load = next(e for e in model['entities'] if e['kind'] == 'load')
+    case_id = '00000000-0000-4000-8000-000000000023'
+    case['thermal_input']['case_id'] = case_id
+    model['entities'].append(dict(id=case_id, kind='case', mode='transient',
+                                  start=dict(value=0, unit='s'), end=dict(value=1, unit='s'),
+                                  environment_id=environment['id'], control_ids=[], load_ids=[load['id']],
+                                  overlays=[dict(entity_id=load['id'], field='power', value=dict(value=7, unit='W'))]))
+    case['mission']['case_optics'] = [dict(facet_id=facet['id'], solar_absorptance=.5,
+                                         ir_emittance=.75, condition='EOL')]
+    result = run(case, 'case-overlay')
+    require(result['samples'][0]['load_in_W'][0] == 7 and result['node_ids'][0] == node['id'])
+    require(abs(result['samples'][0]['environment_in_W'][0]-(10+.75*sigma*(295**4-300**4))) < 1e-10)
+
+    # Vehicle attitude rotates inertial source directions but leaves the
+    # internal exchange geometry unchanged.
+    attitude = deepcopy(moving)
+    attitude['mission'].pop('joints')
+    attitude['mission']['attitude'].append(dict(time_s=1, rotation=[math.sqrt(.5), 0, math.sqrt(.5), 0]))
+    result = run(attitude, 'attitude')
+    require(result['exchange_builds'] == 1 and abs(result['loading_history'][-1]['solar_W']) < 1e-11)
+    for row in result['loading_history']:
+        require(abs(row['solar_W']-20*math.cos(math.pi*row['time_s']/2)) < 1e-11)
 
 
 def check(subject, native, worker, output):
@@ -112,6 +256,9 @@ def check(subject, native, worker, output):
     bad_steady = deepcopy(steady_fixture); bad_steady['facets'][0]['front']['ir_emittance'] = .9
     rejected = execute(worker, ['--radiation-steady'], 'reject-steady-optics', json.dumps(bad_steady).encode())
     require(rejected.returncode == 1 and json.loads(rejected.stdout)['code'] == 'radiation_mapping')
+    started = time.monotonic()
+    check_environment(execute, worker, steady_fixture)
+    records.append(dict(id='worker-environment-transient', status='passed', seconds=round(time.monotonic()-started, 3)))
     # Actual JSON boundary mutations: no unsupported optics, malformed geometry,
     # missing node temperatures, unknown fields, nonintegral seeds or raw echo.
     mutations = []
