@@ -1,0 +1,13 @@
+{
+  "work_package": "WP-18",
+  "status": "in_progress",
+  "scope": "Windows application CLI campaigns with immutable native requests and results, sensitivity refinement, sensor fitting and versioned reports",
+  "checks": [
+    {
+      "id": "campaign-synthetic-replay",
+      "driver": "tools/check_thermal.py",
+      "scope": "Both configurations repeat the seeded correlated campaign, verify the independent analytic sensitivity and holdout prediction, recheck edited limits and reject altered results."
+    }
+  ],
+  "publication": "TST-021 clears exact sources, outgoing history, approved metadata, bounded thermal case and CI timing summaries and final GitHub prose. Full campaigns, reports, observations and operational artifacts remain local."
+}
