@@ -22,6 +22,6 @@ fcst-mcp = "fcst_mcp.__main__:main"
 where = ["python"]
 
 [tool.setuptools.package-data]
-fcst_contracts = ["bundle.json", "thermal-input-v2.json"]
+fcst_contracts = ["bundle.json", "thermal-input-v2.json", "cad-mesher-profile.json"]
 fcst_exchange = ["dwg-profile.json"]
 fcst_host = ["templates.json"]

@@ -32,6 +32,14 @@ candidate/source/worker-bound reports. Its executable codec/staleness/evidence
 regressions and both native configurations run unattended. TST-021 scans exact
 staged/history/identity bytes, scalar timing experiments and final GitHub prose;
 original models, generated host media, raw logs and build trees remain local.
+The CAD extension also executes `tests/test_cad_mesh.py`, pinned
+`tools/cad_acceptance_payload.py` through the installed-host harness, and
+`tools/check_native_offline.py` through spatial acceptance. TST-021 clears exact
+mesher source/license pins, immutable mapping schemas, bounded kernel-isolation
+proofs and request-reference persistence changes. Generated BREP/UNV/geo files,
+temporary AppContainer profiles/denial manifests, operational project databases
+and raw host/native logs remain local. The imported licensed Q1 qualification
+holds are never converted into synthetic passes.
 
 The 29 October independent TD exchange correction also extends TST-021.
 Execute `tests/test_independent_dwg.py` and `tools/check_td.py` in unattended
@@ -98,7 +106,7 @@ These are implementation directions from the baseline, not a claim that the cand
 
 ### 1.1 FreeCAD FEM reuse assessment
 
-The [FEM reuse decision](../docs/decisions/0003-freecad-fem-reuse.md) supplies the candidate matrix, recommended dispositions, owner roles, timing and six planned automated acceptance IDs. Current implementation uses basic FreeCAD/Part APIs only; no FEM integration or adopted FEM source is claimed. Before overlapping WP-13 host implementation, assess analysis objects, mesh access/generation, selection/material/load tools, result pipelines, fixtures/test patterns and optional CalculiX/Elmer conduction references. Complete the mesh-specific selection before WP-16 implementation. Prefer compatible APIs and thin adapters; document the failed requirement, measured limitation or actual license incompatibility before replacing existing functionality. Preserve required attribution. Engine independence alone does not justify replacing host infrastructure.
+The [FEM reuse decision](../docs/decisions/0003-freecad-fem-reuse.md) supplies the candidate matrix, recommended dispositions, owner roles, timing and six automated acceptance IDs. WP-13 reuses FEM analysis/material/mesh/result APIs. WP-16 selects the pinned official bundle's Gmsh through FEM APIs for first-order tet4/tri3 CAD generation, with explicit physical-group ownership and portable receipts; no upstream source is adopted. The exact source/API/license profile is in `ci/cad-mesher.json`. Netgen generation and optional CalculiX/Elmer comparisons are unselected. Prefer compatible APIs and thin adapters; document the failed requirement, measured limitation or actual license incompatibility before replacing existing functionality. Preserve required attribution. Engine independence alone does not justify replacing host infrastructure.
 
 Record exact upstream paths/revision/hashes, API probes on FreeCAD 1.1.4/cp311, dependency and per-file license dispositions, boundary/mapping rules, deployment cost and prototype evidence in the affected GitHub implementation issues/PRs. [WP-05.5](WP-05.5-Foundation-Reconciliation.md), displayed as WP-5.5, now owns the missing WP-01 through WP-05 foundation handoff: component inventory, representative API/mesher probes, versioned mesh/field contracts, independent fixtures and extended persistence. It completes at P0 and precedes dependent acceptance in WP-06/WP-07/WP-13/WP-16. Existing package IDs, completed baseline evidence and Windows-only scope remain intact. WP-13 retains full host workflow acceptance; WP-16 retains production spatial/mesher qualification at Q1; WP-19 checks complete evidence. FEM-REUSE-001 through FEM-REUSE-006 remain later feature cases; WP-05.5's separate planned acceptance cases cannot close them. TST-022 binds the foundation handoff; TST-008/TST-014 bind host behavior and execution identity. Missing selected external references block their comparison profile without substituting for native acceptance or stopping unrelated native development.
 

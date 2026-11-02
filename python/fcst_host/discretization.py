@@ -22,6 +22,17 @@ class NativeMeshView:
                 ids=[indices[p] for p in c['point_ids']]
                 if c['topology'] in ('tet4','hex8'):mesh.addVolume(ids,i)
                 else:mesh.addFace(ids,i)
+            # FEM volume objects need explicit exterior faces for contours.
+            boundary={}
+            for c in self.value['spatial']['cells']:
+                local={'tet4':[(0,2,1),(0,1,3),(1,2,3),(2,0,3)],
+                    'hex8':[(0,3,2,1),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(3,0,4,7)]}.get(c['topology'],[])
+                for face in local:
+                    ids=[indices[c['point_ids'][j]] for j in face];key=tuple(sorted(ids))
+                    boundary.setdefault(key,[]).append(ids)
+            next_tag=len(self.value['spatial']['cells'])+1
+            for group in boundary.values():
+                if len(group)==1:mesh.addFace(group[0],next_tag);next_tag+=1
             self.mesh.FemMesh=mesh
             self.result=capability(ObjectsFem,'makeResultMechanical')(session.doc,'FCSTConductionResult')
             self.result.Mesh=self.mesh;self.result.NodeNumbers=list(range(1,len(points)+1))

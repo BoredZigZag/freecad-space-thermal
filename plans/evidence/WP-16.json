@@ -1,48 +1,41 @@
 {
   "work_package": "WP-16",
   "status": "in_progress",
-  "scope": "Native first-order spatial profile, assignments, reduced components and unattended verification",
-  "tested_worktree_base": "6642f15b6badeb34f8806c617c3c982f0c601d4e",
+  "scope": "Owned spatial physics, pinned CAD generation and a clean kernel-confined native installation; mandatory imported Q1 and complete offline release remain held",
+  "tested_worktree_base": "59473271a7f85490109feaf953cece17372cacde",
+  "previous_delivery": {
+    "candidate": "59473271a7f85490109feaf953cece17372cacde",
+    "github_run": 41473313117,
+    "required_records_per_configuration": 405
+  },
   "checks": [
     {
-      "id": "native-spatial-release",
+      "id": "pinned-installed-CAD-workbench-trial",
       "status": "passed",
-      "required_cases": 22,
-      "commands": 74,
-      "policy": "ci/discretization-acceptance.json"
+      "required_cases": 24,
+      "policy": "ci/host-acceptance.json"
     },
     {
-      "id": "spatial-value-and-evidence-regressions",
+      "id": "kernel-confined-native-inventory-trial",
       "status": "passed",
-      "required_cases": 10
+      "required_cases": 71,
+      "policy": "ci/discretization-acceptance.json",
+      "negative_probes": 2,
+      "network_positive_controls": 2
     },
     {
-      "id": "pinned-FreeCAD-spatial-mapping-solve-contour-reopen",
+      "id": "CAD-identity-and-large-result-regressions",
       "status": "passed",
-      "required_cases": 20
+      "required_cases": 6
     },
     {
-      "id": "full-windows-release",
+      "id": "required-Windows-drivers",
       "status": "passed",
-      "required_checks": 405,
-      "tested_worktree_base": "6642f15b6badeb34f8806c617c3c982f0c601d4e"
-    },
-    {
-      "id": "full-unit-suite",
-      "status": "passed",
-      "required_cases": 379
-    },
-    {
-      "id": "matched-Embree-packaging-repetitions",
-      "status": "passed",
-      "repetitions": 4,
-      "performance_improvement_claimed": false
-    },
-    {
-      "id": "full-windows-debug",
-      "status": "passed",
-      "required_checks": 405,
-      "tested_worktree_base": "6642f15b6badeb34f8806c617c3c982f0c601d4e"
+      "required_records_per_configuration": 411,
+      "unit_cases": 385,
+      "debug_seconds": 699.11,
+      "release_seconds": 284.906,
+      "scope": "Debug before the order-only scheduling adjustment; Release includes it; final GitHub CI must run both on the pushed candidate"
     }
   ],
   "implementation": [
@@ -50,13 +43,18 @@
     "Full quadrature and row-sum reference-mass enthalpy storage",
     "Scalar property laws and rotated SPD tensor tables",
     "Area loads, convection, contacts and bounded insulation/MLI/heat-pipe laws",
-    "Content-bound v2 input and versioned portable persistence"
+    "Content-bound v2 input and versioned portable persistence",
+    "Pinned official-bundle Gmsh via FEM APIs; tet4 solids and tri3 shells; box, curved and multiple-region cases",
+    "Distinct CAD/conduction/thermal/radiation identities, orientation receipts, explicit face loads and geometry-change invalidation",
+    "Actual workbench CAD dialog, asynchronous meshing/cancel/timeout, native solve, exterior contours and exact BREP portable reopen",
+    "Large results reference immutable requests under the unchanged JSON reader budget; host saves validate one model snapshot",
+    "Complete configured native inventory plus analytic spatial steady/transient solves in zero-capability Windows AppContainer",
+    "New acceptance stages begin alongside the largest active historical estimates; no removed work, pass caching or baseline change"
   ],
   "blockers": [
-    "Production CAD mesher qualification and full FEM-REUSE-003",
-    "All mandatory imported Q1 element/property and source-ecosystem qualification",
-    "Full offline release FEM-REUSE-006 with WP-19"
+    "Every mandatory imported Q1 element/property and source-ecosystem case: licensed source runners, exact source profiles and paired result evidence remain unavailable per inventory/gaps.json",
+    "Full clean offline installer/release FEM-REUSE-006 qualification remains shared with WP-19; kernel-confined native installation does not close that release gate"
   ],
   "full_wp16_qualified": false,
-  "publication": "TST-021 clears exact outgoing source/history/identity, scalar evidence and GitHub prose; original inputs, generated host media, raw logs and build trees remain local"
+  "publication": "TST-021 clears exact outgoing source/license/schema/history/approved identity, scalar evidence and final GitHub prose; originals, generated BREP/UNV/geo/host files, denial paths, profile identifiers, databases, raw logs and build trees remain local"
 }

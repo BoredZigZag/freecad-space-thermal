@@ -53,7 +53,10 @@ def prioritize(stages, estimates):
     if any(not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v) or v < 0
            for v in estimates.values()):
         raise ValueError("verification_estimates")
-    return sorted(stages, key=lambda stage: -estimates.get(stage, 0))
+    # New acceptance has no historical timing yet. Start it with the expensive
+    # active work instead of creating an unmeasured tail after all known stages.
+    unknown=max((estimates[s] for s in stages if s in estimates),default=0)
+    return sorted(stages,key=lambda stage:(-estimates.get(stage,unknown),stage not in estimates))
 
 
 def check_native_inventory(inventory, thermal, radiation, build, root):

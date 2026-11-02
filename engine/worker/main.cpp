@@ -7,6 +7,7 @@
 #include "fcst/thermal_transient.hpp"
 #include "fcst/radiation.hpp"
 #include "fcst/spatial.hpp"
+#include "offline_probe.hpp"
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -15,6 +16,7 @@
 #include <io.h>
 #endif
 int main(int argc, char* argv[]) {
+  if (argc==4 && std::string_view(argv[1])=="--offline-probe") return offline_probe(argv[2],argv[3]);
   if (argc == 4 && std::string_view(argv[1]) == "--worker") {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1 || _setmode(_fileno(stdout), _O_BINARY) == -1) return 2;

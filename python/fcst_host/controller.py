@@ -145,6 +145,17 @@ class Session:
             App.closeDocument(doc.Name)
             raise
 
+    @classmethod
+    def from_cad(cls,workspace,receipt,brep):
+        import FreeCAD as App
+        from fcst_app.cad_mesh import package
+        workspace=Path(workspace);workspace.mkdir(parents=True,exist_ok=True)
+        store=ProjectStore.create(workspace/'project.db',package=package(receipt,brep))
+        session=cls(App.newDocument('FCST'),store,workspace)
+        try:return session.restore()
+        except BaseException:
+            session.close();App.closeDocument(session.doc.Name);raise
+
     def restore(self):
         session,store=self,self.store
         configurations=[]
@@ -158,6 +169,14 @@ class Session:
                 if value['model']==store.snapshot():candidates.append(value)
             if len(candidates)>1:reject('ambiguous_spatial_input')
             if candidates:session.thermal_input=candidates[0]
+        receipts=[a for a in store._artifacts() if a[2]=='cad-mesh/prepared.json']
+        if receipts:
+            from fcst_contracts import loads
+            from fcst_app.cad_mesh import validate_receipt
+            receipt=loads(receipts[0][3]);path='geometry/'+receipt['source']['geometry']['id']+'.brep'
+            brep=next(a[3] for a in store._artifacts() if a[2]==path)
+            prepared=validate_receipt(receipt,brep)
+            if session.thermal_input is not None and prepared!=session.thermal_input:reject('cad_receipt')
         for artifact in store._artifacts():
             if artifact[2].startswith('review-settings/'):
                 from fcst_contracts import loads
@@ -368,10 +387,11 @@ class Session:
 
     def save(self, host_path, package_path, *, fault=None):
         assert_thread()
-        if self.diverged or self.root.FCSTModelHash != semantic_hash(self.store.snapshot()):
+        model=self.store.snapshot();entities={e['id']:e for e in model['entities']}
+        if self.diverged or self.root.FCSTModelHash != semantic_hash(model):
             reject('host_reconciliation_required')
         for obj in self.objects.values():
-            if obj.FCSTData != encode(next(e for e in self.store.snapshot()['entities'] if e['id']==obj.FCSTEntityId)).decode():
+            if obj.FCSTData != encode(entities[obj.FCSTEntityId]).decode():
                 reject('host_reconciliation_required')
         with self.projection():
             sequence=sum(a[2].startswith('review-settings/') for a in self.store._artifacts())
@@ -385,12 +405,12 @@ class Session:
                             subelement=names[0],source_revision=obj.FCSTSourceRevision))
             self.store.add_artifact(artifact_id,'evidence','review-settings/'+artifact_id+'.json',
                 encode(dict(sequence=sequence,options=self.options,case_id=self.case_id,bindings=bindings,spatial_id=self.spatial_id,undo_revisions=self.undo_revisions)),
-                expected_revision=self.store.snapshot()['revision'])
+                expected_revision=model['revision'])
             staging = self.workspace/('save-'+uuid.uuid4().hex+'.FCStd')
             self.doc.recompute()
             self.doc.saveAs(str(staging))
             return self.store.synchronize_host(host_path, staging.read_bytes(), package_path,
-                expected_revision=self.store.snapshot()['revision'], fault=fault)
+                expected_revision=model['revision'], fault=fault)
 
     def bind(self, entity_id, host_object, subelement):
         assert_thread()

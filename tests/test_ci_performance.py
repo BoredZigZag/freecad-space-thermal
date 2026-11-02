@@ -195,7 +195,8 @@ class CiPerformanceTests(unittest.TestCase):
     def test_cost_estimates_only_reorder_and_never_remove_new_work(self):
         stages = ["new-stage", "short", "long", "unknown"]
         result = prioritize(stages, {"short": 2, "long": 100, "obsolete": 1000})
-        self.assertEqual(result, ["long", "short", "new-stage", "unknown"])
+        self.assertEqual(result, ["long", "new-stage", "unknown", "short"])
+        self.assertEqual(prioritize(stages,{}),stages)
         self.assertCountEqual(result, stages)
         for value in (float("nan"), float("inf"), -1, True, "100"):
             with self.assertRaises(ValueError): prioritize(stages, {"long": value})

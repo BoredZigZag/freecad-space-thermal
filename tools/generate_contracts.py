@@ -189,6 +189,8 @@ def build():
                          **body, "$defs": defs}
     from spatial_schema import schema as spatial_schema
     schemas["spatial"] = spatial_schema(obj, arr, enum)
+    from cad_mesh_schema import schema as cad_mesh_schema
+    schemas['cad_mesh']=cad_mesh_schema(obj,arr,enum)
     from copy import deepcopy
     schemas["manifest2"] = deepcopy(schemas["manifest"])
     m2 = schemas["manifest2"]
@@ -205,6 +207,7 @@ def build():
 
 
 def outputs():
+    yield 'python/fcst_contracts/cad-mesher-profile.json', (ROOT/'ci/cad-mesher.json').read_text(encoding='utf-8')
     bundle = build()
     encoded = json.dumps(bundle, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     yield "python/fcst_contracts/bundle.json", encoded + "\n"

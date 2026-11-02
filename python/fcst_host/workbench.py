@@ -181,11 +181,13 @@ def bind_selection():
 def register():
     import FreeCADGui as Gui
     if 'FCSTWorkbench' in Gui.listWorkbenches(): return
+    from .cad_dialog import open_selected
     for name,title,action,active in (
         ('New','New thermal model',create,False),
         ('Example','Open analytic network',lambda:create(True),False),
         ('Open','Open project',open_project,False),
         ('SpatialModel','Open spatial thermal model',open_spatial_model,False),
+        ('MeshCAD','Mesh selected CAD thermal model',open_selected,False),
         ('Save','Save project',save_project,True),
         ('Undo','Undo thermal edit',lambda:current().panel.undo(),True),
         ('Reconcile','Rebuild host from project',lambda:(current().reconcile(),current().panel.refresh()),True),
@@ -202,7 +204,7 @@ def register():
         MenuText='FCST Thermal'; ToolTip='Spacecraft thermal modeling and result review'
 
         def Initialize(self):
-            commands=['FCST_'+n for n in ('New','Example','Open','SpatialModel','Save','Undo','Reconcile','Surface','Bind','Field','Settings','Solve')]
+            commands=['FCST_'+n for n in ('New','Example','Open','SpatialModel','MeshCAD','Save','Undo','Reconcile','Surface','Bind','Field','Settings','Solve')]
             self.appendToolbar('FCST Thermal',commands)
             self.appendMenu('FCST Thermal',commands)
             self.appendMenu(['FCST Thermal','Create'],['FCST_Add_'+k for k in ('submodel','node','face','facet','material','optics','conductor','load','environment','case','frame','control')])

@@ -91,9 +91,19 @@ class DiscretizationTests(unittest.TestCase):
                     worker_sha256='c'*64,full_wp16_qualified=False,cases=cases,gate=evaluate(policy['required_cases'],cases),
                     commands=100,metrics=dict(jacobian_maximum_error=1e-10,steady_field_errors_K=[.16,.04,.01],
                         transient_spatial_errors_K=[.16,.04,.01],transient_time_errors_K=[.04,.02,.01]))
+        from fcst_contracts import canonical
+        report['offline_native']=dict(kind='windows-appcontainer-v1',execution_mode='fcst_native',app_container=True,capabilities=0,
+            network_denied=True,network_denial='controlled_loopback_timeout',network_positive_controls=2,negative_probes=2,
+            outside_files_denied=4,cases=[dict(id=c,status='passed') for c in policy['offline_native_cases']],
+            binary_sha256={name:'c'*64 for name in policy['offline_native_binaries']},
+            inventory_sha256=sha256(canonical(policy['offline_native_cases'][:-2])).hexdigest())
         self.assertTrue(assess(report,policy,report['input_sha256'],'a'*40))
         for key,bad in [('candidate','d'*40),('input_sha256',{}),('worker_sha256','bad'),('full_wp16_qualified',True),('cases',cases[:-1]),('metrics',{})]:
             with self.assertRaises(ValueError):assess({**report,key:bad},policy,report['input_sha256'],'a'*40)
+        for key,bad in [('cases',report['offline_native']['cases'][:-1]),('network_denied',False),('network_positive_controls',0),
+                        ('binary_sha256',{}),('app_container',False),('capabilities',1),('inventory_sha256','0'*64)]:
+            value=deepcopy(report);value['offline_native'][key]=bad
+            with self.assertRaises(ValueError):assess(value,policy,report['input_sha256'],'a'*40)
 
     def test_cli_prepares_new_files_and_cannot_overwrite_existing_inputs(self):
         from fcst_cli.discretization import execute,parsers

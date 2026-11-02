@@ -142,7 +142,7 @@ def main():
         "esatan-exchange": [sys.executable,"tools/check_esatan.py","--report",str(output / "esatan.json")],
         "host-acceptance": [sys.executable,"tools/check_host.py","--worker",str(install / "bin/fcst-worker.exe"),"--report",str(output / "host.json")],
         "mcp-acceptance": [sys.executable,"tools/check_mcp.py","--worker",str(install / "bin/fcst-worker.exe"),"--report",str(output / "mcp.json")],
-        "spatial-discretization": [sys.executable,"tools/check_discretization.py","--worker",str(install / "bin/fcst-worker.exe"),"--report",str(output / "discretization.json")],
+        "spatial-discretization": [sys.executable,"tools/check_discretization.py","--worker",str(install / "bin/fcst-worker.exe"),"--native-build",str(ROOT/"out"/args.preset/config),"--report",str(output / "discretization.json")],
     }
     def execute(case_id):
         start = time.monotonic()

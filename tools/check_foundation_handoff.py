@@ -59,6 +59,12 @@ def check(directory):
         assess_discretization(discretization,load(ROOT/'ci/discretization-acceptance.json'),discretization_hashes(ROOT),candidate)
         if discretization['worker_sha256']!=load(path.parent/'thermal.json')['binary_sha256']['worker']:
             raise ValueError('discretization_worker_substitution')
+        native=discretization['offline_native']['binary_sha256'];thermal=load(path.parent/'thermal.json')['binary_sha256']
+        for name,role in [('fcst-thermal-tests.exe','preparation_acceptance'),('fcst-thermal-assembly-tests.exe','assembly_acceptance'),
+                          ('fcst-thermal-steady-tests.exe','steady_acceptance'),('fcst-thermal-transient-tests.exe','transient_acceptance')]:
+            if native[name]!=thermal[role]:raise ValueError('offline_native_binary_substitution')
+        if native['fcst-radiation-tests.exe']!=load(path.parent/'radiation.json')['native_tests_sha256']:
+            raise ValueError('offline_native_binary_substitution')
         if contracts["status"]!="passed": raise ValueError("contract_regression")
         from fcst_tools.thermal import assess as assess_thermal, input_hashes as thermal_hashes
         assess_thermal(load(path.parent/'thermal.json'), load(ROOT/'ci/thermal-acceptance.json'), thermal_hashes(ROOT), candidate)
@@ -104,7 +110,7 @@ def check(directory):
     scanner=Scanner(load(POLICY_PATH))
     # Every exact report and every candidate path is inspected before publication.
     for path in sorted(directory.rglob("*.json")):
-        if path.name in {"verification.json","spatial.json","fem-probe.json","contracts.json","numerical.json","persistence.json","build-info.json","host-smoke.json","host.json","jobs.json","exchange.json","td.json","dwg-backend.json","thermal.json","thermal-references.json","radiation.json","esatan.json"}:
+        if path.name in {"verification.json","discretization.json","spatial.json","fem-probe.json","contracts.json","numerical.json","persistence.json","build-info.json","host-smoke.json","host.json","jobs.json","exchange.json","td.json","dwg-backend.json","thermal.json","thermal-references.json","radiation.json","esatan.json"}:
             scanner.scan(path.name,path.read_bytes())
     # Full outgoing history is additionally required locally before push. CI checks
     # the actual checked-out candidate (checkout may intentionally be shallow).

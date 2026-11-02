@@ -87,12 +87,34 @@ ambiguous face changes and stale inputs prevent current display. The FEM adapter
 requires complete explicit host/canonical maps, checks connectivity and mm-to-m
 conversion, and rejects a regenerated mesh without explicit reassignment.
 
-The pinned API/source/license assessment in `ci/fem-reuse.json` remains the reuse
-record. This profile reuses FEM mesh/result/contour APIs and adopts no upstream
-source. Structured Cartesian generators cover the declared primitives. General
-CAD Gmsh/Netgen generation and qualification, full FEM-REUSE-003/006 and mandatory
-imported Q1 element/property qualification remain open. Optional CalculiX/Elmer
-comparisons remain deferred and never replace native checks.
+The pinned API/source/license assessment in `ci/fem-reuse.json` and
+`ci/cad-mesher.json` records API reuse with no copied upstream source. **Mesh
+selected CAD thermal model** creates a native project from a selected valid solid
+or surface using the official host bundle's Gmsh 4.15.0. The closed profile uses
+first-order tet4 solids or tri3 shells, Delaunay algorithms, one thread, a fixed
+seed and explicit mesh-size bounds. It accepts constant region material cards;
+the native input separately supports the qualified temperature-dependent laws.
+The dialog accepts SI material values and explicit `FaceN` temperature, total
+power, surface flux or convection conditions. Unassigned exterior faces are
+adiabatic. Native mesh/result APIs display exterior faces of volume meshes.
+
+Named FEM physical groups supply CAD face and solid ownership. Conduction
+elements, thermal nodes and radiation facets have separate UUIDs and preserve
+the original mesher tags and any orientation permutation. Radiation facets in
+the receipt describe geometry only; they do not introduce optical assumptions.
+Original BREP bytes, source signatures, profile digest, material/face assignments
+and complete maps travel with the portable project. Refinement changes mesh and
+thermal identities while preserving accepted CAD face identities. Split, merge,
+reorder, delete and changed geometry revisions require explicit reassignment.
+Duplicate ownership, incomplete groups, unsupported order and stale receipts
+fail closed. Touching multi-solid internal interfaces require explicit contact
+preparation; this profile accepts exterior ownership only. Netgen generation,
+higher-order meshes and integration-point fields remain outside this profile.
+
+Mandatory imported Q1 element/property and source-ecosystem qualification still
+requires the licensed source runs and paired evidence recorded as missing in the
+inventory. Optional CalculiX/Elmer comparisons remain deferred and never replace
+native checks. Complete offline release qualification remains shared with WP-19.
 
 `ci/discretization-acceptance.json` freezes the 22 native cases, tolerances and
 mesh/time refinement sequences. Candidate/source/worker-bound evidence runs in
@@ -103,7 +125,7 @@ and saves/reopens a spatial case without manual acceptance execution.
 ```powershell
 fcst spatial-primitive fd-rod --nx 8 --output rod.json
 fcst spatial-solve rod.json --worker fcst-worker.exe --output rod-result.json
-python tools/check_discretization.py --worker fcst-worker.exe --report spatial-report.json
+python tools/check_discretization.py --worker fcst-worker.exe --native-build out/windows-release/Release --report spatial-report.json
 ```
 
 Outputs must be new files. A free-floating steady primitive needs prescribed
@@ -116,3 +138,21 @@ candidate-linked reports are publication candidates. Exact outgoing bytes,
 metadata, history and GitHub prose pass preflight before upload. Original models,
 host files, screenshots, raw compiler/mesher logs, binaries and build trees stay
 local. Passing the bounded profile never implies full WP-16/Q1 qualification.
+
+Large host result envelopes preserve the existing 1 MiB JSON reader limit by
+referencing a separate immutable, hash-checked request artifact. Portable reopen
+checks its dependency identity and exact bytes; legacy result envelopes remain
+readable. Generated mesher scripts and AppContainer denial manifests stay local.
+
+The native offline check stages only configured native executables and owned
+fixtures in a fresh Windows AppContainer with zero capabilities. Every configured
+CTest case and spatial steady/transient analytic solve runs there. A native probe
+checks its token, denied reads of actual outside interpreter/host/source files,
+and network isolation. Windows can reject a connection immediately or silently
+drop it: a five-second nonblocking timeout is accepted only with successful
+parent connections to the same live loopback listener immediately before and
+after the probe. A readable dependency and an uncontained process are negative
+controls. No external endpoint is contacted. Source, inventory, worker and test
+binary hashes bind the bounded report; temporary profile identifiers and denial
+paths never enter published evidence. This verifies a clean confined native
+installation, while complete installer/release qualification remains WP-19.

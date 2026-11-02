@@ -334,6 +334,11 @@ def main():
     spatial_session.clear_display();assert not spatial_session.discretization_view.mesh.ViewObject.Visibility
     spatial_session.close();App.closeDocument(spatial_session.doc.Name)
     passed('WP16-HOST-SOLVE')
+    mark('cad_mesher')
+    namespace={}
+    exec(compile((Path(os.environ['FCST_HOST_ROOT'])/'tools/cad_acceptance_payload.py').read_text(encoding='utf-8'),
+                 'cad_acceptance_payload.py','exec'),namespace)
+    namespace['check'](folder,wait,passed,os.environ['FCST_HOST_WORKER'])
     session.close();App.closeDocument(session.doc.Name)
     mark('final_render')
     session=Session.open(folder/'solved.fcst',folder/'render-reopened')

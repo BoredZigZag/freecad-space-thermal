@@ -324,5 +324,60 @@
     }
   },
   "decision": "Retain four compiler workers. Ranges overlap, concurrent local work is a confounder, and this 12-CPU machine differs from the four-CPU hosted profile. No hosted critical-path improvement or performance qualification is established; the passing baseline is unchanged.",
-  "publication": "Scalar sanitized evidence only; raw profiles/compiler logs, source/build/install/consumer trees and binaries remain local."
+  "publication": "Scalar sanitized evidence only; raw profiles/compiler logs, source/build/install/consumer trees and binaries remain local.",
+  "cad_extension_review": {
+    "inspected_run": 41473313117,
+    "candidate": "59473271a7f85490109feaf953cece17372cacde",
+    "largest_job_seconds": 644,
+    "embree_package_seconds": 589.437,
+    "embree_build_seconds": 558.422,
+    "embree_build_cpu_seconds": 2196.422,
+    "baseline_package_seconds": 338.813,
+    "baseline_build_cpu_seconds": 1248.531,
+    "conclusion": "Warning retained; same source/options/compiler/image/worker budgets; cause unqualified; no baseline or compiler-budget change",
+    "cad_save_experiment": {
+      "hypothesis": "Use one validated model snapshot and an entity index for all host save comparisons",
+      "before": {
+        "status": "interrupted",
+        "minimum_save_seconds": 120,
+        "comparison": "censored observation, not a completed timing sample"
+      },
+      "after": {
+        "status": "passed",
+        "installed_host_payload_seconds": 79.961,
+        "cases": 24,
+        "comparison": "functional completion; no matched hosted speedup claimed"
+      }
+    },
+    "coverage": "All fixed ensembles, scaling repetitions, criteria, Debug/Release behavior and publication checks retained; new kernel-confined execution is additional coverage",
+    "debug_before_scheduling": {
+      "required_records": 411,
+      "driver_seconds": 699.11,
+      "jobs": 3,
+      "logical_cpus": 12,
+      "cache_state": "unknown",
+      "stage_seconds": {
+        "thermal-preparation": 275.969,
+        "radiation-acceptance": 308.11,
+        "host-acceptance": 149.984,
+        "spatial-discretization": 206.672
+      },
+      "hypothesis": "Unknown stages used a zero estimate, leaving the expanded confined-native stage as a long late tail; schedule unknown work alongside the largest active known estimates",
+      "decision": "Preserve all work; verify scheduling policy and final hosted timings; no baseline change or matched hosted improvement claim"
+    },
+    "release_after_scheduling": {
+      "required_records": 411,
+      "driver_seconds": 284.906,
+      "jobs": 2,
+      "logical_cpus": 12,
+      "cache_state": "unknown",
+      "stage_seconds": {
+        "spatial-discretization": 28.938,
+        "host-acceptance": 105.453,
+        "radiation-acceptance": 30.187,
+        "thermal-preparation": 17.297
+      },
+      "comparison": "Different configuration from Debug; no matched speedup claim; all required records passed"
+    }
+  }
 }

@@ -77,7 +77,7 @@
     "python/fcst_cli/jobs.py": "667a23eeafc935128f95310de7a6ba81164ddb6d862505571b1120655ab400dc",
     "python/fcst_cli/td.py": "09fd71a2b6efca12a5520154ef489e29327cdb4adc1ca28ebbc09ff26e29471e",
     "python/fcst_contracts/__init__.py": "0ab44b912da4d74810505141a19686c66957102a0556000597a6e21f8d4ee580",
-    "python/fcst_contracts/bundle.json": "e3e50f89651306db69362653a5011f66726bb41866fb399b4deab5268ecc5173",
+    "python/fcst_contracts/bundle.json": "aafc67eae922caa975eb772f28f2e5f73963d8c4c76919f9b420297067f238f7",
     "python/fcst_contracts/spatial.py": "5019c4dce9233055e91b4cd63ba713324c252a12900de2d6bdde703238fb5e4a",
     "python/fcst_contracts/thermal-input-v2.json": "4b0b85497d7d1634347f12fc2ca935c48bd3323530d4a88c2cc9c6cc722c2d7e",
     "python/fcst_contracts/types.py": "d399ea1521fbbb899bfa2a9194532ef1e7892e6719a6b3e9c54ca14cd43e9824",

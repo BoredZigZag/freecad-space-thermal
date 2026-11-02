@@ -28,7 +28,11 @@
     "HOST-THREAD",
     "HOST-RENDER",
     "WP16-HOST-MESH",
-    "WP16-HOST-SOLVE"
+    "WP16-HOST-SOLVE",
+    "FEM-REUSE-003",
+    "WP16-CAD-PROFILES",
+    "WP16-CAD-PERSISTENCE",
+    "WP16-CAD-COMMAND"
   ],
   "criteria": {
     "temperature_absolute_K": 0.01,
@@ -38,7 +42,7 @@
     "minimum_contour_coloured_pixels_per_band": 100,
     "screenshot_role": "local supplementary rendering evidence only"
   },
-  "remaining_spatial_qualification": "The bounded native first-order profile and host solve/mapping/reopen are checked. Production CAD mesher, mandatory imported Q1 and full FEM-REUSE-003/006 qualification remain WP-16/WP-19.",
+  "remaining_spatial_qualification": "The selected pinned CAD Gmsh tet4/tri3 profile, explicit mappings, native solve and portable reopen are checked. Mandatory imported Q1 and full offline release FEM-REUSE-006 remain WP-16/WP-19.",
   "progress_phases": [
     "fem_create",
     "fem_colour_setter",
@@ -52,6 +56,7 @@
     "spatial_capture",
     "multi_document",
     "dataset_restore",
-    "final_render"
+    "final_render",
+    "cad_mesher"
   ]
 }

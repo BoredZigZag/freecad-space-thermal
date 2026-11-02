@@ -4,8 +4,9 @@ from copy import deepcopy
 import math
 import re
 import uuid
+from hashlib import sha256
 
-from fcst_contracts import loads, normalize, read
+from fcst_contracts import loads, normalize, read,verify_artifact,MAX_BYTES
 from fcst_app.persistence import Package, encode, reject, semantic_hash
 
 
@@ -204,6 +205,19 @@ def attach_result(store, result, submitted_model, input_value, worker_hash):
     result_id = str(uuid.uuid4())
     raw = encode(dict(schema_version=1, model=submitted_model, result=result,
                       input=input_value, worker_sha256=worker_hash))
+    request_artifact=None;dependencies=[]
+    if len(raw)>MAX_BYTES:
+        # Keep the same per-document reader budget. Large spatial requests are
+        # separate immutable JSON artifacts rather than repeated inside results.
+        request=encode(input_value);loads(request)
+        request_artifact=next((a for a in store._artifacts() if a[1]=='evidence' and a[3]==request),None)
+        if request_artifact is None:
+            request_id=str(uuid.uuid4())
+            request_artifact=(request_id,'evidence','review-inputs/'+request_id+'.json',request,[])
+        dependencies=[request_artifact[0]]
+        ref=dict(path=request_artifact[2],sha256=sha256(request).hexdigest(),byte_length=len(request))
+        raw=encode(dict(schema_version=2,model=submitted_model,result=result,input_artifact=ref,worker_sha256=worker_hash))
+    loads(raw)
     path = 'review/'+result_id+'.json'
     with store.transaction():
         state = store.state()
@@ -212,11 +226,13 @@ def attach_result(store, result, submitted_model, input_value, worker_hash):
         state['derived'].append(dict(id=result_id, kind='solve',
             dependencies=[e['id'] for e in submitted_model['entities']],
             revision=submitted_model['revision'], semantic_hash=semantic_hash(submitted_model), stale=False))
-        artifact = (result_id, 'evidence', path, raw, [])
-        package = Package.create(state['model'], [*store._artifacts(), artifact], state=state,
+        artifact = (result_id, 'evidence', path, raw, dependencies)
+        existing=store._artifacts();new=[artifact]
+        if request_artifact is not None and not any(a[0]==request_artifact[0] for a in existing):new.insert(0,request_artifact)
+        package = Package.create(state['model'], [*existing,*new], state=state,
                                  **store._package_metadata())
-        store.db.execute('INSERT INTO artifacts VALUES(?,?,?,?,?)',
-                         (result_id, 'evidence', path, encode([]), raw))
+        for a in new:
+            store.db.execute('INSERT INTO artifacts VALUES(?,?,?,?,?)',(a[0],a[1],a[2],encode(a[4]),a[3]))
         store.db.execute('UPDATE package_manifest SET data=? WHERE id=1', (encode(package.manifest),))
         store._write(state)
     return result_id
@@ -228,6 +244,16 @@ def query_result(store, result_id, *, historical=False):
     if artifact is None:
         reject('result_unavailable')
     value = loads(artifact[3])
+    if value.get('schema_version')==2:
+        ref=value.get('input_artifact',{})
+        request=next((a for a in store._artifacts() if a[2]==ref.get('path')),None)
+        if request is None:reject('result_identity')
+        verify_artifact(ref,request[3]);submitted=loads(request[3])
+        if not isinstance(submitted,dict):reject('result_identity')
+        submitted=submitted.get('thermal_input',submitted)
+        if not isinstance(submitted,dict) or submitted.get('model')!=value['model']:reject('result_identity')
+        if artifact[4]!=[request[0]]:reject('result_identity')
+    elif value.get('schema_version')!=1:reject('result_identity')
     if (derived['semantic_hash'] != semantic_hash(value['model'])
             or derived['revision'] != value['model']['revision']):
         reject('result_identity')

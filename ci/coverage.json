@@ -1,6 +1,12 @@
 {
   "schema_version": 1,
   "unit_cases": [
+    "test_cad_mesh.CadMeshTests.test_assignment_conflicts_receipt_tampering_and_unsupported_orders_reject",
+    "test_cad_mesh.CadMeshTests.test_face_total_power_flux_and_convection_have_explicit_integrals",
+    "test_cad_mesh.CadMeshTests.test_large_spatial_results_preserve_reader_budget_and_request_dependency",
+    "test_cad_mesh.CadMeshTests.test_orientation_units_capacity_maps_and_portable_receipt",
+    "test_cad_mesh.CadMeshTests.test_profile_geometry_coverage_and_ambiguous_mapping_fail_closed",
+    "test_cad_mesh.CadMeshTests.test_reordering_is_identity_preserving_but_refinement_and_topology_need_reassignment",
     "test_ci_performance.CiPerformanceTests.test_build_accounting_includes_exited_descendants_and_only_scalar_metrics",
     "test_ci_performance.CiPerformanceTests.test_build_accounting_timeout_terminates_owned_descendants",
     "test_ci_performance.CiPerformanceTests.test_cache_rejects_tampered_wheels_unlisted_files_and_objects",

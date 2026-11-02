@@ -45,7 +45,7 @@ def loads(value, power):
     return value
 
 
-def check(worker, report):
+def check(worker, report, native_build):
     policy=json.loads((ROOT/'ci/discretization-acceptance.json').read_bytes());criteria=policy['criteria']
     report.unlink(missing_ok=True)
     for name in [*policy['required_cases'],'acceptance-error']:(report.parent/(name+'.log')).unlink(missing_ok=True)
@@ -53,7 +53,7 @@ def check(worker, report):
     inputs=input_hashes(ROOT);binary=sha256(worker.read_bytes()).hexdigest()
     env={k:v for k,v in os.environ.items() if k.upper() not in {'PYTHONPATH','PYTHONHOME','FREECAD_LIB','FREECAD_USER_HOME','SINDAPATH','ESATAN'}}
     env['PATH']=str(worker.parent)
-    records=[];metrics={};commands=0
+    records=[];metrics={};commands=0;offline_evidence={}
     def run(value,flag='--thermal-steady',passed=True):
         nonlocal commands
         commands+=1
@@ -217,6 +217,8 @@ def check(worker, report):
         v=plate();next(e for e in v['model']['entities'] if e['kind']=='mesh')['artifact']['sha256']='0'*64;reject(v,{'spatial_mesh_artifact'},False)
         v=plate();v['contract_version']='1.0.0';reject(v,{'schema'})
     def offline():
+        from check_native_offline import check as check_offline
+        offline_evidence.update(check_offline(worker,native_build,candidate))
         r=subprocess.run([str(worker),'--build-info'],capture_output=True,env=env,timeout=30);info=json.loads(r.stdout)
         assert r.returncode==0 and info['source_revision']==candidate and info['engine']=='fcst_native'
         v=plate();set_boundary(v,lambda p:p[0]==0,lambda p:300);out=run(v)
@@ -282,13 +284,14 @@ def check(worker, report):
     result=dict(schema_version=1,candidate=candidate,input_sha256=inputs,worker_sha256=binary,
         policy_sha256=sha256(json.dumps(policy,sort_keys=True,separators=(',',':')).encode()).hexdigest(),
         execution_mode='fcst_native',full_wp16_qualified=False,metrics=metrics,commands=commands,
-        cases=records,gate=evaluate(policy['required_cases'],records))
+        offline_native=offline_evidence,cases=records,gate=evaluate(policy['required_cases'],records))
     report.write_text(json.dumps(result,indent=2)+'\n');assess(result,policy,inputs,candidate)
 
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--worker',type=Path,required=True);parser.add_argument('--report',type=Path,required=True)
+    parser.add_argument('--native-build',type=Path,required=True)
     args=parser.parse_args();args.report.parent.mkdir(parents=True,exist_ok=True)
-    try:check(args.worker.resolve(),args.report);print('Native spatial acceptance: passed')
+    try:check(args.worker.resolve(),args.report,args.native_build.resolve());print('Native spatial acceptance: passed')
     except Exception:
         (args.report.parent/'acceptance-error.log').write_text(traceback.format_exc(),encoding='utf-8');print('Native spatial acceptance: failed');raise SystemExit(1)

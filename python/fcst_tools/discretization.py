@@ -3,6 +3,7 @@
 from hashlib import sha256
 import json
 import math
+from fcst_contracts import canonical
 from .gate import evaluate
 from .foundation import input_hashes as foundation_inputs
 
@@ -34,4 +35,16 @@ def assess(report, policy, inputs, candidate):
                 or any(a/b<=criteria[ratio] for a,b in zip(values,values[1:]))):
             raise ValueError('discretization_metrics_invalid')
     if type(report.get('commands')) is not int or report['commands']<60:raise ValueError('discretization_execution_invalid')
+    offline=report.get('offline_native',{});binaries=offline.get('binary_sha256',{})
+    if (offline.get('kind')!='windows-appcontainer-v1' or offline.get('execution_mode')!='fcst_native'
+            or offline.get('app_container') is not True or type(offline.get('capabilities')) is not int or offline['capabilities']!=0
+            or offline.get('network_denied') is not True or offline.get('network_denial') not in ('access_denied','controlled_loopback_timeout')
+            or offline.get('network_positive_controls')!=2 or offline.get('negative_probes')!=2
+            or type(offline.get('outside_files_denied')) is not int or offline['outside_files_denied']<4
+            or evaluate(policy['offline_native_cases'],offline.get('cases',[]))['status']!='passed'
+            or offline.get('inventory_sha256')!=sha256(canonical(policy['offline_native_cases'][:-2])).hexdigest()
+            or set(binaries)!=set(policy['offline_native_binaries'])
+            or any(not isinstance(d,str) or len(d)!=64 or set(d)-set('0123456789abcdef') for d in binaries.values())
+            or binaries.get('fcst-worker.exe')!=report['worker_sha256']):
+        raise ValueError('discretization_offline_evidence_invalid')
     return True
