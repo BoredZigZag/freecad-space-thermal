@@ -6,6 +6,8 @@
 #include "fcst/thermal_steady.hpp"
 #include "fcst/thermal_transient.hpp"
 #include "fcst/radiation.hpp"
+#include "fcst/spatial.hpp"
+#include "offline_probe.hpp"
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -14,6 +16,7 @@
 #include <io.h>
 #endif
 int main(int argc, char* argv[]) {
+  if (argc==4 && std::string_view(argv[1])=="--offline-probe") return offline_probe(argv[2],argv[3]);
   if (argc == 4 && std::string_view(argv[1]) == "--worker") {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1 || _setmode(_fileno(stdout), _O_BINARY) == -1) return 2;
@@ -21,14 +24,14 @@ int main(int argc, char* argv[]) {
     return fcst::run_worker(argv[2], argv[3]);
   }
   if ((argc == 3 && std::string_view(argv[1]) == "--contract") ||
-      (argc == 2 && (std::string_view(argv[1]) == "--radiation-evaluate" || std::string_view(argv[1]) == "--radiation-steady" || std::string_view(argv[1]) == "--thermal-prepare" || std::string_view(argv[1]) == "--thermal-steady" || std::string_view(argv[1])=="--thermal-transient"))) {
+      (argc == 2 && (std::string_view(argv[1]) == "--spatial-evaluate" || std::string_view(argv[1]) == "--radiation-evaluate" || std::string_view(argv[1]) == "--radiation-steady" || std::string_view(argv[1]) == "--thermal-prepare" || std::string_view(argv[1]) == "--thermal-steady" || std::string_view(argv[1])=="--thermal-transient"))) {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1) return 2;
 #endif
     std::string input;
     char c;
     while (input.size() <= 1048576 && std::cin.get(c)) input += c;
-    auto result = argc == 2 ? (std::string_view(argv[1]) == "--radiation-evaluate" || std::string_view(argv[1]) == "--radiation-steady" ? fcst::radiation::inspect(input,std::string_view(argv[1]) == "--radiation-steady") :
+    auto result = argc == 2 ? (std::string_view(argv[1]) == "--spatial-evaluate" ? fcst::spatial::inspect(input) : std::string_view(argv[1]) == "--radiation-evaluate" || std::string_view(argv[1]) == "--radiation-steady" ? fcst::radiation::inspect(input,std::string_view(argv[1]) == "--radiation-steady") :
       std::string_view(argv[1]) == "--thermal-transient" ? fcst::thermal::inspect_transient(input) :
       std::string_view(argv[1]) == "--thermal-steady" ? fcst::thermal::inspect_steady(input) : fcst::thermal::inspect(input)) : fcst::inspect_contract(argv[2], input);
     std::cout << result << '\n';

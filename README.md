@@ -2,6 +2,11 @@
 
 Design baseline **0.9**, amended **29 October 2026**.
 
+The [native spatial profile](docs/discretization.md) adds FD rods, first-order
+shell/solid conduction, material enthalpy/tensors, explicit loads/contacts and
+bounded reduced components. Its unattended native and pinned FreeCAD checks retain
+the remaining production CAD mesher and imported Q1 qualification obligations.
+
 **Windows first:** develop and qualify the FreeCAD add-on/workbench and standalone engine for Windows. macOS and Linux configurations are optional [stretch goals](plans/stretch-goals.md), outside the work packages and committed delivery. No modified FreeCAD distribution is required.
 
 Project development uses [the GitHub source repository](https://github.com/BoredZigZag/freecad-space-thermal), Issues/Projects, pull requests, GitHub Actions automated testing, and Releases. The [implementation plan](plans/FCST-Implementation-Plan.md) specifies required checks, scoped vendor runners, and evidence-backed release gates. The WP-02 skeleton provides C++20/CMake worker and Python package foundations with [shared local/CI verification commands](docs/development.md); solving and compatibility remain unimplemented. [WP-02 evidence](plans/evidence/WP-02.json) records completed foundation acceptance and the separate remaining Q0/product obligations. Active host and dependency packaging probes run on Windows; no production numerical backend is adopted.

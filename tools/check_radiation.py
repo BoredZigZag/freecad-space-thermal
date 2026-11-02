@@ -151,7 +151,7 @@ def check(subject, native, worker, output):
     records.append(dict(id='million-facet-scaling', status='passed'))
     report = dict(schema_version=1, profile=policy['profile'], candidate=candidate, execution_mode='fcst_native',
                   scope=policy['scope'], vendor_compatibility_qualified=False, q1_qualified=False,
-                  input_sha256=input_hashes(), native_sha256=digest(subject), worker_sha256=digest(worker),
+                  input_sha256=input_hashes(), native_sha256=digest(subject), worker_sha256=digest(worker),native_tests_sha256=digest(native),
                   status='passed' if all(c['status'] == 'passed' for c in records) else 'failed', cases=records,
                   ensemble=ensemble, runs=[dict(geometry=x['geometry'], seed=x['seed'], samples=x['samples'],
                   build_seconds=x['build_seconds'], trace_seconds=x['trace_seconds'],

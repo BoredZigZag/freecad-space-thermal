@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "host_profile": "ci/host-profile.json",
+  "host_asset_sha256": "4828741fc91ee37fafcdb97a1abacb18b04ba451ac4372d9ff7a7349b36f4d6d",
+  "version": "4.15.0",
+  "backend": "FreeCAD FEM / bundled Gmsh",
+  "host_source_revision": "4fd3bf320d9566a27e60069fc8387448aaa3a094",
+  "files": {
+    "bin/gmsh.exe": "7f583d16dc0d6a80ff25c4e979b43b20f6d5c99a027de55a33ca678c1258ff65",
+    "bin/gmsh.dll": "1c65a9a1b941b506ac4bbe905984f95fbc3fd839eb34d6b5e8660ebdfb95317a",
+    "share/doc/gmsh/LICENSE.txt": "32085d8c954e2e22dc667c089f360049e8f1af955f946fb0a18f29d70390276a",
+    "Mod/Fem/ObjectsFem.py": "b10d44a7241518e833d758f57615b0a5fcd8894073fe2ef0a69b3c99111e403a",
+    "Mod/Fem/femmesh/gmshtools.py": "a8bf574dd781de5544dec9121f0ed3675b70abf3dc86c44a90f806fce9c08039",
+    "Mod/Fem/femmesh/meshtools.py": "0bb170d0f468a106e8ead419fb1b42bddf26e29394e9ef3bf8064f299c6af6d1",
+    "Mod/Fem/femobjects/mesh_gmsh.py": "081971412d1962840e47b0c787bcb622885dba06a8c6e812c62824d8dd80e5bd",
+    "Mod/Fem/femtools/objecttools.py": "c58dc160c8d72cb51d5c1c39d6d767289505628729a1baa03eca50f3919ae8a7",
+    "Mod/Fem/femtools/femutils.py": "a3dadfe0baea0366dfe56c1e8d0f952006d699cecc1a955c222599d6067a7ac0"
+  },
+  "license": {
+    "gmsh": "GPL-2.0-or-later with its bundled linking exception",
+    "freecad": "LGPL notices retained per file in the official bundle",
+    "source_adoption": "API reuse only; no upstream source copied or adapted",
+    "distribution": "Reuse the verified official host bundle; no additional mesher distribution or static linking into the owned engine"
+  },
+  "api": [
+    "ObjectsFem.makeMeshGmsh",
+    "GmshTools.load_properties",
+    "GmshTools.update_mesh_data",
+    "GmshTools.get_tmp_file_paths",
+    "GmshTools.write_gmsh_input_files",
+    "GmshTools.update_properties",
+    "FemMesh.getGroupName",
+    "FemMesh.getGroupElements",
+    "FemMesh.getElementNodes"
+  ],
+  "native_families": [
+    "tet4",
+    "tri3"
+  ],
+  "units": "host mm; native m",
+  "boundary_mapping": "Named physical Face/Solid groups; no nearest-face or coincident-coordinate identity inference",
+  "netgen": {
+    "disposition": "not_selected",
+    "reason": "Pinned host adapter requires separate Python Netgen bindings; bundled Gmsh satisfies the selected profile without another deployment"
+  },
+  "options": {
+    "order": 1,
+    "threads": 1,
+    "algorithm_2d": 5,
+    "algorithm_3d": 1,
+    "random_seed": 1,
+    "optimize": false
+  },
+  "host_properties": {
+    "ElementOrder": "1st",
+    "Algorithm2D": "Delaunay",
+    "Algorithm3D": "Delaunay",
+    "GroupsOfNodes": true,
+    "OptimizeStd": false,
+    "OptimizeNetgen": false,
+    "MeshSizeFromCurvature": 0,
+    "RecombineAll": false,
+    "Recombine3DAll": false,
+    "HighOrderOptimize": "None",
+    "SubdivisionAlgorithm": "None",
+    "GeometryTolerance": 1e-08,
+    "MeshGroupList": [],
+    "MeshRegionList": [],
+    "MeshBoundaryLayerList": []
+  },
+  "profile_limits": "Valid exterior-owned CAD regions; first order only; no inferred internal interfaces or hidden user refinements"
+}

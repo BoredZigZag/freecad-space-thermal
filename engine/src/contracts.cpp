@@ -6,6 +6,8 @@
 #include "fcst/thermal_transient.hpp"
 #include "fcst/radiation.hpp"
 #include "fcst/thermal_schema.hpp"
+#include "fcst/spatial_thermal_schema.hpp"
+#include "fcst/spatial.hpp"
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -389,7 +391,7 @@ std::string sha256(const std::string& bytes);
 #include "spatial.inc"
 J read(const std::string& kind,J j) {
   if(!j.isobj()) fail("schema");
-  J version((kind=="spatial" || kind=="manifest2")?"2.0.0":"1.0.0");
+  J version(kind=="manifest3"?"3.0.0":(kind=="spatial" || kind=="manifest2")?"2.0.0":"1.0.0");
   if(!j.has("contract_version") || j.at("contract_version")!=version || (j.has("minimum_reader") && j.at("minimum_reader")!=version)) fail("version");
   if(kind=="operation" && (!j.has("operation") || !contains(bundle().at("operations"),j.at("operation")))) fail("unsupported_operation");
   if(!bundle().at("schemas").has(kind)) fail("schema"); const auto& schema=bundle().at("schemas").at(kind); validate(schema,j,schema);
@@ -400,7 +402,7 @@ J read(const std::string& kind,J j) {
   artifacts(j);
   if(kind=="model") check_model(j);
   if(kind=="spatial") check_spatial(j);
-  if(kind=="manifest" || kind=="manifest2") {
+  if(kind=="manifest" || kind=="manifest2" || kind=="manifest3") {
     std::map<std::string,J> by_id; std::set<std::string> paths;
     for(const auto& r:j.at("artifacts").arr()) {
       auto path=r.at("artifact").at("path").str(); std::transform(path.begin(),path.end(),path.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});
@@ -435,6 +437,7 @@ std::string sha256(const std::string& bytes) {
   auto status=BCryptHash(BCRYPT_SHA256_ALG_HANDLE,nullptr,0,reinterpret_cast<PUCHAR>(const_cast<char*>(bytes.data())),static_cast<ULONG>(bytes.size()),digest.data(),static_cast<ULONG>(digest.size()));
   if(status<0) fail("artifact"); return hex(std::string_view(reinterpret_cast<const char*>(digest.data()),digest.size()));
 }
+#include "spatial_loading.inc"
 #include "thermal_loading.inc"
 } // namespace
 thermal::Model thermal::load(std::string_view input) {
@@ -516,6 +519,16 @@ std::string thermal::inspect_steady(std::string_view input) {
       {"energy_defect_W",result.balance?J(result.balance->energy_defect):J()},
       {"internal_exchange_defect_W",result.balance?J(result.balance->internal_exchange_defect):J()},
       {"residual_limits_W",J(scales)},{"nodes",J(nodes)}};
+    if (assembly.model().data().spatial && result.balance) {
+      const auto& mesh=*assembly.model().data().spatial;
+      const auto spatial_value=spatial::evaluate(mesh,assembly.model().data(),result.balance->temperature,false);
+      J::A fields;for(std::size_t i=0;i<mesh.cells.size();++i) {
+        J::A vector;for(double v:spatial_value.cell_flux[i])vector.emplace_back(v);
+        fields.emplace_back(J::O{{"element_id",J(mesh.cells[i].cell.id)},{"heat_flux_W_per_m2",J(vector)}});
+      }
+      out.emplace("spatial",J(J::O{{"mesh_revision",J(mesh.mesh_revision)},{"location",J("element_volume_average")},
+        {"frame",J("global")},{"projection",J("none")},{"cells",J(fields)}}));
+    }
     if (!result.entity_id.empty()) out.emplace("entity_id",J(result.entity_id));
     if (!result.source_map_id.empty()) out.emplace("source_map_id",J(result.source_map_id));
     return dump(J(out));
@@ -527,6 +540,7 @@ std::string thermal::inspect_steady(std::string_view input) {
   } catch (...) { return "{\"status\":\"failed\",\"code\":\"unavailable\"}"; }
 }
 #include "thermal_execution.inc"
+#include "spatial_execution.inc"
 #include "radiation_loading.inc"
 int run_worker(const std::string& root, const std::string& job_id) {
   // Durable steady result publication is not implemented in this protocol yet.

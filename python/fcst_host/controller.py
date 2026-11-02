@@ -101,6 +101,8 @@ class Session:
         self.projecting, self.closed, self.on_change = False, False, None
         self.diverged = False
         self.spatial_view, self.spatial_id = None, None
+        self.thermal_input = None
+        self.discretization_view = None
         self.result_id, self.result, self.panel, self.job = None, None, None, None
         self.options = deepcopy(review.DEFAULT_SETTINGS)
         self.case_id = None
@@ -111,11 +113,21 @@ class Session:
         App.addDocumentObserver(self.observer)
 
     @classmethod
-    def create(cls, workspace, model=None):
+    def create(cls, workspace, model=None, thermal_input=None):
         import FreeCAD as App
         workspace = Path(workspace); workspace.mkdir(parents=True, exist_ok=True)
-        store = ProjectStore.create(workspace/'project.db', model or review.new_model())
-        return cls(App.newDocument('FCST'), store, workspace)
+        package=None
+        if thermal_input is not None:
+            from fcst_app.discretization import read_input,assignment_payload
+            thermal_input=read_input(thermal_input)
+            if model is not None and model!=thermal_input['model']:reject('stale_spatial_input')
+            model=thermal_input['model']
+            artifact=next(e['artifact'] for e in model['entities'] if e['kind']=='mesh' and e['role']=='conduction')
+            package=Package.create(model,[(str(uuid.uuid4()),'conduction_input',artifact['path'],assignment_payload(thermal_input),[])])
+        store = ProjectStore.create(workspace/'project.db', package=package) if package is not None else ProjectStore.create(workspace/'project.db', model or review.new_model())
+        session=cls(App.newDocument('FCST'), store, workspace)
+        if thermal_input is not None:session.import_thermal_input(thermal_input)
+        return session
 
     @classmethod
     def open(cls, package_path, workspace):
@@ -133,9 +145,38 @@ class Session:
             App.closeDocument(doc.Name)
             raise
 
+    @classmethod
+    def from_cad(cls,workspace,receipt,brep):
+        import FreeCAD as App
+        from fcst_app.cad_mesh import package
+        workspace=Path(workspace);workspace.mkdir(parents=True,exist_ok=True)
+        store=ProjectStore.create(workspace/'project.db',package=package(receipt,brep))
+        session=cls(App.newDocument('FCST'),store,workspace)
+        try:return session.restore()
+        except BaseException:
+            session.close();App.closeDocument(session.doc.Name);raise
+
     def restore(self):
         session,store=self,self.store
         configurations=[]
+        spatial_inputs=[a for a in store._artifacts() if a[2].startswith('spatial-inputs/')]
+        if spatial_inputs:
+            from fcst_contracts import loads
+            from fcst_app.discretization import read_input
+            candidates=[]
+            for artifact in spatial_inputs:
+                value=read_input(loads(artifact[3]))
+                if value['model']==store.snapshot():candidates.append(value)
+            if len(candidates)>1:reject('ambiguous_spatial_input')
+            if candidates:session.thermal_input=candidates[0]
+        receipts=[a for a in store._artifacts() if a[2]=='cad-mesh/prepared.json']
+        if receipts:
+            from fcst_contracts import loads
+            from fcst_app.cad_mesh import validate_receipt
+            receipt=loads(receipts[0][3]);path='geometry/'+receipt['source']['geometry']['id']+'.brep'
+            brep=next(a[3] for a in store._artifacts() if a[2]==path)
+            prepared=validate_receipt(receipt,brep)
+            if session.thermal_input is not None and prepared!=session.thermal_input:reject('cad_receipt')
         for artifact in store._artifacts():
             if artifact[2].startswith('review-settings/'):
                 from fcst_contracts import loads
@@ -346,10 +387,11 @@ class Session:
 
     def save(self, host_path, package_path, *, fault=None):
         assert_thread()
-        if self.diverged or self.root.FCSTModelHash != semantic_hash(self.store.snapshot()):
+        model=self.store.snapshot();entities={e['id']:e for e in model['entities']}
+        if self.diverged or self.root.FCSTModelHash != semantic_hash(model):
             reject('host_reconciliation_required')
         for obj in self.objects.values():
-            if obj.FCSTData != encode(next(e for e in self.store.snapshot()['entities'] if e['id']==obj.FCSTEntityId)).decode():
+            if obj.FCSTData != encode(entities[obj.FCSTEntityId]).decode():
                 reject('host_reconciliation_required')
         with self.projection():
             sequence=sum(a[2].startswith('review-settings/') for a in self.store._artifacts())
@@ -363,12 +405,12 @@ class Session:
                             subelement=names[0],source_revision=obj.FCSTSourceRevision))
             self.store.add_artifact(artifact_id,'evidence','review-settings/'+artifact_id+'.json',
                 encode(dict(sequence=sequence,options=self.options,case_id=self.case_id,bindings=bindings,spatial_id=self.spatial_id,undo_revisions=self.undo_revisions)),
-                expected_revision=self.store.snapshot()['revision'])
+                expected_revision=model['revision'])
             staging = self.workspace/('save-'+uuid.uuid4().hex+'.FCStd')
             self.doc.recompute()
             self.doc.saveAs(str(staging))
             return self.store.synchronize_host(host_path, staging.read_bytes(), package_path,
-                expected_revision=self.store.snapshot()['revision'], fault=fault)
+                expected_revision=model['revision'], fault=fault)
 
     def bind(self, entity_id, host_object, subelement):
         assert_thread()
@@ -439,6 +481,7 @@ class Session:
 
     def clear_display(self):
         self.result = None
+        if self.discretization_view is not None:self.discretization_view.hide()
         if self.spatial_view is not None:
             self.spatial_view.hide()
         if hasattr(self, 'objects'):
@@ -463,6 +506,20 @@ class Session:
         self.spatial_id=artifact_id
         return view
 
+    def import_thermal_input(self,value):
+        """Attach immutable prepared spatial input to this exact canonical revision."""
+        from fcst_app.discretization import read_input
+        value=read_input(value)
+        if value['model']!=self.store.snapshot():reject('stale_spatial_input')
+        if self.thermal_input is not None:
+            if self.thermal_input==value:return
+            reject('spatial_repreparation_required')
+        artifact_id=str(uuid.uuid4())
+        self.store.add_artifact(artifact_id,'evidence','spatial-inputs/'+artifact_id+'.json',encode(value),
+                                expected_revision=self.store.snapshot()['revision'])
+        self.thermal_input=value
+        self.clear_display()
+
     def load_result(self, result_id):
         assert_thread()
         if self.check_bindings():
@@ -474,6 +531,10 @@ class Session:
         self.spatial_view,self.spatial_id=None,None
         self.result = result
         self.result_id = result_id
+        if self.thermal_input is not None:
+            from .discretization import NativeMeshView
+            if self.discretization_view is None:self.discretization_view=NativeMeshView(self,self.thermal_input)
+            self.discretization_view.show(result,0)
         return self.result
 
     def show_sample(self, index, selected=None, unit='K'):
@@ -487,6 +548,7 @@ class Session:
         if self.check_bindings():
             reject('attachment_reassignment_required')
         value = review.display(result, index, selected, unit)
+        if self.discretization_view is not None:self.discretization_view.show(result,index)
         with self.projection():
             for key, rgb in zip(result['node_ids'], value['colours']):
                 self.objects[key].ViewObject.ShapeColor = rgb

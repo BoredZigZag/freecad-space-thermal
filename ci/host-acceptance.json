@@ -26,7 +26,13 @@
     "HOST-SAVE-RECOVERY",
     "HOST-TOPOLOGY",
     "HOST-THREAD",
-    "HOST-RENDER"
+    "HOST-RENDER",
+    "WP16-HOST-MESH",
+    "WP16-HOST-SOLVE",
+    "FEM-REUSE-003",
+    "WP16-CAD-PROFILES",
+    "WP16-CAD-PERSISTENCE",
+    "WP16-CAD-COMMAND"
   ],
   "criteria": {
     "temperature_absolute_K": 0.01,
@@ -36,7 +42,7 @@
     "minimum_contour_coloured_pixels_per_band": 100,
     "screenshot_role": "local supplementary rendering evidence only"
   },
-  "remaining_spatial_qualification": "Production meshing, FD/FE and spatial assignments remain WP-16; FEM-REUSE-003/006 are not satisfied by host display tests.",
+  "remaining_spatial_qualification": "The selected pinned CAD Gmsh tet4/tri3 profile, explicit mappings, native solve and portable reopen are checked. Mandatory imported Q1 and full offline release FEM-REUSE-006 remain WP-16/WP-19.",
   "progress_phases": [
     "fem_create",
     "fem_colour_setter",
@@ -50,6 +56,7 @@
     "spatial_capture",
     "multi_document",
     "dataset_restore",
-    "final_render"
+    "final_render",
+    "cad_mesher"
   ]
 }

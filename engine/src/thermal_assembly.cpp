@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #include "fcst/thermal_assembly.hpp"
+#include "fcst/spatial.hpp"
 #include <algorithm>
 #include <cmath>
 #include <exception>
@@ -163,7 +164,7 @@ Assembly::Assembly(Model model, std::vector<PowerBinding> powers, std::vector<Bo
   const auto& d = impl->model.data();
   if (!operating && !d.active_control_ids.empty()) impl->context(Error("controls_require_state"), d.active_control_ids.front());
   impl->operating=operating.value_or(OperatingState{}); impl->validate_state(impl->operating);
-  if (!d.spatial_element_ids.empty()) impl->context(Error("unsupported_physics"), d.spatial_element_ids.front());
+  if (!d.spatial_element_ids.empty() && !d.spatial) impl->context(Error("unsupported_physics"), d.spatial_element_ids.front());
   const std::size_t n = d.differential_count + d.algebraic_count;
   std::vector<Entry> entries;
   for (std::size_t i = 0; i < n; ++i) entries.push_back({i,i});
@@ -172,6 +173,14 @@ Assembly::Assembly(Model model, std::vector<PowerBinding> powers, std::vector<Bo
       if (d.nodes[i].equation && d.nodes[j].equation) entries.push_back({*d.nodes[i].equation,*d.nodes[j].equation});
   }
   std::map<std::string, const Load*> active_loads;
+  if (d.spatial) {
+    auto clique=[&](const std::vector<std::size_t>& nodes) {
+      for (auto i:nodes) for (auto j:nodes) if (d.nodes[i].equation && d.nodes[j].equation) entries.push_back({*d.nodes[i].equation,*d.nodes[j].equation});
+    };
+    for (const auto& e:d.spatial->cells) {std::vector<std::size_t> nodes;for (auto p:e.cell.points)nodes.push_back(d.spatial->points[p].node);clique(nodes);}
+    for (const auto& s:d.spatial->surfaces) {std::vector<std::size_t> nodes;for(auto p:s.points)nodes.push_back(d.spatial->points[p].node);clique(nodes);}
+    for (const auto& c:d.spatial->contacts) {std::vector<std::size_t> nodes;for(auto [i,w]:c.from){(void)w;nodes.push_back(i);}for(auto [i,w]:c.to){(void)w;nodes.push_back(i);}clique(nodes);}
+  }
   for (const auto& load : d.loads) if (load.active) active_loads.emplace(load.id,&load);
   std::set<std::string> required_radiation, required_environment(d.active_environment_ids.begin(), d.active_environment_ids.end());
   for (const auto& r : d.radiation) required_radiation.insert(r.id);
@@ -235,7 +244,7 @@ std::vector<double> Assembly::initial_temperature() const {
   return result;
 }
 bool Assembly::has_temperature_dependent_power() const {
-  return std::any_of(impl_->powers.begin(),impl_->powers.end(),[](const auto& p) { return !p.dependencies.empty(); });
+  return (model().data().spatial && spatial::nonlinear(*model().data().spatial,model().data())) || std::any_of(impl_->powers.begin(),impl_->powers.end(),[](const auto& p) { return !p.dependencies.empty(); });
 }
 Balance Assembly::evaluate(Storage mode, double time, std::span<const double> x,
                            std::span<const double> rate, std::span<const double> previous,
@@ -281,6 +290,15 @@ Balance Assembly::evaluate(Storage mode, double time, std::span<const double> x,
     } catch (const Error& error) { impl_->context(error,c.id); }
   }
   std::set<std::string> bound_loads;
+  if (d.spatial) {
+    auto value=spatial::evaluate(*d.spatial,d,b.temperature,jacobian);
+    for (std::size_t i=0;i<d.nodes.size();++i) {
+      b.conductive_in[i]=checked(b.conductive_in[i]+value.conductive[i]);
+      b.load_in[i]=checked(b.load_in[i]+value.load[i]);b.environment_in[i]=checked(b.environment_in[i]+value.environment[i]);
+    }
+    if (jacobian) for (const auto& e:value.jacobian) if (d.nodes[e.row].equation && d.nodes[e.column].equation)
+      derivatives->d_temperature.add({*d.nodes[e.row].equation,*d.nodes[e.column].equation},e.value);
+  }
   for (const auto& p : impl_->powers) {
     try {
       PowerEvaluation value;

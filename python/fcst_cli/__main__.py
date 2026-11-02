@@ -16,6 +16,8 @@ def main() -> int:
     td_parsers(commands)
     from .esatan import parsers as esatan_parsers
     esatan_parsers(commands)
+    from .discretization import parsers as spatial_parsers
+    spatial_parsers(commands)
     inspect = commands.add_parser("project-inspect")
     inspect.add_argument("path")
     inspect.add_argument("--previous", action="store_true")
@@ -37,7 +39,10 @@ def main() -> int:
         from pathlib import Path
         from fcst_app.persistence import PersistenceError, recover_package, migrate_project, semantic_hash, save_package
         try:
-            if args.command.startswith('esatan-'):
+            if args.command.startswith('spatial-'):
+                from .discretization import execute
+                result=execute(args)
+            elif args.command.startswith('esatan-'):
                 from .esatan import execute
                 result=execute(args)
             elif args.command.startswith(('td-','sinda-')):
@@ -68,7 +73,7 @@ def main() -> int:
     else:
         parser.error("Choose a command or --capabilities")
     print(json.dumps(result, sort_keys=True))
-    return 0
+    return 1 if args.command and args.command.startswith('spatial-') and result.get('status')=='failed' else 0
 
 
 if __name__ == "__main__":

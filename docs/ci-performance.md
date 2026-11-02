@@ -382,3 +382,73 @@ workload and all historical cases. It is neither a benchmark-mode incremental
 sample nor the fastest selected hosted run. The original main run was 19m 44s;
 the observed full-workflow reduction is about 51.5%, with shared-runner variation
 and source/coverage differences documented throughout this ledger.
+
+
+## WP-16 spatial profile and largest-job experiment
+
+Inspected passing [run 41385073610](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41385073610),
+its exact `foundation-handoff/ci-performance.json`, configured stage estimates and
+job critical path before adding spatial acceptance. The Embree job was the
+critical path at 525 seconds; cache state is preserved per configuration in the
+[scalar evidence](../plans/evidence/WP-16-ci-performance.json), rather than treating
+the current cold and recorded warm driver observations as equivalent.
+
+Hypothesis: reducing Embree compiler workers from four to three per project could
+reduce oversubscription. Four fresh full build/install/installed-consumer runs
+used the same locked source/options, two MSBuild projects, MSVC 19.31, Windows,
+warm source downloads and cold object trees, in order 4/3/3/4. Build times were
+531.125/530.156/543.218/591.391 seconds. Medians were 536.687 seconds for three
+workers and 561.258 for four, with overlapping ranges. Every consumer passed.
+
+Retain four workers: native verification overlapped locally and this machine has
+12 logical CPUs versus the four-CPU hosted profile, so these observations do not
+establish a hosted critical-path improvement. The neutral/inconclusive experiment
+is retained with phase/CPU/committed-memory scalars; raw logs and all generated
+source/build/install/consumer trees remain local. The passing baseline, numerical
+criteria, fixed ensembles, scaling repetitions and required work stay unchanged.
+
+WP-16 adds a fresh native acceptance stage to both existing configurations and
+binds it into the aggregate gate and exact-file publication clearance. Mesh
+mappings and boundary-owner indexes are constructed once rather than reparsed or
+rescanned per element/assignment. This avoids introducing quadratic preparation
+work; no verdicts or numerical results are cached. Hosted timings remain the
+authoritative evidence for any later concurrency change.
+
+## WP-16 CAD and confined-native extension
+
+Before this extension, inspected the latest passing
+[run 41473313117](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41473313117)
+at `5947327`, including its exact Foundation performance artifact, configured
+stage estimates and job critical path. Embree remained the largest job, about
+644 seconds; package time was 589.437s and build time 558.422s, versus the passing
+baseline's 338.813s package time. The warning remains open. CPU time increased
+from 1248.531s to 2196.422s with the same locked source/options, MSVC 19.44.35229,
+runner image, four logical CPUs, two project workers and four compiler workers.
+This is evidence to investigate, without establishing its cause or qualifying a
+concurrency change. The earlier matched 4/3/3/4 experiment remains inconclusive;
+the passing baseline and compiler budget stay unchanged.
+
+The new large generated CAD case exposed repeated whole-model validation in
+`Session.save`: one snapshot per projected entity. Hypothesis: validating one
+snapshot and indexing its entities removes that repeated work while preserving
+every entity comparison. Before the change, the large-case save was interrupted
+after more than two minutes in that path; this is a censored failed experiment,
+not a completed timing sample. After the change, the complete installed-host
+payload, including the same fine CAD mesh, native solve, save/reopen and actual
+dialog, passed in about 80 seconds locally. This comparison establishes removal
+of repeated validation and functional completion, not a matched hosted speedup.
+The exact hosted stage/CPU summaries remain authoritative. Raw host files,
+mesher output, process logs and operational databases remain local.
+
+Confined-native acceptance deliberately reruns every configured native test
+under a fresh zero-capability AppContainer. It preserves the existing native
+inventory, Debug/Release behavior, fixed ensembles and all numerical criteria.
+The five-second network probe uses live positive controls, rather than waiting
+for the platform's substantially longer default TCP timeout. No successful
+verdict is cached. Both new and existing publication checks remain required.
+The first complete Debug driver passed 411 records but exposed an avoidable
+late tail: the new confined-native stage had no timing in the older baseline,
+so its implicit zero estimate put it last. Unknown stages now receive the
+largest estimate among active known stages, after equally expensive known work.
+Obsolete estimates do not inflate this fallback. Every stage still executes
+exactly once; the passing baseline and worker budgets remain unchanged.

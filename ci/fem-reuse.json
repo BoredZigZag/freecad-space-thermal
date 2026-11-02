@@ -71,17 +71,24 @@
       "symbols": [
         "Fem.FemMesh",
         "Fem.read",
-        "FemMesh.write"
+        "FemMesh.write",
+        "ObjectsFem.makeMeshGmsh",
+        "GmshTools.update_mesh_data",
+        "GmshTools.write_gmsh_input_files",
+        "GmshTools.update_properties",
+        "FemMesh.getGroupName",
+        "FemMesh.getGroupElements",
+        "FemMesh.getElementNodes"
       ],
       "consumer": "WP-16",
       "dependencies": [
         "official FreeCAD 1.1.4 bundle",
         "embedded cp311"
       ],
-      "reason": "Select offline UNV round trip; Gmsh and Netgen generation deferred pending production qualification",
+      "reason": "Reuse FEM GmshTools and the pinned bundled Gmsh for the explicit tet4/tri3 CAD profile; Netgen remains unselected",
       "maintenance": "Thin value adapter; re-run exact host probes for every host upgrade",
-      "deployment": "Verified official bundle; offline UNV importer needs no external mesher or solver",
-      "evidence": "tools/fem_probe.py",
+      "deployment": "Verified official FreeCAD bundle including Gmsh; no host pip changes or additional mesher distribution",
+      "evidence": "tools/cad_acceptance_payload.py",
       "replacement_justification": null
     },
     {
@@ -245,11 +252,10 @@
     "identity": "IDs stored separately from host row numbers; order changes require explicit remapping",
     "offline_install": "Extract verified official host bundle; no pip changes inside host",
     "unsupported": [
-      "Gmsh generation",
       "Netgen generation",
       "higher order",
-      "shell thickness formulations",
-      "integration point fields"
+      "integration point fields",
+      "ambiguous internal interfaces"
     ]
   },
   "external_profiles": [
@@ -271,5 +277,6 @@
       "qualified": false,
       "reason": "No comparison profile selected in this foundation handoff"
     }
-  ]
+  ],
+  "cad_generation_profile": "ci/cad-mesher.json"
 }

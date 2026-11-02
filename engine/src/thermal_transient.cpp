@@ -81,7 +81,13 @@ struct Engine {
       const auto& cp=a.model().data().materials.at(*node.material_index).specific_heat;
       settings.lower_bounds[*node.equation]=cp.minimum_temperature(); settings.upper_bounds[*node.equation]=cp.maximum_temperature();
     }
+    for(const auto& node:a.model().data().nodes)if(node.equation)for(auto [m,mass]:node.spatial_storage) {
+      (void)mass;const auto& cp=a.model().data().materials[m].specific_heat;
+      settings.lower_bounds[*node.equation]=std::max(settings.lower_bounds[*node.equation],cp.minimum_temperature());
+      settings.upper_bounds[*node.equation]=std::min(settings.upper_bounds[*node.equation],cp.maximum_temperature());
+    }
     auto evaluate=[&,initial](std::span<const double> x,bool jacobian) {
+      // Spatial storage may contain several material masses at an interface.
       auto start=Clock::now(); ++profile.residual_evaluations; if(jacobian) ++profile.jacobian_evaluations;
       try {
         NonlinearEvaluation v;
