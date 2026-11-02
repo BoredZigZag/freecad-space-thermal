@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "scope": "Durable foundation deployment evidence; no thermal, GUI or compatibility qualification",
-  "run": "https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/40576270922",
+  "run": "https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/40576270922",
   "source_head": "8085d55eff7b6f409bda1add6f7a30176b2d7772",
   "tested_merge_commit": "8a25c204b39e24a0126a9616939a34f594643612",
   "foundation": [

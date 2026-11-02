@@ -117,7 +117,7 @@
   ],
   "publication": {
     "policy_version": 3,
-    "approved_identity": "Bored-Anarchist",
+    "approved_identity": "BoredZigZag",
     "publication_copy": "Exact staged blobs plus outgoing history and approved author/committer identities",
     "commands": [
       "python -S tools/check_security.py",

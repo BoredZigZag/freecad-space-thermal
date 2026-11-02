@@ -84,7 +84,7 @@
   ],
   "publication": {
     "policy_version": 3,
-    "approved_identity": "Bored-Anarchist",
+    "approved_identity": "BoredZigZag",
     "staged_and_history_commands": [
       "python tools/publication_preflight.py --staged --revision HEAD",
       "pre-commit and pre-push exact-byte checks"
