@@ -59,7 +59,22 @@ CI runs Windows debug/release, one Windows host smoke and four supported Windows
 
 The public GitHub repository is authoritative. Work-package issues and milestones track the version-controlled plan; `plans/github-backlog.json` maps their identities. Public CI runs only on GitHub-hosted Windows runners without vendor secrets. `tools/setup_validation.py` provisions a separate private validation repository with no privileged runners, no restricted inputs and a manual-only workflow that fails closed until exact licensed profiles and reviewed candidate promotion exist. `tools/check_github.py` reads the live private policy, exact deny-only workflow, read-only permissions and runner list; regression cases reject untrusted triggers, guard bypass, activation and write permissions. Unreviewed public pull requests cannot trigger it. Privileged vendor/performance runners still need profile-specific provisioning and isolation tests. Source-model contents and raw evidence stay in authorized runner-local stores. Workflow dependencies use immutable official Actions commits; jobs default to read permissions. Release publication is deferred until WP-19's complete evidence gate exists.
 
-The [FCST implementation project](https://github.com/users/Bored-Anarchist/projects/1) contains all 22 work packages including inserted WP-05.5, with Planned, Ready, In progress, Blocked and Complete states. Fields retain completion gates, prerequisite packages, requirement IDs and owner roles. `plans/github-project.json` records the exact project/item identities and states. With authorized GitHub Projects scope, `python tools/setup_projects.py` synchronizes this initial backlog without creating duplicate projects/items or accepting unrelated existing items. WP-02 foundation acceptance is Complete; WP-01 is Complete under the user-approved acquired-inventory criteria; WP-03 native contracts are Complete with [executable evidence](../plans/evidence/WP-03.json); optional macOS/Linux work has no work package, milestone or committed delivery date. The live settings checker verifies remote project identity/visibility, repository linkage, all issue mappings and matching states; a local URL alone cannot pass.
+The [FCST implementation project](https://github.com/users/BoredZigZag/projects/1) contains all 22 work packages including inserted WP-05.5, with Planned, Ready, In progress, Blocked and Complete states. Fields retain completion gates, prerequisite packages, requirement IDs and owner roles. `plans/github-project.json` records the exact project/item identities and states. With authorized GitHub Projects scope, `python tools/setup_projects.py` synchronizes this initial backlog without creating duplicate projects/items or accepting unrelated existing items. WP-02 foundation acceptance is Complete; WP-01 is Complete under the user-approved acquired-inventory criteria; WP-03 native contracts are Complete with [executable evidence](../plans/evidence/WP-03.json); optional macOS/Linux work has no work package, milestone or committed delivery date. The live settings checker verifies remote project identity/visibility, repository linkage, all issue mappings and matching states; a local URL alone cannot pass.
+
+WP-12 and WP-14 are **Complete** for their declared implementation profiles,
+matching the closed issues and merged [WP-12 PR #32](https://github.com/BoredZigZag/freecad-space-thermal/pull/32)
+and [WP-14 PR #34](https://github.com/BoredZigZag/freecad-space-thermal/pull/34).
+[WP-12 evidence](../plans/evidence/WP-12.json) covers owned CPU diffuse-gray
+radiation, thermal coupling, fixed statistical ensembles and million-facet scaling.
+[WP-14 evidence](../plans/evidence/WP-14.json) covers typed local stdio MCP,
+authorization/audit/paging, modern and legacy client profiles, and native
+geometry-free conduction jobs with portable FCST packages. The online WP-12
+card and the local WP-14 card were stale; both now use Complete. Completion
+here does not grant full project Q1 or licensed vendor qualification. Integrated
+two-node/two-surface GUI/CLI/MCP radiation parity remains WP-15; production mesh
+submission is WP-16, moving environments WP-17 and advanced optics WP-20.
+WP-14 declares radiation/mesh submission, vendor conversion, viewport capture
+and network MCP unavailable in its delivered profiles.
 
 ## Publication privacy (TST-021)
 
@@ -134,7 +149,7 @@ pointers and acquired originals remain unchanged. Resolved XML, decoded native
 inventories, result arrays and raw logs are excluded from publication. See the
 [ESATAN contract and limitations](esatan.md).
 
-The user approved the public maintainer identity recorded in `ci/publication-policy.json`. No private author email is used. The staged Git index is the sanitized publication copy; restricted originals and raw engineering evidence remain outside it. Install version-controlled hooks with:
+The user approved the public maintainer identity recorded in `ci/publication-policy.json`. The current identity is `BoredZigZag` with the account-ID-based GitHub noreply address; it is the first approved identity used by setup tools. The previous public identity remains approved for existing history, which is not rewritten. After a username change, update the repository-local Git author name/email and origin, repository/project links and CODEOWNERS together. Rerun publication preflight because a policy change invalidates earlier clearance. No private author email is used. The staged Git index is the sanitized publication copy; restricted originals and raw engineering evidence remain outside it. Install version-controlled hooks with:
 
 ```text
 git config core.hooksPath .githooks

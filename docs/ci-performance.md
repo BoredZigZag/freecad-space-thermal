@@ -125,21 +125,42 @@ coverage/workload/identity failures do fail the gate. Investigate material timin
 warnings during PR work and document their disposition. Cache-state differences
 are recorded so a cold/warm comparison cannot silently become a causal claim.
 
+## Account/status follow-up timing review
+
+The latest pre-follow-up [passing run 41371592543](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41371592543)
+tested `82f5390` with warm public-download caches and retained all 394 checks per
+Windows configuration. Full Foundation feedback took 10m59s. Embree was the
+critical job: 589.562s versus the retained baseline's 338.813s (+74.0%), including
+563.578s of compilation and 2212.750 process-tree CPU seconds. The generator,
+two project workers, four compiler workers, pinned source and four logical CPUs
+are unchanged. Debug's driver was 419.219s versus 414.500s; Release was 170.422s
+versus 251.766s. No other timing warning was emitted.
+
+Hypothesis: hosted resource variation dominates this isolated Embree slowdown,
+consistent with the retained slower observations above. Comparing source,
+configuration, stage timings and job critical paths found no new workload or
+budget change in the documentation-only candidate. This observation is not a
+matched performance experiment and does not establish the cause. Retain the
+warning and passing baseline; the next ordinary candidate supplies another
+unattended sample. The account rename changes publication-policy version/hash,
+so its cache keys become cold and total times need separate interpretation.
+No coverage, numerical criteria or measured baseline is relaxed by this follow-up.
+
 ## Measured experiments
 
 | Experiment | Evidence | Outcome |
 |---|---|---|
-| Original sequential workflow | [Main run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41252470867) | Full CI 19m 44s; Debug driver 18m 17s; Release driver 8m 04s. |
-| Shared units, native deduplication, bounded acceptance | [PR baseline](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41343113138) | Cold full CI 15m 58s; Debug driver 12m 47s; Release driver 4m 19s; all checks passed. The original cold baseline remains in this ledger and Git history. This is not a controlled hardware comparison. |
+| Original sequential workflow | [Main run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41252470867) | Full CI 19m 44s; Debug driver 18m 17s; Release driver 8m 04s. |
+| Shared units, native deduplication, bounded acceptance | [PR baseline](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41343113138) | Cold full CI 15m 58s; Debug driver 12m 47s; Release driver 4m 19s; all checks passed. The original cold baseline remains in this ledger and Git history. This is not a controlled hardware comparison. |
 | Canonical index sorting and construction-only BVH geometry | Local synthetic one-million-facet diagnostic pair | Debug construction 112.1s to 30.4s; all non-timing rows and storage accounting matched. All three independent CI scaling builds remain required. Hosted confirmation accompanies the PR. |
 | Allocation-free BVH traversal stack | Local three-refinement diagnostic pairs | Trace time 1.83s to 1.13s at 99,856 facets and 1.97s to 1.35s at one million facets; all non-timing results matched. |
 | Four-worker Ninja package build | Complete local pinned Embree build/install/consumer | Passed in 600s; no established gain over the hosted baseline. Incremental migration also exposed compiler-cache handling costs. Reverted the migration and retained package-phase timing instrumentation for future diagnosis. |
-| Optimized BVH, timing-prioritized scheduling and continuous comparisons | [Passing warm run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41350452498), commit `ac3003d` | Full CI 12m 45s; Debug driver 9m 53s; Release driver 4m 14s; Debug radiation 5m 13s. All required checks passed, with 391 records per configuration. The prior run was cold, so total runtime differences include cache effects. |
-| Three Debug acceptance workers | [Passing warm run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41355909563), commit `35cdeb5` | Full CI 11m 02s; Debug driver 407.015s versus the warm reference's 578.078s (29.6% shorter). Embree became the critical path. Aggregate job duration 2,690s. |
-| Thermal residual allocation removal and four-compiler Embree | [Passing warm run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41356914583), commit `f44ab6b` | Full CI 8m 58s; Debug driver 351.812s; Release 254.500s. Embree build 321.860s versus 573.719s in the prior run; all package consumers passed. Aggregate job duration 2,331s, 13.3% less than the prior run. OCCT and the Debug tail now dominate. |
-| Invariant ray cache, final checkpoint hashing and native compiler parallelism | [Passing warm run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41357834232), commit `7072a4d` | Full CI 11m 03s; Debug 413.781s; Release 203.625s; all 391 records per configuration passed. Embree's unchanged four-compiler build took 566.484s, while OCCT's unchanged two-compiler build took 228.062s. Aggregate job duration 2,420s. Retain this slower sample; resource telemetry and repetitions are needed before causal hosted-time claims. |
-| Aggregate process-tree resource evidence | [Passing warm run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41359314196), commit `d94fd6f` | Full CI 10m 13s; Debug 373.407s; Release 163.484s; all 393 records per configuration passed. Embree build 503.953s / 1,974.453 CPU seconds / 2.207 GB peak job commit; OCCT build 317.015s / 728.422 CPU seconds / 1.516 GB peak job commit. All measured runners reported four logical CPUs. Aggregate job duration 2,390s. Initial accounting profile `windows-job-v1`; later comparisons isolate reusable MSBuild workers explicitly. |
-| Bounded row cache and isolated accounting V2 | [Passing warm run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41362070826), commit `8ad7ee1` | Full CI 7m 51s; Debug 252.032s with three workers; Release 231.578s with two; all 393 records per configuration passed. Embree build 379.657s / 1,495.125 CPU seconds; OCCT build 308.016s / 731.828 CPU seconds / 1.515 GB peak job commit. Aggregate job duration 2,194s. Shared-runner variation remains substantial; this is the V2 reference for the next budget trial. |
+| Optimized BVH, timing-prioritized scheduling and continuous comparisons | [Passing warm run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41350452498), commit `ac3003d` | Full CI 12m 45s; Debug driver 9m 53s; Release driver 4m 14s; Debug radiation 5m 13s. All required checks passed, with 391 records per configuration. The prior run was cold, so total runtime differences include cache effects. |
+| Three Debug acceptance workers | [Passing warm run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41355909563), commit `35cdeb5` | Full CI 11m 02s; Debug driver 407.015s versus the warm reference's 578.078s (29.6% shorter). Embree became the critical path. Aggregate job duration 2,690s. |
+| Thermal residual allocation removal and four-compiler Embree | [Passing warm run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41356914583), commit `f44ab6b` | Full CI 8m 58s; Debug driver 351.812s; Release 254.500s. Embree build 321.860s versus 573.719s in the prior run; all package consumers passed. Aggregate job duration 2,331s, 13.3% less than the prior run. OCCT and the Debug tail now dominate. |
+| Invariant ray cache, final checkpoint hashing and native compiler parallelism | [Passing warm run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41357834232), commit `7072a4d` | Full CI 11m 03s; Debug 413.781s; Release 203.625s; all 391 records per configuration passed. Embree's unchanged four-compiler build took 566.484s, while OCCT's unchanged two-compiler build took 228.062s. Aggregate job duration 2,420s. Retain this slower sample; resource telemetry and repetitions are needed before causal hosted-time claims. |
+| Aggregate process-tree resource evidence | [Passing warm run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41359314196), commit `d94fd6f` | Full CI 10m 13s; Debug 373.407s; Release 163.484s; all 393 records per configuration passed. Embree build 503.953s / 1,974.453 CPU seconds / 2.207 GB peak job commit; OCCT build 317.015s / 728.422 CPU seconds / 1.516 GB peak job commit. All measured runners reported four logical CPUs. Aggregate job duration 2,390s. Initial accounting profile `windows-job-v1`; later comparisons isolate reusable MSBuild workers explicitly. |
+| Bounded row cache and isolated accounting V2 | [Passing warm run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41362070826), commit `8ad7ee1` | Full CI 7m 51s; Debug 252.032s with three workers; Release 231.578s with two; all 393 records per configuration passed. Embree build 379.657s / 1,495.125 CPU seconds; OCCT build 308.016s / 731.828 CPU seconds / 1.515 GB peak job commit. Aggregate job duration 2,194s. Shared-runner variation remains substantial; this is the V2 reference for the next budget trial. |
 
 The BVH change sorts indices rather than large optical facet records, detects
 duplicate IDs in canonical order, and computes bounds/centroids once per facet.
@@ -154,14 +175,14 @@ product performance qualification.
 ## Resumed experiments and next work
 
 Optimization resumed after the passing documentation checkpoint `1156dff` in
-[run 41352210980](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41352210980):
+[run 41352210980](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41352210980):
 full CI 12m 13s, Debug 578.078s and Release 206.406s, both warm with two workers.
 That intermediate baseline referenced the passing run with unchanged workload
 and case retention; the final refreshed baseline is recorded below. The original cold run remains recorded above.
 
 The first resumed experiment sets Debug to three acceptance workers and leaves
 Release at two. Debug passed in 407.015s versus 578.078s (29.6% shorter), retaining
-all 391 records. [The complete run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41355909563)
+all 391 records. [The complete run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41355909563)
 passed in 11m 02s, with Embree now limiting the critical path. Stage durations
 stayed comparable while long stages overlapped.
 The full qualification tier remains serial. Before retaining it, compare complete
@@ -225,7 +246,7 @@ fresh builds with four-CPU affinity and an isolated MSBuild worker pool, in reve
 order, with no concurrent local compiler work.
 
 The four-worker Debug/OCCT trial passed all 393 records in
-[run 41363285933](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41363285933),
+[run 41363285933](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41363285933),
 commit `25c406c`: full CI 10m 28s, Debug 425.610s, Release 164.250s, aggregate
 job duration 2,499s. OCCT build took 292.047s / 1,129.703 CPU seconds / 1.730 GB
 peak job commit. The slower unchanged stages demonstrate runner variation;
@@ -245,7 +266,7 @@ input defaults to false, so ordinary PR checks still execute one full driver per
 configuration. For example:
 
 ```text
-gh workflow run ci.yml --repo Bored-Anarchist/freecad-space-thermal --ref codex/accelerate-ci -f benchmark_workers=true
+gh workflow run ci.yml --repo BoredZigZag/freecad-space-thermal --ref codex/accelerate-ci -f benchmark_workers=true
 ```
 
 The Debug job performs one complete calibration, then an ABBA comparison of
@@ -271,7 +292,7 @@ dangling symlinks and junctions before copying. The validator change deliberatel
 invalidates the previous cache identity: the first new run is cold; collect a
 subsequent ordinary warm run before refreshing the timing baseline.
 
-The [completed paired run](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41367494887)
+The [completed paired run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41367494887)
 passed all five attempts at `65b164a`, each with 394 records on four logical CPUs.
 The four-worker acceptance samples were 352.594/343.046s; the three-worker samples
 321.609/320.641s. Medians were 347.820s versus 321.125s: four was 8.3% slower.
@@ -281,7 +302,7 @@ this paired result supports the decision without treating separate runner timing
 as causal evidence. All seeds, samples and scaling repetitions remained intact.
 
 The ordinary first run after the cache fix also passed all 394 records per
-configuration: [cold run 41367427888](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41367427888),
+configuration: [cold run 41367427888](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41367427888),
 8m 16s overall, Debug 287.484s, Release 235.016s, aggregate job duration 2,278s.
 It used the previous four-worker Debug budget; retain that context.
 
@@ -345,7 +366,7 @@ scalar reports and reviewed source/documentation are published under TST-021.
 
 ## Final ordinary checkpoint
 
-[Run 41370540527](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41370540527),
+[Run 41370540527](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41370540527),
 commit `e52197d`, passed every required check with warm caches and 394 records per
 configuration. Full workflow: 9m 34s; Debug: 414.500s with three workers; Release:
 251.766s with two; aggregate job duration: 2,322s. This ordinary run deliberately

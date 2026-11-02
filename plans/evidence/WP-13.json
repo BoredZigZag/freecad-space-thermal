@@ -124,6 +124,6 @@
   "graphics_sha256": "38870631e23fe7f7c1f5a1981d4ffa70bbd147caff31d4c1c4f1ef8cf5ff4860",
   "graphics_policy": "Use only the hash-pinned software OpenGL DLL already shipped in the verified official bundle. Preserve its original bytes and notices and create the alias only in the isolated local test cache. Qt and native FEM rendering share that software implementation.",
   "tested_candidate": "d91f00761854262f39a3bd42ce980229668610b0",
-  "implementation_pr": "https://github.com/Bored-Anarchist/freecad-space-thermal/pull/33",
-  "final_ci_run": "https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41227743419"
+  "implementation_pr": "https://github.com/BoredZigZag/freecad-space-thermal/pull/33",
+  "final_ci_run": "https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41227743419"
 }

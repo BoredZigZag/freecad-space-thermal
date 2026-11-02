@@ -134,7 +134,7 @@
   ],
   "publication": {
     "policy_version": 4,
-    "approved_identity": "Bored-Anarchist",
+    "approved_identity": "BoredZigZag",
     "commands": [
       "python tools/publication_preflight.py --staged",
       "python tools/publication_preflight.py --revision HEAD"

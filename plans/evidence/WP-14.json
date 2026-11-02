@@ -5,7 +5,7 @@
   "tested_worktree_base": "4c49973024314c0df78c39cb227f0bdd1d5dc168",
   "implementation_delivery": "implemented",
   "acceptance_status": "passed_on_declared_profiles",
-  "review_status": "Ready for code review",
+  "review_status": "Merged in PR #34",
   "protocols": [
     "2026-07-28",
     "2025-11-25"

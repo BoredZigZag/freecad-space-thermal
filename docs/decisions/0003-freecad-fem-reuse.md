@@ -16,7 +16,7 @@ FCST retains its host-independent model and owned thermal assembly, radiation, c
 
 ## Required assessment and recommended dispositions
 
-The following are recommendations to investigate, not verified APIs in the pinned host. Before the first overlapping WP-13 implementation, the FreeCAD host lead records the host candidates below and an initial mesh assessment. Before WP-16 mesh implementation, the thermal discretization lead completes the mesh-specific evidence. Both leads maintain the decisions with their implementation PRs and link them from [WP-13](https://github.com/Bored-Anarchist/freecad-space-thermal/issues/13) and [WP-16](https://github.com/Bored-Anarchist/freecad-space-thermal/issues/16).
+The following are recommendations to investigate, not verified APIs in the pinned host. Before the first overlapping WP-13 implementation, the FreeCAD host lead records the host candidates below and an initial mesh assessment. Before WP-16 mesh implementation, the thermal discretization lead completes the mesh-specific evidence. Both leads maintain the decisions with their implementation PRs and link them from [WP-13](https://github.com/BoredZigZag/freecad-space-thermal/issues/13) and [WP-16](https://github.com/BoredZigZag/freecad-space-thermal/issues/16).
 
 | Candidate group | Recommended disposition | Owner and decision point | Required evidence |
 |---|---|---|---|

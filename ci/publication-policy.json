@@ -1,6 +1,10 @@
 {
-  "version": 7,
+  "version": 8,
   "approved_identities": [
+    {
+      "name": "BoredZigZag",
+      "email": "109712444+BoredZigZag@users.noreply.github.com"
+    },
     {
       "name": "Bored-Anarchist",
       "email": "109712444+Bored-Anarchist@users.noreply.github.com"

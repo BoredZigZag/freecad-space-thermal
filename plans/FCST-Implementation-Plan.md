@@ -158,7 +158,7 @@ Inside FreeCAD, application dispatch runs on the host's owning thread for docume
 required numerical/statistical/scaling, host, package and both Windows checks.
 The original full CI took 19m 44s; passing warm optimized runs range from 7m 51s
 to 11m 03s, with substantial shared-runner variation. The latest four-worker trial,
-[run 41363285933](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41363285933)
+[run 41363285933](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41363285933)
 (`25c406c`), passed all 393 records per configuration in 10m 28s. Retained changes
 remove repeated unit/native execution, derivative allocations, checkpoint hashing,
 BVH construction work and per-ray allocations. Bounded row scratch replaces the
@@ -169,7 +169,7 @@ An isolated local OCCT four-versus-two compiler pair passed fresh full builds,
 installs and consumers: 274.361s versus 339.676s (19.2% shorter), with higher CPU
 and peak committed memory. Retain four with that tradeoff recorded; exclude the
 earlier overlapped local pair. The opt-in single-runner calibration/ABBA workflow settled Debug's budget:
-[run 41367494887](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41367494887)
+[run 41367494887](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41367494887)
 passed five complete attempts; four-worker median acceptance was 347.820s versus
 321.125s with three, consuming about 15.9% more CPU. Return Debug to three;
 Release remains two and full qualification serial. Repeat only with a new
@@ -184,7 +184,7 @@ Continue measuring the largest cost, recording keep/revert decisions and failed
 or neutral experiments; the corrected local PCH prototype passed but was slower with higher memory and
 is not adopted.
 
-**Final ordinary checkpoint.** Warm [run 41370540527](https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/41370540527),
+**Final ordinary checkpoint.** Warm [run 41370540527](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41370540527),
 `e52197d`, passed all 394 records per configuration in 9m 34s, with three Debug
 workers and two Release workers. Debug/Release drivers took 414.500/251.766s;
 aggregate job duration was 2,322s. Deliberately refresh the versioned baseline to
@@ -352,6 +352,8 @@ logs stay local. Original engineering bytes remain preserved. Artifact UUIDs,
 client metadata and imported text cannot grant export authority or qualification.
 
 WP-02 implements TST-021 through `tools/publication_preflight.py`, versioned policy and pre-commit/pre-push hooks. The driver inspects actual staged blobs, every reachable commit tree, complete commit objects, author/committer/tagger identities, outgoing prose and bounded nested archives. It rejects unsupported binaries/media, links, archive traversal, encrypted/unreadable inputs and inspection limits; safe reports contain opaque location IDs and categories without matched values. Clearance binds exact outgoing byte hashes and policy version/hash. Synthetic adversarial tests include deleted-history secrets, staged/worktree differences, personal paths/contact data, credentials, private identifier hashes, nested generated outputs and safe negative cases. CI repeats the same checks; direct API publication scans its exact payload before posting. See [developer commands and limitations](../docs/development.md). Restricted originals remain local; unsupported media needs an appropriate sanitization/inspection path before publication, and pattern detection does not infer every confidential engineering meaning.
+
+The GitHub account rename to `BoredZigZag` updates repository/project ownership, CODEOWNERS, evidence links and the repository-local Git identity. Publication policy version 8 puts the new account-ID-based noreply identity first for setup tools and retains the previous approved public identity so existing commits pass without a history rewrite. TST-021 acceptance uses the project Python environment and reruns `python tools/check_security.py --scope security` and `python tools/publication_preflight.py --staged --revision HEAD` against the updated policy and outgoing bytes; policy changes invalidate old clearance. Run `python tools/check_github.py` to verify renamed repository/project identities and the validation boundary unattended. Existing CI timings, candidate/run IDs and numerical criteria remain unchanged.
 
 WP-03 extends that executable publication boundary to the generated v1 schemas, shared types, embedded native schema table and synthetic JSON fixtures. The fast driver generates a bounded contract-conformance report with IDs and fixture hashes; both Windows jobs scan that exact report with verification/build metadata before upload. Local staged/outgoing-history and final prose scans remain mandatory. Native executables, raw compiler/reader logs, HDF5 payloads and acquired engineering originals remain local; the contract bundle does not authorize their publication. TST-021 acceptance remains `python tools/check_security.py` plus actual outgoing preflight, without new suppressions or private fixture contents.
 
@@ -773,6 +775,13 @@ output completion without skipping elapsed time or exceeding the step cap.
 
 ### Step 12 — WP-12: implement CPU radiation and thermal coupling
 
+**Delivery status: Complete.** [PR #32](https://github.com/BoredZigZag/freecad-space-thermal/pull/32)
+is merged and issue #12 is closed. The board state represents the owned CPU
+diffuse-gray implementation and its declared acceptance, as recorded below;
+it does not qualify all vendor compatibility or the project-wide Q1 gate.
+GUI/MCP two-surface radiation integration remains WP-15 even though the WP-13
+host and WP-14 conduction automation foundations are delivered.
+
 Implementation: [owned CPU radiation engine](../docs/radiation-engine.md), native
 BVH and geometry validation, stable surface/side streams, sparse raw/corrected
 exchange, separate solar/IR constant diffuse-gray optics with provenance/domain
@@ -827,6 +836,15 @@ Before implementing overlapping objects, editors or visualization, complete the 
 **Outputs:** usable workbench, inspectors, visualization, FEM component assessment/adapters and unattended host harness. **Completion:** a clean runner builds/saves/reopens a model through the UI, verifies canonical hashes and plotted values, exercises face changes and failure recovery, and completes without a person clicking through the test. Implement the applicable P0/Q1 FEM-REUSE-001/002/004/005 checks with their features; the coverage gate rejects missing assessment/API/license evidence, operation/units/mapping differences and stale fields. Spatial extensions remain WP-16.
 
 ### Step 14 — WP-14: implement typed MCP automation and policy enforcement
+
+**Delivery status: Complete.** [PR #34](https://github.com/BoredZigZag/freecad-space-thermal/pull/34)
+is merged and issue #14 is closed. [WP-14 completion evidence](evidence/WP-14.json)
+records passing Windows Debug/Release acceptance on the declared local MCP and
+native geometry-free conduction/package profiles. The project snapshot now
+matches the complete work-package register and online card. Integrated radiation
+parity remains WP-15, production spatial work WP-16, and full vendor/Q1
+qualification retains its separate gates. Unavailable tools remain explicitly
+unavailable in the delivered profiles.
 
 Implementation: [local MCP gateway and declared profiles](../docs/mcp.md), with
 frozen `ci/mcp-acceptance.json` and candidate/input/worker-bound `mcp.json` from
