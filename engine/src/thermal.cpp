@@ -13,6 +13,45 @@ double finite(double value) {
 void bounds(double lo, double hi) {
   if (!std::isfinite(lo) || !std::isfinite(hi) || lo < 0 || lo >= hi) throw Error("range");
 }
+void tensor_check(const Tensor& k) {
+  double scale=0;
+  for(std::size_t i=0;i<3;++i)for(std::size_t j=0;j<3;++j) {
+    if(!std::isfinite(k[i][j]) || std::abs(k[i][j]-k[j][i])>1e-12*std::max({1.0,std::abs(k[i][j]),std::abs(k[j][i])}))throw Error("range");
+    scale=std::max(scale,std::abs(k[i][j]));
+  }
+  if(scale==0 || k[0][0]<=0)throw Error("range");
+  const double a=std::sqrt(k[0][0]/scale),b=k[1][0]/scale/a,c=k[2][0]/scale/a;
+  const double pivot=k[1][1]/scale-b*b;if(!std::isfinite(pivot) || pivot<=0)throw Error("range");
+  const double d=(k[2][1]/scale-c*b)/std::sqrt(pivot),last=k[2][2]/scale-c*c-d*d;
+  if(!std::isfinite(last) || last<=0)throw Error("range");
+}
+}
+TensorLaw::TensorLaw(std::vector<double> temperatures,std::vector<Tensor> tensors,Extrapolation extrapolation,double minimum,double maximum)
+    :temperatures_(std::move(temperatures)),tensors_(std::move(tensors)),extrapolation_(extrapolation),minimum_(minimum),maximum_(maximum) {
+  bounds(minimum_,maximum_);
+  if(temperatures_.size()<2 || temperatures_.size()>16384 || temperatures_.size()!=tensors_.size() ||
+      (extrapolation_!=Extrapolation::error && extrapolation_!=Extrapolation::clamp))throw Error("range");
+  for(std::size_t i=0;i<temperatures_.size();++i) {
+    if(!std::isfinite(temperatures_[i]) || temperatures_[i]<minimum_ || temperatures_[i]>maximum_ || (i && temperatures_[i]<=temperatures_[i-1]))throw Error("range");
+    tensor_check(tensors_[i]);
+    if(i)for(std::size_t a=0;a<3;++a)for(std::size_t b=0;b<3;++b)(void)finite((tensors_[i][a][b]-tensors_[i-1][a][b])/(temperatures_[i]-temperatures_[i-1]));
+  }
+  if(extrapolation_==Extrapolation::error && (temperatures_.front()!=minimum_ || temperatures_.back()!=maximum_))throw Error("range");
+}
+TensorSample TensorLaw::sample(double t) const {
+  if(!std::isfinite(t) || t<minimum_ || t>maximum_)throw Error("range");
+  if(t<temperatures_.front() || t>temperatures_.back()) {
+    if(extrapolation_!=Extrapolation::clamp)throw Error("range");
+    return {t<temperatures_.front()?tensors_.front():tensors_.back(),{}};
+  }
+  auto right=std::upper_bound(temperatures_.begin(),temperatures_.end(),t);
+  std::size_t i=std::min(static_cast<std::size_t>(right-temperatures_.begin())-1,temperatures_.size()-2);
+  double fraction=(t-temperatures_[i])/(temperatures_[i+1]-temperatures_[i]);TensorSample out{};
+  for(std::size_t a=0;a<3;++a)for(std::size_t b=0;b<3;++b) {
+    out.value[a][b]=finite(std::lerp(tensors_[i][a][b],tensors_[i+1][a][b],fraction));
+    out.derivative[a][b]=finite((tensors_[i+1][a][b]-tensors_[i][a][b])/(temperatures_[i+1]-temperatures_[i]));
+  }
+  return out;
 }
 Error::Error(std::string code_, std::string entity, std::string source)
     : std::runtime_error("Thermal input or property rejected"), code(std::move(code_)),
@@ -108,9 +147,13 @@ Material::Material(std::string id_, PropertyLaw density_, PropertyLaw specific_h
   if (!std::isfinite(last) || last <= 0) throw Error("range", id);
 }
 Tensor Material::tensor(double t) const {
-  if (conductivity_tensor) { (void)conductivity.sample(t); return *conductivity_tensor; }
-  double k = conductivity.sample(t).value;
-  return {{{k,0,0},{0,k,0},{0,0,k}}};
+  return tensor_sample(t).value;
+}
+TensorSample Material::tensor_sample(double t) const {
+  if(tensor_law)return tensor_law->sample(t);
+  if (conductivity_tensor) { (void)conductivity.sample(t); return {*conductivity_tensor,{}}; }
+  auto k=conductivity.sample(t);
+  return {{{{k.value,0,0},{0,k.value,0},{0,0,k.value}}},{{{k.derivative,0,0},{0,k.derivative,0},{0,0,k.derivative}}}};
 }
 Model::Model(Data data) : data_(std::move(data)) {}
 double Model::storage_capacity(std::size_t index, double t) const {
@@ -120,8 +163,17 @@ Sample Model::storage_capacity_sample(std::size_t index, double t) const {
   const auto& node = data_.nodes.at(index);
   if (!std::isfinite(t) || t < 0) throw Error("range", node.id);
   if (node.classification != NodeClass::capacitive) return {0, 0, false};
-  if (!node.material_index) return {node.capacity, 0, false};
+  if (!node.material_index && node.spatial_storage.empty()) return {node.capacity, 0, false};
   try {
+    if (!node.spatial_storage.empty()) {
+      Sample result{0,0,false};
+      for (auto [m,mass]:node.spatial_storage) {
+        auto cp=data_.materials.at(m).specific_heat.sample(t);
+        result.value=finite(result.value+mass*cp.value);result.derivative=finite(result.derivative+mass*cp.derivative);
+        result.discontinuous |= cp.discontinuous;
+      }
+      return result;
+    }
     auto sample = data_.materials.at(*node.material_index).specific_heat.sample(t);
     return {finite(node.mass * sample.value), finite(node.mass * sample.derivative), sample.discontinuous};
   }
@@ -132,6 +184,11 @@ double Model::storage_change(std::size_t index, double from, double to) const {
   if (!std::isfinite(from) || !std::isfinite(to) || from < 0 || to < 0) throw Error("range", node.id);
   if (node.classification != NodeClass::capacitive) return 0;
   try {
+    if (!node.spatial_storage.empty()) {
+      double result=0;
+      for (auto [m,mass]:node.spatial_storage) result=finite(result+mass*data_.materials.at(m).specific_enthalpy_change(from,to));
+      return result;
+    }
     if (!node.material_index) return finite(node.capacity * (to-from));
     return finite(node.mass * data_.materials.at(*node.material_index).specific_enthalpy_change(from, to));
   } catch (Error& e) { e.entity_id = node.id; throw; }

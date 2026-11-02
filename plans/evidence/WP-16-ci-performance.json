@@ -1,0 +1,328 @@
+{
+  "schema_version": 1,
+  "work_package": "WP-16",
+  "tested_worktree_base": "6642f15b6badeb34f8806c617c3c982f0c601d4e",
+  "inspected_github_run": {
+    "id": 41385073610,
+    "url": "https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41385073610",
+    "candidate": "6642f15b6badeb34f8806c617c3c982f0c601d4e",
+    "largest_job": "Package probe (windows-2022, embree)",
+    "job_seconds": 525,
+    "package_seconds": 481.407,
+    "presets": {
+      "windows-debug": {
+        "driver_seconds": 236.906,
+        "cache_state": "cold",
+        "longest_stage": "radiation-acceptance"
+      },
+      "windows-release": {
+        "driver_seconds": 183.187,
+        "cache_state": "cold",
+        "longest_stage": "thermal-reference-comparison"
+      }
+    }
+  },
+  "hypothesis": "Three compiler workers per project may reduce Embree oversubscription versus four while preserving the full package build/install/consumer workload.",
+  "context": {
+    "platform": "Windows",
+    "logical_cpus": 12,
+    "order": [
+      4,
+      3,
+      3,
+      4
+    ],
+    "local_concurrency": "Native feature builds and verification overlapped; not an isolated hosted-runner experiment.",
+    "workload": "Identical locked source/options; fresh build/install/consumer directories each repetition; warm public source download; cold object trees."
+  },
+  "repetitions": [
+    {
+      "compiler_jobs": 4,
+      "build_jobs": 2,
+      "configuration": "Release",
+      "generator": "visual-studio-2022",
+      "public_source_sha256": "8fba54992b1faf9546884254bf5f32681670280832286e31ed2215e0ca21fcfe",
+      "object_cache": "cold",
+      "download_cache": "warm",
+      "stage_seconds": {
+        "configure": 11.859,
+        "build": 531.125,
+        "install": 0.266,
+        "consumer-configure": 8.094,
+        "consumer-build": 2.687,
+        "consumer-run": 0.141
+      },
+      "stage_resources": {
+        "configure": {
+          "cpu_seconds": 11.921875,
+          "peak_process_commit_bytes": 171073536,
+          "peak_job_commit_bytes": 277028864,
+          "total_processes": 77
+        },
+        "build": {
+          "cpu_seconds": 4658.640625,
+          "peak_process_commit_bytes": 765202432,
+          "peak_job_commit_bytes": 2800525312,
+          "total_processes": 87
+        },
+        "install": {
+          "cpu_seconds": 0.265625,
+          "peak_process_commit_bytes": 5611520,
+          "peak_job_commit_bytes": 9527296,
+          "total_processes": 2
+        },
+        "consumer-configure": {
+          "cpu_seconds": 7.265625,
+          "peak_process_commit_bytes": 187863040,
+          "peak_job_commit_bytes": 257183744,
+          "total_processes": 49
+        },
+        "consumer-build": {
+          "cpu_seconds": 2.3125,
+          "peak_process_commit_bytes": 157962240,
+          "peak_job_commit_bytes": 221597696,
+          "total_processes": 20
+        },
+        "consumer-run": {
+          "cpu_seconds": 0.09375,
+          "peak_process_commit_bytes": 136663040,
+          "peak_job_commit_bytes": 146227200,
+          "total_processes": 3
+        }
+      },
+      "total_seconds": 554.172,
+      "status": "passed",
+      "toolchain": {
+        "system": "Windows",
+        "architecture": "AMD64",
+        "threads": 1,
+        "logical_cpus": 12,
+        "c_id": "MSVC",
+        "c_version": "19.31.31107.0",
+        "cxx_id": "MSVC",
+        "cxx_version": "19.31.31107.0"
+      }
+    },
+    {
+      "compiler_jobs": 3,
+      "build_jobs": 2,
+      "configuration": "Release",
+      "generator": "visual-studio-2022",
+      "public_source_sha256": "8fba54992b1faf9546884254bf5f32681670280832286e31ed2215e0ca21fcfe",
+      "object_cache": "cold",
+      "download_cache": "warm",
+      "stage_seconds": {
+        "configure": 14.188,
+        "build": 530.156,
+        "install": 0.25,
+        "consumer-configure": 6.797,
+        "consumer-build": 2.047,
+        "consumer-run": 0.235
+      },
+      "stage_resources": {
+        "configure": {
+          "cpu_seconds": 12.890625,
+          "peak_process_commit_bytes": 179757056,
+          "peak_job_commit_bytes": 250683392,
+          "total_processes": 76
+        },
+        "build": {
+          "cpu_seconds": 4482.890625,
+          "peak_process_commit_bytes": 790466560,
+          "peak_job_commit_bytes": 2146611200,
+          "total_processes": 83
+        },
+        "install": {
+          "cpu_seconds": 0.25,
+          "peak_process_commit_bytes": 5615616,
+          "peak_job_commit_bytes": 9535488,
+          "total_processes": 2
+        },
+        "consumer-configure": {
+          "cpu_seconds": 6.53125,
+          "peak_process_commit_bytes": 171032576,
+          "peak_job_commit_bytes": 240537600,
+          "total_processes": 49
+        },
+        "consumer-build": {
+          "cpu_seconds": 1.90625,
+          "peak_process_commit_bytes": 157908992,
+          "peak_job_commit_bytes": 221192192,
+          "total_processes": 20
+        },
+        "consumer-run": {
+          "cpu_seconds": 0.15625,
+          "peak_process_commit_bytes": 136646656,
+          "peak_job_commit_bytes": 146178048,
+          "total_processes": 3
+        }
+      },
+      "total_seconds": 553.688,
+      "status": "passed",
+      "toolchain": {
+        "system": "Windows",
+        "architecture": "AMD64",
+        "threads": 1,
+        "logical_cpus": 12,
+        "c_id": "MSVC",
+        "c_version": "19.31.31107.0",
+        "cxx_id": "MSVC",
+        "cxx_version": "19.31.31107.0"
+      }
+    },
+    {
+      "compiler_jobs": 3,
+      "build_jobs": 2,
+      "configuration": "Release",
+      "generator": "visual-studio-2022",
+      "public_source_sha256": "8fba54992b1faf9546884254bf5f32681670280832286e31ed2215e0ca21fcfe",
+      "object_cache": "cold",
+      "download_cache": "warm",
+      "stage_seconds": {
+        "configure": 12.594,
+        "build": 543.218,
+        "install": 0.235,
+        "consumer-configure": 7.172,
+        "consumer-build": 2.625,
+        "consumer-run": 0.14
+      },
+      "stage_resources": {
+        "configure": {
+          "cpu_seconds": 12.078125,
+          "peak_process_commit_bytes": 179417088,
+          "peak_job_commit_bytes": 248410112,
+          "total_processes": 76
+        },
+        "build": {
+          "cpu_seconds": 4601.6875,
+          "peak_process_commit_bytes": 783577088,
+          "peak_job_commit_bytes": 2147639296,
+          "total_processes": 83
+        },
+        "install": {
+          "cpu_seconds": 0.234375,
+          "peak_process_commit_bytes": 5607424,
+          "peak_job_commit_bytes": 9523200,
+          "total_processes": 2
+        },
+        "consumer-configure": {
+          "cpu_seconds": 6.875,
+          "peak_process_commit_bytes": 171089920,
+          "peak_job_commit_bytes": 240779264,
+          "total_processes": 49
+        },
+        "consumer-build": {
+          "cpu_seconds": 2.125,
+          "peak_process_commit_bytes": 153837568,
+          "peak_job_commit_bytes": 216907776,
+          "total_processes": 20
+        },
+        "consumer-run": {
+          "cpu_seconds": 0.109375,
+          "peak_process_commit_bytes": 136654848,
+          "peak_job_commit_bytes": 146190336,
+          "total_processes": 3
+        }
+      },
+      "total_seconds": 565.984,
+      "status": "passed",
+      "toolchain": {
+        "system": "Windows",
+        "architecture": "AMD64",
+        "threads": 1,
+        "logical_cpus": 12,
+        "c_id": "MSVC",
+        "c_version": "19.31.31107.0",
+        "cxx_id": "MSVC",
+        "cxx_version": "19.31.31107.0"
+      }
+    },
+    {
+      "compiler_jobs": 4,
+      "build_jobs": 2,
+      "configuration": "Release",
+      "generator": "visual-studio-2022",
+      "public_source_sha256": "8fba54992b1faf9546884254bf5f32681670280832286e31ed2215e0ca21fcfe",
+      "object_cache": "cold",
+      "download_cache": "warm",
+      "stage_seconds": {
+        "configure": 13.531,
+        "build": 591.391,
+        "install": 0.281,
+        "consumer-configure": 8.375,
+        "consumer-build": 2.453,
+        "consumer-run": 0.11
+      },
+      "stage_resources": {
+        "configure": {
+          "cpu_seconds": 12.9375,
+          "peak_process_commit_bytes": 171053056,
+          "peak_job_commit_bytes": 241532928,
+          "total_processes": 76
+        },
+        "build": {
+          "cpu_seconds": 4864.25,
+          "peak_process_commit_bytes": 890793984,
+          "peak_job_commit_bytes": 2817679360,
+          "total_processes": 85
+        },
+        "install": {
+          "cpu_seconds": 0.28125,
+          "peak_process_commit_bytes": 5615616,
+          "peak_job_commit_bytes": 9519104,
+          "total_processes": 2
+        },
+        "consumer-configure": {
+          "cpu_seconds": 7.828125,
+          "peak_process_commit_bytes": 179453952,
+          "peak_job_commit_bytes": 248500224,
+          "total_processes": 49
+        },
+        "consumer-build": {
+          "cpu_seconds": 2.453125,
+          "peak_process_commit_bytes": 157814784,
+          "peak_job_commit_bytes": 221364224,
+          "total_processes": 20
+        },
+        "consumer-run": {
+          "cpu_seconds": 0.125,
+          "peak_process_commit_bytes": 136654848,
+          "peak_job_commit_bytes": 146198528,
+          "total_processes": 3
+        }
+      },
+      "total_seconds": 616.172,
+      "status": "passed",
+      "toolchain": {
+        "system": "Windows",
+        "architecture": "AMD64",
+        "threads": 1,
+        "logical_cpus": 12,
+        "c_id": "MSVC",
+        "c_version": "19.31.31107.0",
+        "cxx_id": "MSVC",
+        "cxx_version": "19.31.31107.0"
+      }
+    }
+  ],
+  "observations": {
+    "3": {
+      "build_median_seconds": 536.6869999999999,
+      "build_range_seconds": [
+        530.156,
+        543.218
+      ],
+      "total_median_seconds": 559.836
+    },
+    "4": {
+      "build_median_seconds": 561.258,
+      "build_range_seconds": [
+        531.125,
+        591.391
+      ],
+      "total_median_seconds": 585.172
+    }
+  },
+  "decision": "Retain four compiler workers. Ranges overlap, concurrent local work is a confounder, and this 12-CPU machine differs from the four-CPU hosted profile. No hosted critical-path improvement or performance qualification is established; the passing baseline is unchanged.",
+  "publication": "Scalar sanitized evidence only; raw profiles/compiler logs, source/build/install/consumer trees and binaries remain local."
+}

@@ -94,11 +94,16 @@ def configuration(value, model):
     return deepcopy(value)
 
 
-def request(model, options, case_id=None):
+def request(model, options, case_id=None, thermal_input=None):
     model = read('model', model)
     options = settings(options)
     mode=options.pop('mode')
     envelope = dict(contract_version='1.0.0', model=model, material_laws=[], node_storage=[])
+    if thermal_input is not None:
+        from fcst_app.discretization import read_input
+        envelope=read_input(thermal_input)
+        if semantic_hash(envelope['model'])!=semantic_hash(model):reject('stale_spatial_input')
+        envelope['model']=model
     if case_id:
         case = next((e for e in model['entities'] if e['id'] == case_id and e['kind'] == 'case'), None)
         if case is None:

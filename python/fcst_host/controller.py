@@ -101,6 +101,8 @@ class Session:
         self.projecting, self.closed, self.on_change = False, False, None
         self.diverged = False
         self.spatial_view, self.spatial_id = None, None
+        self.thermal_input = None
+        self.discretization_view = None
         self.result_id, self.result, self.panel, self.job = None, None, None, None
         self.options = deepcopy(review.DEFAULT_SETTINGS)
         self.case_id = None
@@ -111,11 +113,21 @@ class Session:
         App.addDocumentObserver(self.observer)
 
     @classmethod
-    def create(cls, workspace, model=None):
+    def create(cls, workspace, model=None, thermal_input=None):
         import FreeCAD as App
         workspace = Path(workspace); workspace.mkdir(parents=True, exist_ok=True)
-        store = ProjectStore.create(workspace/'project.db', model or review.new_model())
-        return cls(App.newDocument('FCST'), store, workspace)
+        package=None
+        if thermal_input is not None:
+            from fcst_app.discretization import read_input,assignment_payload
+            thermal_input=read_input(thermal_input)
+            if model is not None and model!=thermal_input['model']:reject('stale_spatial_input')
+            model=thermal_input['model']
+            artifact=next(e['artifact'] for e in model['entities'] if e['kind']=='mesh' and e['role']=='conduction')
+            package=Package.create(model,[(str(uuid.uuid4()),'conduction_input',artifact['path'],assignment_payload(thermal_input),[])])
+        store = ProjectStore.create(workspace/'project.db', package=package) if package is not None else ProjectStore.create(workspace/'project.db', model or review.new_model())
+        session=cls(App.newDocument('FCST'), store, workspace)
+        if thermal_input is not None:session.import_thermal_input(thermal_input)
+        return session
 
     @classmethod
     def open(cls, package_path, workspace):
@@ -136,6 +148,16 @@ class Session:
     def restore(self):
         session,store=self,self.store
         configurations=[]
+        spatial_inputs=[a for a in store._artifacts() if a[2].startswith('spatial-inputs/')]
+        if spatial_inputs:
+            from fcst_contracts import loads
+            from fcst_app.discretization import read_input
+            candidates=[]
+            for artifact in spatial_inputs:
+                value=read_input(loads(artifact[3]))
+                if value['model']==store.snapshot():candidates.append(value)
+            if len(candidates)>1:reject('ambiguous_spatial_input')
+            if candidates:session.thermal_input=candidates[0]
         for artifact in store._artifacts():
             if artifact[2].startswith('review-settings/'):
                 from fcst_contracts import loads
@@ -439,6 +461,7 @@ class Session:
 
     def clear_display(self):
         self.result = None
+        if self.discretization_view is not None:self.discretization_view.hide()
         if self.spatial_view is not None:
             self.spatial_view.hide()
         if hasattr(self, 'objects'):
@@ -463,6 +486,20 @@ class Session:
         self.spatial_id=artifact_id
         return view
 
+    def import_thermal_input(self,value):
+        """Attach immutable prepared spatial input to this exact canonical revision."""
+        from fcst_app.discretization import read_input
+        value=read_input(value)
+        if value['model']!=self.store.snapshot():reject('stale_spatial_input')
+        if self.thermal_input is not None:
+            if self.thermal_input==value:return
+            reject('spatial_repreparation_required')
+        artifact_id=str(uuid.uuid4())
+        self.store.add_artifact(artifact_id,'evidence','spatial-inputs/'+artifact_id+'.json',encode(value),
+                                expected_revision=self.store.snapshot()['revision'])
+        self.thermal_input=value
+        self.clear_display()
+
     def load_result(self, result_id):
         assert_thread()
         if self.check_bindings():
@@ -474,6 +511,10 @@ class Session:
         self.spatial_view,self.spatial_id=None,None
         self.result = result
         self.result_id = result_id
+        if self.thermal_input is not None:
+            from .discretization import NativeMeshView
+            if self.discretization_view is None:self.discretization_view=NativeMeshView(self,self.thermal_input)
+            self.discretization_view.show(result,0)
         return self.result
 
     def show_sample(self, index, selected=None, unit='K'):
@@ -487,6 +528,7 @@ class Session:
         if self.check_bindings():
             reject('attachment_reassignment_required')
         value = review.display(result, index, selected, unit)
+        if self.discretization_view is not None:self.discretization_view.show(result,index)
         with self.projection():
             for key, rgb in zip(result['node_ids'], value['colours']):
                 self.objects[key].ViewObject.ShapeColor = rgb

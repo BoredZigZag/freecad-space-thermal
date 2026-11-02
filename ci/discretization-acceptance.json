@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "scope": "Native spatial profile; full imported Q1/vendor and production CAD mesher qualification remain open",
+  "families": [
+    "tri3",
+    "quad4",
+    "tet4",
+    "hex8"
+  ],
+  "required_cases": [
+    "fd-rod",
+    "element-patches",
+    "rotated-tensor",
+    "nonlinear-jacobian",
+    "storage-enthalpy",
+    "surface-loads",
+    "convection",
+    "contacts",
+    "reduced-components",
+    "steady-manufactured-refinement",
+    "transient-spatial-refinement",
+    "transient-time-refinement",
+    "identity-reordering",
+    "invalid-mesh",
+    "invalid-mappings",
+    "invalid-materials",
+    "invalid-contacts",
+    "stale-mesh",
+    "offline-native",
+    "temperature-tensor-law",
+    "spatial-transient-heating",
+    "mixed-material-storage"
+  ],
+  "criteria": {
+    "patch_absolute": 1e-09,
+    "jacobian_absolute": 1e-05,
+    "energy_absolute_W": 1e-08,
+    "steady_refinements": [
+      4,
+      8,
+      16
+    ],
+    "steady_minimum_error_ratio": 3.9,
+    "spatial_refinements": [
+      4,
+      8,
+      16
+    ],
+    "spatial_end_s": 0.02,
+    "spatial_maximum_step_s": 0.0001,
+    "spatial_minimum_error_ratio": 3,
+    "time_steps_s": [
+      0.01,
+      0.005,
+      0.0025
+    ],
+    "time_end_s": 0.05,
+    "time_minimum_error_ratio": 1.7
+  }
+}

@@ -26,7 +26,9 @@
     "HOST-SAVE-RECOVERY",
     "HOST-TOPOLOGY",
     "HOST-THREAD",
-    "HOST-RENDER"
+    "HOST-RENDER",
+    "WP16-HOST-MESH",
+    "WP16-HOST-SOLVE"
   ],
   "criteria": {
     "temperature_absolute_K": 0.01,
@@ -36,7 +38,7 @@
     "minimum_contour_coloured_pixels_per_band": 100,
     "screenshot_role": "local supplementary rendering evidence only"
   },
-  "remaining_spatial_qualification": "Production meshing, FD/FE and spatial assignments remain WP-16; FEM-REUSE-003/006 are not satisfied by host display tests.",
+  "remaining_spatial_qualification": "The bounded native first-order profile and host solve/mapping/reopen are checked. Production CAD mesher, mandatory imported Q1 and full FEM-REUSE-003/006 qualification remain WP-16/WP-19.",
   "progress_phases": [
     "fem_create",
     "fem_colour_setter",

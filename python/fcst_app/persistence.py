@@ -67,7 +67,7 @@ def semantic_hash(model):
 
 
 def read_manifest(value):
-    return read("manifest2" if value.get("contract_version") == "2.0.0" else "manifest", value)
+    return read('manifest3' if value.get('contract_version')=='3.0.0' else "manifest2" if value.get("contract_version") == "2.0.0" else "manifest", value)
 
 
 def safe_path(name):
@@ -145,6 +145,17 @@ class Package:
         for record in records:
             name = record["artifact"]["path"]
             suffix = Path(name).suffix.lower()
+            if record['role']=='conduction_input':
+                if self.manifest['contract_version']!='3.0.0' or suffix!='.fcstc':reject('storage_format')
+                from .discretization import read_input,assignment_payload,decode_assignment
+                try:assignment=decode_assignment(self.files[name])
+                except (ValueError,TypeError,KeyError):reject('storage_format')
+                if not isinstance(assignment,dict) or set(assignment)!={'spatial','material_laws','node_storage'}:reject('storage_format')
+                try:value=read_input(dict(contract_version='2.0.0',model=self.model,**assignment))
+                except (ValueError,TypeError,KeyError):reject('storage_format')
+                if assignment_payload(value)!=self.files[name]:reject('storage_format')
+                array_metadata[name]={'role':'conduction_mesh'}
+                continue
             if record["role"] == "spatial":
                 if suffix != ".h5" or not check_arrays:
                     reject("storage_format")
@@ -222,7 +233,7 @@ class Package:
             files[name] = bytes(data)
             records.append({"id": artifact_id, "role": role, "dependencies": list(dependencies),
                             "artifact": {"path": name, "sha256": sha256(data).hexdigest(), "byte_length": len(data)}})
-        version = "2.0.0" if any(r["role"] == "spatial" for r in records) else VERSION
+        version = '3.0.0' if any(r['role']=='conduction_input' for r in records) else "2.0.0" if any(r["role"] == "spatial" for r in records) else VERSION
         return cls({"contract_version": version, "minimum_reader": version, "project_id": model["project_id"],
                     "revision": model["revision"], "model_artifact_id": model_id, "artifacts": records}, files)
 

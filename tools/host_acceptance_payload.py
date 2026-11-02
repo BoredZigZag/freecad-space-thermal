@@ -304,6 +304,36 @@ def main():
     assert network_reopened.spatial_view is None and network_reopened.result is not None
     network_reopened.close();App.closeDocument(network_reopened.doc.Name)
     passed('FEM-REUSE-005')
+    # Exercise real native spatial input, reused FEM mesh APIs, contour and portable reopen.
+    from fcst_app.discretization import plate
+    value=plate(2,1,topology='quad4',temperature=350)
+    positions={p['node_id']:p['position'] for p in value['spatial']['points']}
+    for n in value['model']['entities']:
+        if n['kind']=='node' and positions[n['id']][0] in (0,1):
+            n.update(classification='prescribed',capacity=dict(value=0,unit='J/K'),
+                     temperature=dict(value=300+100*positions[n['id']][0],unit='K'))
+    spatial_session=Session.create(folder/'native-spatial',thermal_input=value)
+    spatial_session.options={**review.DEFAULT_SETTINGS,'mode':'steady'}
+    spatial_job=NativeJob(spatial_session,os.environ['FCST_HOST_WORKER']);spatial_session.job=spatial_job;spatial_job.start()
+    wait(lambda:spatial_job.state not in ('queued','running'))
+    assert spatial_job.state=='succeeded' and spatial_session.discretization_view is not None
+    view=spatial_session.discretization_view
+    assert view.mesh.FemMesh.FaceCount==2 and view.mesh.FemMesh.NodeCount==6
+    for p,t in zip(value['spatial']['points'],view.result.Temperature):assert abs(t-(300+100*p['position'][0]))<1e-8
+    node_map={i:p['id'] for i,p in enumerate(value['spatial']['points'],1)}
+    element_map={i:c['element_id'] for i,c in enumerate(value['spatial']['cells'],1)}
+    extracted=fem_adapter.conduction_input(value,view.mesh.FemMesh,node_map,element_map)
+    assert extracted==value
+    bad=dict(node_map);bad[1],bad[2]=bad[2],bad[1]
+    rejects(lambda:fem_adapter.conduction_input(value,view.mesh.FemMesh,bad,element_map),'host_mesh_connectivity')
+    passed('WP16-HOST-MESH')
+    spatial_session.save(folder/'native-spatial.FCStd',folder/'native-spatial.fcst')
+    spatial_session.close();App.closeDocument(spatial_session.doc.Name)
+    spatial_session=Session.open(folder/'native-spatial.fcst',folder/'native-spatial-reopen')
+    assert spatial_session.thermal_input==value and spatial_session.discretization_view is not None
+    spatial_session.clear_display();assert not spatial_session.discretization_view.mesh.ViewObject.Visibility
+    spatial_session.close();App.closeDocument(spatial_session.doc.Name)
+    passed('WP16-HOST-SOLVE')
     session.close();App.closeDocument(session.doc.Name)
     mark('final_render')
     session=Session.open(folder/'solved.fcst',folder/'render-reopened')

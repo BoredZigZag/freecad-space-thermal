@@ -382,3 +382,34 @@ workload and all historical cases. It is neither a benchmark-mode incremental
 sample nor the fastest selected hosted run. The original main run was 19m 44s;
 the observed full-workflow reduction is about 51.5%, with shared-runner variation
 and source/coverage differences documented throughout this ledger.
+
+
+## WP-16 spatial profile and largest-job experiment
+
+Inspected passing [run 41385073610](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41385073610),
+its exact `foundation-handoff/ci-performance.json`, configured stage estimates and
+job critical path before adding spatial acceptance. The Embree job was the
+critical path at 525 seconds; cache state is preserved per configuration in the
+[scalar evidence](../plans/evidence/WP-16-ci-performance.json), rather than treating
+the current cold and recorded warm driver observations as equivalent.
+
+Hypothesis: reducing Embree compiler workers from four to three per project could
+reduce oversubscription. Four fresh full build/install/installed-consumer runs
+used the same locked source/options, two MSBuild projects, MSVC 19.31, Windows,
+warm source downloads and cold object trees, in order 4/3/3/4. Build times were
+531.125/530.156/543.218/591.391 seconds. Medians were 536.687 seconds for three
+workers and 561.258 for four, with overlapping ranges. Every consumer passed.
+
+Retain four workers: native verification overlapped locally and this machine has
+12 logical CPUs versus the four-CPU hosted profile, so these observations do not
+establish a hosted critical-path improvement. The neutral/inconclusive experiment
+is retained with phase/CPU/committed-memory scalars; raw logs and all generated
+source/build/install/consumer trees remain local. The passing baseline, numerical
+criteria, fixed ensembles, scaling repetitions and required work stay unchanged.
+
+WP-16 adds a fresh native acceptance stage to both existing configurations and
+binds it into the aggregate gate and exact-file publication clearance. Mesh
+mappings and boundary-owner indexes are constructed once rather than reparsed or
+rescanned per element/assignment. This avoids introducing quadratic preparation
+work; no verdicts or numerical results are cached. Hosted timings remain the
+authoritative evidence for any later concurrency change.

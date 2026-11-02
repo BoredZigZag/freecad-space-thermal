@@ -102,6 +102,44 @@ def reconcile_attachment(old, candidates):
     return exact[0]
 
 
+def conduction_input(value, mesh, node_map, element_map, *, length_unit='mm'):
+    """Read pinned FEM mesh APIs through explicit host-number/canonical-ID maps.
+
+    Never infer identity from row order, position, nearest face or coincident
+    radiation facets. The caller must explicitly reassign after regeneration.
+    """
+    assert_thread()
+    from copy import deepcopy
+    from .discretization import read_input,seal
+    value=read_input(value)
+    if length_unit!='mm':reject('host_mesh_units')
+    points={p['id']:p for p in value['spatial']['points']}
+    cells={c['element_id']:c for c in value['spatial']['cells']}
+    if (set(node_map)!=set(mesh.Nodes) or set(node_map.values())!=set(points)
+            or len(node_map)!=len(points) or set(element_map.values())!=set(cells) or len(element_map)!=len(cells)):
+        reject('host_mesh_identity')
+    available=set(mesh.Volumes)|set(mesh.Faces)
+    if not set(element_map)<=available:reject('host_mesh_identity')
+    output=deepcopy(value)
+    point_hosts={id_:n for n,id_ in node_map.items()}
+    element_hosts={id_:n for n,id_ in element_map.items()}
+    for p in output['spatial']['points']:
+        host=point_hosts[p['id']]
+        p['position']=[float(v)*.001 for v in mesh.Nodes[host]]
+    for c in output['spatial']['cells']:
+        host=element_hosts[c['element_id']]
+        indices=list(mesh.getElementNodes(host))
+        expected={'tri3':3,'quad4':4,'tet4':4,'hex8':8}[c['topology']]
+        if len(indices)!=expected or any(i not in node_map for i in indices):reject('unsupported_element')
+        mapped=[node_map[i] for i in indices]
+        if mapped!=c['point_ids']:reject('host_mesh_connectivity')
+        c['point_ids']=mapped
+    # Extraction does not silently authorize changed coordinates or assignments.
+    if seal(output)['spatial']['mesh_revision']!=value['spatial']['mesh_revision']:
+        reject('attachment_reassignment_required')
+    return seal(output)
+
+
 def edit_through_service(doc, store, actor, scopes, key, payload):
     assert_thread()
     # Mark dirty before any host edit; a failure after service commit cannot claim clean.

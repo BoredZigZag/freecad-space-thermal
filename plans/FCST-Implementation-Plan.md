@@ -26,6 +26,13 @@ Online publication must exclude private/personal information. This covers code a
 
 ## 1. Boundaries and decisions to establish first
 
+WP-16 extends the publication-privacy boundary to exact spatial solver/adapters,
+versioned input/manifest schemas, synthetic primitive generators and bounded
+candidate/source/worker-bound reports. Its executable codec/staleness/evidence
+regressions and both native configurations run unattended. TST-021 scans exact
+staged/history/identity bytes, scalar timing experiments and final GitHub prose;
+original models, generated host media, raw logs and build trees remain local.
+
 The 29 October independent TD exchange correction also extends TST-021.
 Execute `tests/test_independent_dwg.py` and `tools/check_td.py` in unattended
 Windows verification, plus `tests/test_native_dwg.py` and `tests/test_sinda_writer.py`.
@@ -882,6 +889,16 @@ Integrated two-surface parity remains WP-15, and these receipts do not grant Q1.
 **Outputs:** repeatable demonstration project and `qualify --gate P0` report. **Completion:** the full scripted demonstration passes on the selected Windows native/host profiles and named MCP client profile. P0 claims remain experimental even when every demo step passes.
 
 ### Step 16 — WP-16: complete FD/FE discretization, contacts and property coverage
+
+The [native spatial profile](../docs/discretization.md) implements FD rods,
+first-order shells/solids, material storage/tensors, contacts, area loads and
+bounded reduced components. [Evidence](evidence/WP-16.json) retains production CAD
+mesher, full FEM reuse and mandatory imported Q1 qualification as open obligations.
+Candidate/source/worker-bound acceptance runs in both Windows configurations;
+passing the bounded profile does not close WP-16/Q1. TST-021 covers exact new
+sources, schemas, synthetic fixtures, bounded reports and scalar timing summaries,
+with staged/history/identity/prose preflight before upload; raw host/model files,
+screenshots, logs and build trees remain local.
 
 Complete WP-13's initial FEM mesh assessment before introducing a meshing stack. Evaluate FEM mesh objects/I/O and Gmsh/Netgen integration on the pinned host, select only qualified components, and record exact source/build/options/licenses plus reasons for any replacement. Explicitly map CAD references, conduction elements/thermal nodes and radiation facets; a shared geometry does not make these identities equivalent. Evaluate CalculiX/Elmer as optional separately labeled conduction references, with predeclared equivalent inputs and tolerances.
 

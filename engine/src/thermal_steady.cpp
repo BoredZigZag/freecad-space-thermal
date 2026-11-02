@@ -265,6 +265,11 @@ SteadyResult solve_steady(const Assembly& a,double time,const SteadyOptions& o,s
     settings.lower_bounds[*node.equation]=cp.minimum_temperature(); settings.upper_bounds[*node.equation]=cp.maximum_temperature();
   }
   auto size_check=[&](const auto& v) { if (!v.empty() && v.size()!=n) throw Error("dimension"); };
+  for(const auto& node:a.model().data().nodes)if(node.equation)for(auto [m,mass]:node.spatial_storage) {
+    (void)mass;const auto& cp=a.model().data().materials[m].specific_heat;
+    settings.lower_bounds[*node.equation]=std::max(settings.lower_bounds[*node.equation],cp.minimum_temperature());
+    settings.upper_bounds[*node.equation]=std::min(settings.upper_bounds[*node.equation],cp.maximum_temperature());
+  }
   for (const auto* v:{&o.lower_temperature,&o.upper_temperature,&o.temperature_scales,&o.power_scales}) size_check(*v);
   for (double scale:o.power_scales) if (!std::isfinite(scale) || scale<=0) throw Error("range");
   auto linear=std::make_shared<SparseLuBackend>(o.linear);

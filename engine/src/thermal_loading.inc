@@ -13,13 +13,15 @@ thermal::PropertyLaw thermal_law(const J& table, const std::string& dimension_na
 }
 thermal::Data thermal_data(std::string_view input) {
   auto envelope = Parser{input}.parse();
-  if (!envelope.has("contract_version") || envelope.at("contract_version") != J("1.0.0")) fail("version");
+  if (!envelope.has("contract_version") || (envelope.at("contract_version") != J("1.0.0") && envelope.at("contract_version") != J("2.0.0"))) fail("version");
+  const bool spatial_input=envelope.at("contract_version")==J("2.0.0");
   static const J schema = [] {
     std::string bytes;
     for (auto part : thermal_input_schema_parts) bytes += part;
     return Parser{bytes}.parse();
   }();
-  validate(schema, envelope, schema);
+  static const J spatial_schema = [] {std::string bytes;for(auto part:spatial_thermal_input_schema_parts)bytes+=part;return Parser{bytes}.parse();}();
+  validate(spatial_input?spatial_schema:schema, envelope, spatial_input?spatial_schema:schema);
   // Validate the original nested model separately so its source-aware errors survive.
   auto model = read("model", envelope.at("model"));
   try {
@@ -75,7 +77,7 @@ thermal::Data thermal_data(std::string_view input) {
           thermal::Node node{id, e.at("submodel_id").str(),
             classification == "capacitive" ? thermal::NodeClass::capacitive :
             classification == "algebraic" ? thermal::NodeClass::algebraic : thermal::NodeClass::prescribed,
-            e.at("temperature").at("value").num(), e.at("capacity").at("value").num(), {}, {}, {}, {}, 0};
+            e.at("temperature").at("value").num(), e.at("capacity").at("value").num(), {}, {}, {}, {}, 0, {}};
           if (node.classification != thermal::NodeClass::prescribed)
             node.equation = out.differential_count + out.algebraic_count;
           if (node.classification == thermal::NodeClass::capacitive) node.differential_index = out.differential_count++;
@@ -177,6 +179,11 @@ thermal::Data thermal_data(std::string_view input) {
       }
     }
     std::sort(out.active_environment_ids.begin(), out.active_environment_ids.end());
+    if(spatial_input) {
+      thermal_spatial(out,envelope.at("spatial"),entities,node_index,material_index,envelope);
+      for(const auto& cell:out.spatial->cells)for(auto p:cell.cell.points)parent[root(out.spatial->points[p].node)]=root(out.spatial->points[cell.cell.points[0]].node);
+      for(const auto& c:out.spatial->contacts)for(const auto* side:{&c.from,&c.to})for(auto [n,w]:*side){(void)w;parent[root(n)]=root(c.from[0].first);}
+    }
     out.active_environment_ids.erase(std::unique(out.active_environment_ids.begin(), out.active_environment_ids.end()), out.active_environment_ids.end());
     std::map<std::size_t, std::size_t> components;
     for (std::size_t i = 0; i < out.nodes.size(); ++i) {
@@ -202,7 +209,7 @@ thermal::Data thermal_data(std::string_view input) {
       for (auto& [name, table] : law.obj()) if (name != "material_id")
         std::sort(table.at("discontinuities").arr().begin(), table.at("discontinuities").arr().end(),
           [](const J& a, const J& b) { return a.num() < b.num(); });
-    out.preparation_hash = sha256(std::string("FCST-thermal-input-v1\0",22) + canonical(envelope));
+    out.preparation_hash = sha256((spatial_input?std::string("FCST-thermal-input-v2\0",22):std::string("FCST-thermal-input-v1\0",22)) + canonical(envelope));
     return out;
   } catch (thermal::Error& error) {
     for (const auto& source : model.at("source_maps").arr())

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -11,6 +12,7 @@
 #include <tuple>
 #include <vector>
 
+namespace fcst::spatial { struct Discretization; }
 namespace fcst::thermal {
 struct Error : std::runtime_error {
   std::string code, entity_id, source_map_id;
@@ -32,6 +34,7 @@ class PropertyLaw {
   double integral(double from_temperature, double to_temperature) const;
   double minimum_temperature() const { return minimum_; }
   double maximum_temperature() const { return maximum_; }
+  bool constant() const { return x_.empty(); }
  private:
   std::vector<double> x_, y_;
   std::vector<std::size_t> jumps_;
@@ -41,6 +44,17 @@ class PropertyLaw {
   void check_temperature(double temperature) const;
 };
 using Tensor = std::array<std::array<double, 3>, 3>;
+struct TensorSample { Tensor value,derivative; };
+class TensorLaw {
+ public:
+  TensorLaw(std::vector<double>,std::vector<Tensor>,Extrapolation,double,double);
+  TensorSample sample(double) const;
+ private:
+  std::vector<double> temperatures_;
+  std::vector<Tensor> tensors_;
+  Extrapolation extrapolation_;
+  double minimum_,maximum_;
+};
 struct Material {
   Material(std::string id_, PropertyLaw density_, PropertyLaw specific_heat_, PropertyLaw conductivity_,
            std::optional<Tensor> tensor_, std::optional<std::string> frame_);
@@ -48,8 +62,10 @@ struct Material {
   PropertyLaw density, specific_heat, conductivity;
   std::optional<Tensor> conductivity_tensor;
   std::optional<std::string> frame_id;
+  std::optional<TensorLaw> tensor_law;
   double specific_enthalpy_change(double from, double to) const;
   Tensor tensor(double temperature) const;
+  TensorSample tensor_sample(double temperature) const;
 };
 enum class NodeClass { capacitive, algebraic, prescribed };
 struct Node {
@@ -59,6 +75,7 @@ struct Node {
   std::optional<std::size_t> equation, differential_index, algebraic_index;
   std::optional<std::size_t> material_index;
   double mass = 0;
+  std::vector<std::pair<std::size_t,double>> spatial_storage; // Material index and fixed reference mass, kg.
 };
 struct Conductor { std::string id; std::size_t from, to; double conductance; };
 struct Load { std::string id; std::size_t node; double power; std::optional<std::string> expression_id; bool active; };
@@ -102,6 +119,7 @@ struct Data {
   std::vector<Component> components;
   std::vector<std::string> deferred_entity_ids;
   std::size_t differential_count = 0, algebraic_count = 0;
+  std::shared_ptr<const spatial::Discretization> spatial;
 };
 class Model {
  public:

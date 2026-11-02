@@ -1,0 +1,62 @@
+{
+  "work_package": "WP-16",
+  "status": "in_progress",
+  "scope": "Native first-order spatial profile, assignments, reduced components and unattended verification",
+  "tested_worktree_base": "6642f15b6badeb34f8806c617c3c982f0c601d4e",
+  "checks": [
+    {
+      "id": "native-spatial-release",
+      "status": "passed",
+      "required_cases": 22,
+      "commands": 74,
+      "policy": "ci/discretization-acceptance.json"
+    },
+    {
+      "id": "spatial-value-and-evidence-regressions",
+      "status": "passed",
+      "required_cases": 10
+    },
+    {
+      "id": "pinned-FreeCAD-spatial-mapping-solve-contour-reopen",
+      "status": "passed",
+      "required_cases": 20
+    },
+    {
+      "id": "full-windows-release",
+      "status": "passed",
+      "required_checks": 405,
+      "tested_worktree_base": "6642f15b6badeb34f8806c617c3c982f0c601d4e"
+    },
+    {
+      "id": "full-unit-suite",
+      "status": "passed",
+      "required_cases": 379
+    },
+    {
+      "id": "matched-Embree-packaging-repetitions",
+      "status": "passed",
+      "repetitions": 4,
+      "performance_improvement_claimed": false
+    },
+    {
+      "id": "full-windows-debug",
+      "status": "passed",
+      "required_checks": 405,
+      "tested_worktree_base": "6642f15b6badeb34f8806c617c3c982f0c601d4e"
+    }
+  ],
+  "implementation": [
+    "FD rod and tri3/quad4/tet4/hex8 conduction",
+    "Full quadrature and row-sum reference-mass enthalpy storage",
+    "Scalar property laws and rotated SPD tensor tables",
+    "Area loads, convection, contacts and bounded insulation/MLI/heat-pipe laws",
+    "Content-bound v2 input and versioned portable persistence"
+  ],
+  "blockers": [
+    "Production CAD mesher qualification and full FEM-REUSE-003",
+    "All mandatory imported Q1 element/property and source-ecosystem qualification",
+    "Full offline release FEM-REUSE-006 with WP-19"
+  ],
+  "full_wp16_qualified": false,
+  "publication": "TST-021 clears exact outgoing source/history/identity, scalar evidence and GitHub prose; original inputs, generated host media, raw logs and build trees remain local"
+}

@@ -115,6 +115,19 @@ def open_project():
     if path: show(Session.open(path,Path(tempfile.mkdtemp(prefix='fcst-host-'))))
 
 
+def open_spatial_model():
+    from PySide6 import QtWidgets
+    from fcst_contracts import loads
+    from fcst_app.discretization import read_input
+    from fcst_app.persistence import reject
+    path,_=QtWidgets.QFileDialog.getOpenFileName(None,'Open spatial thermal model','','Spatial thermal input (*.json)')
+    if path:
+        path=Path(path)
+        if path.stat().st_size>1048576:reject('spatial_input_limit')
+        value=read_input(loads(path.read_bytes()))
+        show(Session.create(Path(tempfile.mkdtemp(prefix='fcst-host-')),thermal_input=value))
+
+
 def save_project():
     from PySide6 import QtWidgets
     path,_=QtWidgets.QFileDialog.getSaveFileName(None,'Save coordinated FCST project','','FCST project (*.fcst)')
@@ -172,6 +185,7 @@ def register():
         ('New','New thermal model',create,False),
         ('Example','Open analytic network',lambda:create(True),False),
         ('Open','Open project',open_project,False),
+        ('SpatialModel','Open spatial thermal model',open_spatial_model,False),
         ('Save','Save project',save_project,True),
         ('Undo','Undo thermal edit',lambda:current().panel.undo(),True),
         ('Reconcile','Rebuild host from project',lambda:(current().reconcile(),current().panel.refresh()),True),
@@ -188,7 +202,7 @@ def register():
         MenuText='FCST Thermal'; ToolTip='Spacecraft thermal modeling and result review'
 
         def Initialize(self):
-            commands=['FCST_'+n for n in ('New','Example','Open','Save','Undo','Reconcile','Surface','Bind','Field','Settings','Solve')]
+            commands=['FCST_'+n for n in ('New','Example','Open','SpatialModel','Save','Undo','Reconcile','Surface','Bind','Field','Settings','Solve')]
             self.appendToolbar('FCST Thermal',commands)
             self.appendMenu('FCST Thermal',commands)
             self.appendMenu(['FCST Thermal','Create'],['FCST_Add_'+k for k in ('submodel','node','face','facet','material','optics','conductor','load','environment','case','frame','control')])

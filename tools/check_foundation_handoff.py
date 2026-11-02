@@ -54,6 +54,11 @@ def check(directory):
                 or any(sha256((ROOT/name).read_bytes()).hexdigest()!=digest for name,digest in esatan['input_sha256'].items())):
             raise ValueError('esatan_regression_stale_inputs_or_false_qualification')
         contracts=load(path.parent/"contracts.json")
+        from fcst_tools.discretization import assess as assess_discretization, input_hashes as discretization_hashes
+        discretization=load(path.parent/'discretization.json')
+        assess_discretization(discretization,load(ROOT/'ci/discretization-acceptance.json'),discretization_hashes(ROOT),candidate)
+        if discretization['worker_sha256']!=load(path.parent/'thermal.json')['binary_sha256']['worker']:
+            raise ValueError('discretization_worker_substitution')
         if contracts["status"]!="passed": raise ValueError("contract_regression")
         from fcst_tools.thermal import assess as assess_thermal, input_hashes as thermal_hashes
         assess_thermal(load(path.parent/'thermal.json'), load(ROOT/'ci/thermal-acceptance.json'), thermal_hashes(ROOT), candidate)
