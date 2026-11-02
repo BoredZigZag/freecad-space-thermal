@@ -7,7 +7,7 @@
       "id": "windows-linux-clean-build-install",
       "status": "passed",
       "candidate": "8085d55eff7b6f409bda1add6f7a30176b2d7772",
-      "evidence": "https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/40576270922",
+      "evidence": "https://github.com/Bored-Anarchist/freecad-space-thermal/actions/runs/40576270922",
       "configurations": [
         "windows-debug",
         "windows-release",

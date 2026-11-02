@@ -146,6 +146,13 @@ unattended sample. The account rename changes publication-policy version/hash,
 so its cache keys become cold and total times need separate interpretation.
 No coverage, numerical criteria or measured baseline is relaxed by this follow-up.
 
+The [first account/status follow-up run 41382734838](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41382734838)
+retained the full workload but failed WP055-AUDIT-001/002 because a username-link
+edit changed the hash-pinned historical WP-02 evidence. Restore that file's exact
+original bytes, including its historical public URL; do not refresh its baseline
+hash or weaken the audit. All other Release cases passed. Retain this failed
+attempt alongside the corrected candidate; it is not eligible as a timing baseline.
+
 ## Measured experiments
 
 | Experiment | Evidence | Outcome |
