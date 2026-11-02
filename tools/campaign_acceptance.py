@@ -3,11 +3,13 @@
 from copy import deepcopy
 from pathlib import Path
 from math import exp, isclose
+import json
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 
 from fcst_app.campaign import read_json, report_campaign, run_campaign
 from fcst_app.persistence import PersistenceError
-from fcst_cli.campaign import html_report
 
 
 def check(worker, fixture):
@@ -23,7 +25,7 @@ def check(worker, fixture):
     spec = {
         "seed": 3421, "samples": 3,
         "budget": {"jobs": 9, "compute_s": 30, "per_run_s": 10, "memory_mb": 128,
-                   "artifact_bytes": 8 * 1024 * 1024},
+                   "artifact_bytes": 768 * 1024},
         "parameters": {
             "conductance": {"entity": conductor, "field": "conductance", "min": .5,
                             "max": 2, "distribution": "uniform", "step": .04},
@@ -45,12 +47,22 @@ def check(worker, fixture):
     limits = {"version": 1, "nodes": {node: {"min_K": 290, "max_K": 315, "margin_K": 2}}}
     with TemporaryDirectory() as scratch:
         root = Path(scratch)
-        first = run_campaign(envelope, spec, root / "first", worker, transient=transient)
+        for name, data in (("spec", spec), ("transient", transient), ("limits", limits)):
+            (root / f"{name}.json").write_text(json.dumps(data), encoding="utf-8")
+
+        def cli(*args):
+            result = subprocess.run([sys.executable, "-m", "fcst_cli", *map(str, args)],
+                                    capture_output=True, timeout=35)
+            assert result.returncode == 0 and not result.stderr
+            return json.loads(result.stdout)
+
+        first = cli("campaign-run", fixture, root / "spec.json", root / "first", "--worker", worker,
+                    "--transient", root / "transient.json")
         second = run_campaign(envelope, spec, root / "replay", worker, transient=transient)
         assert all(row["status"] == "passed" for manifest in (first, second) for row in manifest["runs"])
         assert [(r["inputs"], r["request_sha256"]) for r in first["runs"]] == [
             (r["inputs"], r["request_sha256"]) for r in second["runs"]]
-        report = report_campaign(root / "first", limits)
+        report = cli("campaign-report", root / "first", root / "limits.json", "--html", root / "report.html")
         replay = report_campaign(root / "replay", limits)
         assert report["correlation"] == replay["correlation"]
         assert report["uncertainty"] == replay["uncertainty"]
@@ -67,7 +79,7 @@ def check(worker, fixture):
         index = artifact["node_ids"].index(node)
         raw_values = [row["temperature_K"][index] for row in artifact["samples"]]
         assert fit["fitted"][1]["predicted_K"] == (raw_values[1] + raw_values[2]) / 2
-        assert str(fit["fitted"][1]["predicted_K"]) in html_report(report)
+        assert str(fit["fitted"][1]["predicted_K"]) in (root / "report.html").read_text(encoding="utf-8")
         edited = deepcopy(limits)
         edited["version"] = 2
         edited["nodes"][node]["max_K"] = 310

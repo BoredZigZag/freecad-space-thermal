@@ -245,7 +245,7 @@ def run_campaign(thermal_input, spec, directory, worker, *, transient=None):
     mode = "transient" if transient is not None else "steady"
     directory.mkdir()
     started = monotonic()
-    remaining = budget["artifact_bytes"]
+    remaining = int(budget["artifact_bytes"])
     records = []
     for index, (name, values, case_id) in enumerate(jobs):
         envelope = deepcopy(thermal_input)
