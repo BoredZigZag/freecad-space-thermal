@@ -166,9 +166,10 @@ thermal::Data thermal_data(std::string_view input) {
           e.at("time_origin").at("value").num()});
       } else if (e.at("kind").str() == "radiation") {
         thermal::Radiation r{id, e.at("environment_id").str(), e.at("method").str(), {}, {}};
+        if(out.case_id && r.environment_id!=out.active_environment_ids.front())continue;
         for (const auto& f : e.at("facet_ids").arr()) r.facet_ids.push_back(f.str());
         for (const auto& f : e.at("excluded_facet_ids").arr()) r.excluded_facet_ids.push_back(f.str());
-        out.active_environment_ids.push_back(r.environment_id);
+        if(!out.case_id)out.active_environment_ids.push_back(r.environment_id);
         out.radiation.push_back(std::move(r));
       } else if (e.at("kind").str() == "element") {
         out.spatial_element_ids.push_back(id);

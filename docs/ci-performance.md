@@ -82,6 +82,25 @@ Raw compiler output and environment values remain local.
 
 ## Continue the improvement loop
 
+WP-17 reviewed passing Foundation run 41504031306. The Debug verification job
+finished after 619 seconds and Embree finished after 723 seconds, on overlapping
+paths into the 165-second Foundation gate. Debug radiation was the longest
+verification stage at 321.4 seconds. Spatial discretization and host acceptance
+also warned against the baseline. The current verification reports record cold
+download caches and the baseline records warm caches, so these are diagnostic
+observations rather than equivalent measurements. Embree used two build workers
+and four compiler workers on four logical CPUs.
+
+The tested hypothesis was that small radiation source patches could reuse their
+sample basis vectors within each trace row. Five alternating local MSVC Debug
+pairs used the same scene sizes, seed and 65,536 rays per patch, with no build
+or download inside the timing. Every raw hit row was identical. Median
+wall seconds for plates were 0.453 to 0.375 (ranges 0.422–0.454 and
+0.360–0.390). Spheres measured 2.172 to 2.140 (2.156–2.625 and
+1.907–3.156) and cube measured 2.984 to 2.922 (2.765–4.422 and
+2.250–3.781). The latter ranges overlap and establish no gain. The change
+keeps the fixed ensemble, large-facet scaling cases and original baseline.
+
 Every feature or verification PR should inspect the current timing summary and
 GitHub job critical path before adding more work. Treat feedback time as an
 engineering constraint throughout the project, not a one-time cleanup. The working

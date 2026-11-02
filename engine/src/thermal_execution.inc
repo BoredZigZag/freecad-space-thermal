@@ -53,18 +53,12 @@ J capabilities_json() {
     {"stiff",J(c.stiff)},{"index_one_dae",J(c.index_one_dae)},{"enthalpy",J(c.enthalpy)},{"events",J(c.events)},{"checkpoint",J(c.checkpoint)},
     {"external_reference",J(c.external_reference)},{"durable_job_solver",J(c.durable_job_solver)}});
 }
-}
-std::string thermal::inspect_thermal_capabilities() { return dump(J(J::O{{"status",J("passed")},{"backend",capabilities_json()}})); }
-std::string thermal::inspect_transient(std::string_view input) {
-  try {
-    auto j=Parser{input}.parse();execution_keys(j,{"thermal_input","transient"},{"checkpoint","initial_operating","environment_power_W"});
-    auto model=thermal::load(dump(j.at("thermal_input")));auto state=initial_operating_state(model);
-    if(j.has("initial_operating"))state=execution_state(j.at("initial_operating"));
-    const auto& settings=j.at("transient");execution_keys(settings,{"start","end","output_times"},
+thermal::TransientOptions execution_options(const J& settings) {
+    execution_keys(settings,{"start","end","output_times"},
       {"initial_step","minimum_step","maximum_step","absolute_temperature_tolerance","relative_temperature_tolerance",
        "absolute_energy_tolerance","relative_energy_tolerance","event_time_tolerance","minimum_event_separation",
        "maximum_attempts","maximum_events","maximum_newton_iterations","temperature_tolerances","schedules","maximum_result_values","include_steps"});
-    TransientOptions o;o.start=settings.at("start").num();o.end=settings.at("end").num();o.output_times=execution_numbers(settings.at("output_times"));
+    thermal::TransientOptions o;o.start=settings.at("start").num();o.end=settings.at("end").num();o.output_times=execution_numbers(settings.at("output_times"));
     for(auto [key,target]:std::initializer_list<std::pair<const char*,double*>>{
       {"initial_step",&o.initial_step},{"minimum_step",&o.minimum_step},{"maximum_step",&o.maximum_step},
       {"absolute_temperature_tolerance",&o.absolute_temperature_tolerance},{"relative_temperature_tolerance",&o.relative_temperature_tolerance},
@@ -75,21 +69,15 @@ std::string thermal::inspect_transient(std::string_view input) {
       {"maximum_result_values",&o.maximum_result_values}})if(settings.has(key))*target=execution_count(settings.at(key));
     if(settings.has("temperature_tolerances"))o.temperature_tolerances=execution_numbers(settings.at("temperature_tolerances"));
     if(settings.has("schedules"))for(const auto& s:settings.at("schedules").arr()) {
-      execution_keys(s,{"load_id","points"});LoadSchedule schedule;schedule.load_id=s.at("load_id").str();
+      execution_keys(s,{"load_id","points"});thermal::LoadSchedule schedule;schedule.load_id=s.at("load_id").str();
       for(const auto& p:s.at("points").arr()) {execution_keys(p,{"time","factor"});schedule.points.push_back({p.at("time").num(),p.at("factor").num()});}o.schedules.push_back(std::move(schedule));
     }
-    std::vector<PowerBinding> powers;
-    if(j.has("environment_power_W"))for(const auto& [id,power]:j.at("environment_power_W").obj()) {
-      auto watts=execution_numbers(power);if(watts.size()!=model.data().nodes.size())fail("dimension");
-      std::vector<std::size_t> nodes;for(std::size_t i=0;i<watts.size();++i)nodes.push_back(i);
-      powers.push_back({id,PowerKind::environment,nodes,{},[watts](double,std::span<const double>,bool){return PowerEvaluation{watts,{}};}});
-    }
-    if(!powers.empty())o.callback_revision=thermal_digest(canonical(j.at("environment_power_W")));
-    Assembly assembly(std::move(model),std::move(powers),{},state);std::optional<TransientCheckpoint> restart;
-    if(j.has("checkpoint"))restart=execution_checkpoint(j.at("checkpoint"));auto result=solve_transient(assembly,o,restart);
+    return o;
+}
+J::O transient_output(const thermal::Data& data,const J& settings,const thermal::TransientResult& result) {
     J::A samples,steps,events,node_ids,equation_ids,conductor_ids;
-    for(const auto& node:assembly.model().data().nodes) {node_ids.emplace_back(node.id);if(node.equation)equation_ids.emplace_back(node.id);}
-    for(const auto& conductor:assembly.model().data().conductors)conductor_ids.emplace_back(conductor.id);
+    for(const auto& node:data.nodes) {node_ids.emplace_back(node.id);if(node.equation)equation_ids.emplace_back(node.id);}
+    for(const auto& conductor:data.conductors)conductor_ids.emplace_back(conductor.id);
     for(const auto& s:result.samples) {
       J::O duty;for(const auto& [id,v]:s.duty_cycles)duty.emplace(id,J(v));
       samples.emplace_back(J::O{{"time_s",J(s.time)},{"valid",J(s.valid)},{"temperature_K",numbers(s.balance.temperature)},
@@ -117,7 +105,26 @@ std::string thermal::inspect_transient(std::string_view input) {
         {"event_probes",J(static_cast<double>(p.event_probes))},{"assembly_seconds",J(p.assembly_seconds)},
         {"linear_seconds",J(p.linear_seconds)},{"total_seconds",J(p.total_seconds)}})}};
     if(!result.entity_id.empty())out.emplace("entity_id",J(result.entity_id));if(!result.source_map_id.empty())out.emplace("source_map_id",J(result.source_map_id));
-    return dump(J(out));
+    return out;
+}
+}
+std::string thermal::inspect_thermal_capabilities() { return dump(J(J::O{{"status",J("passed")},{"backend",capabilities_json()}})); }
+std::string thermal::inspect_transient(std::string_view input) {
+  try {
+    auto j=Parser{input}.parse();execution_keys(j,{"thermal_input","transient"},{"checkpoint","initial_operating","environment_power_W"});
+    auto model=thermal::load(dump(j.at("thermal_input")));auto state=initial_operating_state(model);
+    if(j.has("initial_operating"))state=execution_state(j.at("initial_operating"));
+    const auto& settings=j.at("transient");auto o=execution_options(settings);
+    std::vector<PowerBinding> powers;
+    if(j.has("environment_power_W"))for(const auto& [id,power]:j.at("environment_power_W").obj()) {
+      auto watts=execution_numbers(power);if(watts.size()!=model.data().nodes.size())fail("dimension");
+      std::vector<std::size_t> nodes;for(std::size_t i=0;i<watts.size();++i)nodes.push_back(i);
+      powers.push_back({id,PowerKind::environment,nodes,{},[watts](double,std::span<const double>,bool){return PowerEvaluation{watts,{}};}});
+    }
+    if(!powers.empty())o.callback_revision=thermal_digest(canonical(j.at("environment_power_W")));
+    Assembly assembly(std::move(model),std::move(powers),{},state);std::optional<TransientCheckpoint> restart;
+    if(j.has("checkpoint"))restart=execution_checkpoint(j.at("checkpoint"));auto result=solve_transient(assembly,o,restart);
+    return dump(J(transient_output(assembly.model().data(),settings,result)));
   } catch(const thermal::Error& e) {
     J::O out{{"status",J("failed")},{"code",J(e.code)}};
     if(e.entity_id.size()==36 && std::regex_match(e.entity_id,std::regex("[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")))

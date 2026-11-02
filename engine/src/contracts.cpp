@@ -5,6 +5,7 @@
 #include "fcst/thermal_steady.hpp"
 #include "fcst/thermal_transient.hpp"
 #include "fcst/radiation.hpp"
+#include "fcst/environment.hpp"
 #include "fcst/thermal_schema.hpp"
 #include "fcst/spatial_thermal_schema.hpp"
 #include "fcst/spatial.hpp"

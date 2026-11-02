@@ -222,6 +222,12 @@ The foundation, planning, publication, exact host smoke and candidate packaging 
 
 ### 2.2 Privacy and sanitization before publication
 
+WP-17 executes `tools/check_radiation.py` in Debug and Release. TST-021
+covers exact mission sources, synthetic test construction, outgoing history,
+approved identities, final GitHub prose and the bounded `radiation.json` and
+`ci-performance.json` summaries. Keep raw loading histories, checkpoints,
+timing traces, vendor evidence and build outputs local.
+
 Build/verification resource evidence adds only allowlisted numeric CPU seconds,
 peak process/job committed bytes, total process count and logical CPU count for
 fixed command stages and the six package phases.
@@ -921,6 +927,13 @@ Complete WP-13's initial FEM mesh assessment before introducing a meshing stack.
 **Outputs:** supported discretization library, qualified FEM reuse/replacement dispositions, mesh/attachment tooling, contact and reduced-component models. **Completion:** analytical/manufactured/conservation/refinement suites and mandatory imported Q1 element/property cases pass; unsupported element types are diagnosed before solving. Implement FEM-REUSE-003 and the spatial extensions of FEM-REUSE-001/004, plus FEM-REUSE-006 with WP-19. Verify mesh/element ordering, units, integrated loads, face-change/refinement invalidation and native engine independence. Selected external comparisons require their pinned profile evidence and never replace owned-engine checks.
 
 ### Step 17 — WP-17: implement environments, motion and campaign events
+
+The [native environment engine](../docs/environment-engine.md) implements the
+circular TAI trajectory profile and transient loading history. Foundation runs
+the analytical and independent temperature checks in both Windows configurations
+through the radiation acceptance driver. TST-021 scans the exact candidate and
+bounded timing and acceptance summaries. Paired TD/RadCAD and ESATAN mission
+captures remain required for vendor qualification.
 
 1. Define supported body constants, epoch/time scale, orbit/trajectory, attitude and articulation representations. Choose/pin any time/orbit dependency through Q0 evidence and record reduction assumptions.
 2. Implement frame transforms, sun/body directions and eclipse/occultation with independently derived simple configurations and timing references.

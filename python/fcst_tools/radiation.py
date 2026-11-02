@@ -81,7 +81,7 @@ def assess_report(report, policy, statistical, hashes, candidate):
     require(report['independent_backends'] == policy['independent_backends'])
     for field in ('native_sha256', 'worker_sha256'):
         require(isinstance(report[field], str) and re.fullmatch('[0-9a-f]{64}', report[field]))
-    expected_cases = set(policy['native_cases']) | {'fixed-ensemble', 'independent-quadrature-and-radiosity', 'worker-input-boundary', 'worker-replay', 'worker-coupled-steady', 'million-facet-scaling'}
+    expected_cases = set(policy['native_cases']) | {'fixed-ensemble', 'independent-quadrature-and-radiosity', 'worker-input-boundary', 'worker-replay', 'worker-coupled-steady', 'worker-environment-transient', 'million-facet-scaling'}
     require(len(report['cases']) == len(expected_cases) and {c['id'] for c in report['cases']} == expected_cases)
     require(all(c['status'] == 'passed' for c in report['cases']))
     expected_runs = {(g, seed, n) for g in policy['quantities'] for seed in statistical['seeds'] for n in statistical['samples_per_replicate']}

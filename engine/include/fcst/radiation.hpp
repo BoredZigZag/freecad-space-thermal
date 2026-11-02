@@ -102,6 +102,9 @@ struct RadiosityOptions {
   std::size_t maximum_iterations=100000;
   // Incident W/m2 on each patch, already projected/occluded by an environment model.
   std::vector<double> solar_incident;
+  // Total external IR irradiation per patch, including the visible background.
+  // Empty retains the isotropic background model.
+  std::vector<double> infrared_incident;
 };
 Evaluation evaluate(const Exchange&, std::span<const double> node_temperatures, const RadiosityOptions& = {});
 // Separate conservative internal_power and external callbacks; bounded node Jacobian.

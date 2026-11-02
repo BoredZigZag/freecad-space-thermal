@@ -1,0 +1,16 @@
+{
+  "work_package": "WP-17",
+  "status": "in_progress",
+  "scope": "Native circular mission trajectory, environment loading and transient events",
+  "checks": [
+    {
+      "id": "worker-environment-transient",
+      "driver": "tools/check_radiation.py",
+      "scope": "Debug and Release analytic eclipse, body disk, chamber, moving projection, independent thermal reference, simultaneous events, case overlay and checkpoint checks"
+    }
+  ],
+  "blockers": [
+    "Paired TD/RadCAD and ESATAN mission heating and temperature histories are required for vendor comparison."
+  ],
+  "publication": "TST-021 applies to exact staged sources, synthetic fixture construction, bounded radiation and CI timing summaries, outgoing metadata and GitHub prose. Raw mission histories, checkpoints, vendor captures, timing traces and build outputs remain local."
+}
