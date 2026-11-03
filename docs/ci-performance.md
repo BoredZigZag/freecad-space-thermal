@@ -471,3 +471,36 @@ so its implicit zero estimate put it last. Unknown stages now receive the
 largest estimate among active known stages, after equally expensive known work.
 Obsolete estimates do not inflate this fallback. Every stage still executes
 exactly once; the passing baseline and worker budgets remain unchanged.
+## WP-18 campaign acceptance
+
+The latest passing Foundation checkpoint inspected before implementation was
+[run 41539133726](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41539133726).
+The warm Debug driver took 566.172 s with three workers, and warm Release took
+290.609 s with two. The Debug job was on the dependency critical path through
+the unit receipt and gate. Its longest acceptance stage was radiation at
+330.157 s, compared with 333.265 s in the baseline. The Embree probe took
+647.031 s within a 699 s job. The warm Debug warning remains open. The workload
+now also includes spatial discretization, so the baseline and latest driver
+timings are observational.
+
+Hypothesis: reordering the same acceptance stages using current stage times
+could shorten the Debug tail. Simulating greedy dispatch with the configured
+three Debug workers and the observed stage durations gave 517.235 s with
+baseline estimates and 494.579 s with current estimates. The two-worker Release
+simulation gave 219.375 s and 219.751 s. These are idealized replays of a single
+observation with no contention or startup effects. Retain the existing order
+policy, worker budgets and passing baseline until a matched hosted comparison.
+
+The campaign replay runs inside the existing thermal stage, with source and
+worker hashes and a required case verdict. CI publishes its case timing and
+status through the existing exact-file preflight. Campaign snapshots, imported
+observations, run data and HTML reports remain local.
+
+Local Debug runs at a prototype solver setting of 1e-6 K took 28.656 and
+28.859 s. At the existing transient smoke-test solver setting of 1e-5 K,
+two runs took 12.484 and 11.469 s. All runs executed the same 18 fresh solves
+and passed the same independent derivative, holdout, replay, provenance and
+limit assertions. Retain the smoke-test setting for this new integration
+case. The earlier timings are from sequential local runs on the same
+prebuilt Windows Debug executable with no rebuild or download in either
+sample. The hosted case timing is collected separately.

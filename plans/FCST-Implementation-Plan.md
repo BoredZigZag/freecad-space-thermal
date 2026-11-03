@@ -957,6 +957,8 @@ captures remain required for vendor qualification.
 
 **Outputs:** case manager, sweep/sensitivity/correlation tools and report generator. **Completion:** deterministic campaign replay and synthetic holdout checks pass; every plot/table matches queried result data and the correct immutable revision.
 
+The Windows application CLI runs bounded steady and transient campaigns and generates JSON and HTML reports. The synthetic replay and result-binding case runs in both Foundation thermal stages. Under TST-021, preflight clears the exact outgoing implementation, history, approved metadata and bounded case and timing summaries. Campaign inputs, full outputs, reports and raw worker diagnostics stay local. See [campaign commands](../docs/campaigns.md) and [CI performance](../docs/ci-performance.md).
+
 ### Step 19 — WP-19: qualify, scale, package and release Q1
 
 1. Run all Q1 suites on frozen configuration profiles and all mandatory fixture/profile rows. Include changed source models and both cross-tool directions.

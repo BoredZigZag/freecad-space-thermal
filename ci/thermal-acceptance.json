@@ -14,6 +14,7 @@
   ],
   "scope": "Owned network preparation, assembly, steady and adaptive enthalpy transient solves, index-one DAE initialization, hysteresis/schedule events, checkpoints, energy results and compiled profiling; durable jobs and paired vendor qualification remain separate; requirement-bound native qualification, fixed-step event refinement and owned SINDA/ESATAN source-literal comparisons",
   "required_cases": [
+    "campaign-synthetic-replay",
     "native-constant-law",
     "native-linear-law",
     "native-previous-law",
