@@ -28,7 +28,7 @@ Duplicate JSON keys, nonfinite values and JSON nesting over 64 fail closed.
 | MAPPING | namespace, handle, mapping | Canonical v1 mapping, omitting id |
 | ATTACHMENT | namespace, handle, attachment | Canonical v1 attachment, omitting id |
 | EXPRESSION | namespace, handle, language, text, dimension | Reviewed fcst-expr/1 expression |
-| PROCEDURE | namespace, handle, language, text, dimension | Reviewed fcst-pure-return/1 pure return expression |
+| PROCEDURE | namespace, handle, language, text, dimension | Reviewed fcst-pure-return/1 expression or fcst-pure-return/2 local procedure |
 | INCLUDE | path | Read another network file relative to this file |
 | DATA | path | Retain a referenced immutable geometry/mesh artifact as data |
 | RESULT | path | Read an fcst-results/1 JSON table as data |
@@ -80,9 +80,12 @@ unary minus, `abs`, `sqrt`, `exp`, `log`, `sin`, `cos`, `min` and `max` with clo
 arity. Precedence follows the documented Python expression grammar for those
 operators only; division is real, quantities use FCST unit/absolute-temperature
 rules, and symbols are pure expression references. Translation walks a bounded
-AST; it never calls `eval`, executes source or accepts attributes, imports,
-assignments, loops, arbitrary calls or keyword arguments. Translated procedures
-have only pure return semantics. Vendor procedural languages need independently
+AST. The `fcst-pure-return/2` form adds up to 16 single-assignment locals
+and one final `return`. Each local is used, and name rebinding, forward
+references and an expanded tree over 256 nodes or depth 12 are rejected.
+Translation inlines pure locals into the existing typed expression format
+and never calls `eval` or executes source. Attributes, imports, loops,
+arbitrary calls and keyword arguments are rejected. Vendor procedural languages need independently
 reviewed translators and regression evidence. Runtime domain/event evaluation
 remains WP-11; readiness describes reconstruction, not a completed thermal solve.
 

@@ -124,9 +124,82 @@ and the [CoolProp ammonia properties](https://coolprop.org/fluid_properties/flui
 
 The `fluid-openflume-flow-boiling` and `fluid-nasa-heat-pipe-capillary`
 cases run in thermal acceptance on both Windows configurations.
-Detailed heat-pipe transients, pressure-coupled multiphase networks,
-source-logic translation and the mandatory FLUINT/FloCAD comparison
-evidence remain in WP-20 qualification scope.
+## Pressure-coupled vessel transients
+
+`fcst-worker --fluid-vessel` accepts a version 1 request with
+`volume_m3`, `initial_mass_kg`, `initial_internal_energy_J`,
+`initial_wall_temperature_K`, `wall_capacity_J_K`,
+`wall_conductance_W_K`, and `maximum_step_s`. Set `properties.kind`
+to `ideal_gas` with `gas_constant_J_kg_K` and `cv_J_kg_K`, or to
+`saturation_table` with `points` containing `pressure_Pa`,
+`temperature_K`, and paired `liquid_volume_m3_kg`, `vapor_volume_m3_kg`,
+`liquid_energy_J_kg`, and `vapor_energy_J_kg` values.
+
+Each `schedule` interval gives `duration_s`, `inlet_mass_flow_kg_s`,
+`inlet_enthalpy_J_kg`, `outlet_pressure_Pa`,
+`outlet_conductance_kg_s_Pa`, and `wall_power_W`. Outlet flow is
+proportional to positive pressure difference and carries the bulk
+mixture enthalpy. Heat transfer to the fluid is proportional to the
+wall-to-fluid temperature difference. The solver advances mass, internal
+energy, wall temperature, and discharged mass and enthalpy with RK4.
+It recalculates pressure, temperature and saturation quality from the
+conservative state at every stage, including initialization. It lands on
+each schedule boundary and reports mass and energy defects.
+
+The two-phase flash interpolates saturation properties by pressure.
+It requires a strictly monotone energy relation at fixed specific volume.
+The trajectory must stay inside the saturation dome and inside the
+specific-volume range common to every row. This lumped model assumes a
+rigid, homogeneous equilibrium vessel and an algebraic outlet. It covers
+neither phase slip nor the momentum of a multi-branch network.
+
+The fixed-volume, adiabatic nitrogen filling case reproduces the
+100-to-1,000 psia comparison published in SINDA/FLUINT Table 1. The
+feed rate is normalized because the adiabatic temperature-pressure
+relation is independent of it. The native temperature agrees within
+0.5 K of the published 253.02 °F result and independently satisfies the
+closed-form energy balance. The source is the public conference record
+and the test consumes its tabulated observation. Exact source decks,
+settings and other mandatory vendor cases still need qualification.
+[NASA conference proceedings, Table 1](https://ntrs.nasa.gov/citations/19950020924)
+
+A separate nitrogen blowdown case uses CoolProp 6.6.0 saturation scalars
+and compares against a SciPy trajectory with direct density and
+internal-energy flashes. It checks pressure, temperature, quality and
+mass through a valve closure and subsequent wall heating. An added
+285 kPa property row resolves the pressure excursion of this case. The
+coarser 50 kPa table produced a pressure error of about 1.1 kPa.
+The test preserves the 500 Pa comparison limit and separately measures
+fourth-order time refinement on the final table.
+
+## Heat-pipe startup, dryout and refill
+
+`fcst-worker --heat-pipe-transient` accepts a version 1 request. Supply
+the steady envelope fields under `hydraulics` excluding `heat_load_W`.
+Supply `condenser_temperature_K`, `initial_temperature_K`,
+`startup_temperature_K`, `evaporator_capacity_J_K`,
+`passive_conductance_W_K`, `latent_conductance_W_K`, `latent_heat_J_kg`,
+`fluid_mass_kg`, `initial_wick_mass_kg`, `reprime_mass_kg` and
+`refill_rate_kg_s`. Each schedule interval has `duration_s` and
+`heat_load_W`.
+
+A primed evaporator starts when it reaches the declared startup
+temperature. In the active mode, latent heat demand beyond the capillary
+return capacity depletes the wick liquid. At zero wick mass, latent
+transport stops. The dry wick refills at the specified rate limited by
+the capillary return capacity and can restart at the reprime threshold.
+Total working-fluid mass is conserved between the wick and reservoir.
+The worker advances sensible evaporator temperature analytically within
+each mode and locates transitions by bracketing. It reports transitions,
+rejected energy and an energy defect. The test uses independent startup
+and dryout event times and checks schedule-split invariance.
+
+This is a reduced model with a fixed-temperature condenser, prescribed
+startup and reprime thresholds, and no latent storage outside the
+instantaneous transport law. Hardware-specific startup and dryout
+qualification, pressure-coupled multiphase networks, mandatory legacy
+procedure mappings and project-level model and result persistence
+remain in WP-20 scope.
 
 ## Published references for coupled transients
 

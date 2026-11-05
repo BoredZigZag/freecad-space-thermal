@@ -153,3 +153,114 @@ def check_heat_pipe(worker, candidate, env):
     assert static_dry['power_limit_W'] == 0 and static_dry['capillary_supported'] is False
     run(dict(pipe, condenser_length_m=pipe['length_m']), 'heat_pipe_input')
     run(dict(pipe, liquid_loss_Pa_W_m=0, vapor_loss_Pa_W_m=0), 'heat_pipe_resistance')
+
+
+def check_vessel(worker, candidate, env):
+    def run(request, error=None):
+        return run_worker(worker, candidate, env, '--fluid-vessel', request, error)
+
+    def interval(duration, inflow=0, enthalpy=0, outlet=0, vent=0, heating=0):
+        return dict(duration_s=duration, inlet_mass_flow_kg_s=inflow, inlet_enthalpy_J_kg=enthalpy,
+                    outlet_pressure_Pa=outlet, outlet_conductance_kg_s_Pa=vent, wall_power_W=heating)
+
+    # Rigid adiabatic nitrogen filling, published SINDA/FLUINT Table 1.
+    # The feed rate affects elapsed time but cancels from the T(P) relation.
+    kelvin = lambda f: (f-32)*5/9+273.15
+    psi = 6894.757293168
+    pressure, temperature, volume, gas, gamma = 100*psi, kelvin(70), .5*.3048**3, 296.8, 1.4
+    cv, flow = gas/(gamma-1), .02
+    mass = pressure*volume/(gas*temperature)
+    h = (cv+gas)*temperature
+    duration = 9*pressure*volume/((gamma-1)*flow*h)
+    fill = dict(schema_version=1, volume_m3=volume, initial_mass_kg=mass,
+                initial_internal_energy_J=mass*cv*temperature, initial_wall_temperature_K=temperature,
+                wall_capacity_J_K=25, wall_conductance_W_K=0, maximum_step_s=.2,
+                properties=dict(kind='ideal_gas', gas_constant_J_kg_K=gas, cv_J_kg_K=cv),
+                schedule=[interval(duration, flow, h)])
+    last = run(fill)['samples'][-1]
+    assert math.isclose(last['pressure_Pa'], 1000*psi, rel_tol=1e-12)
+    assert math.isclose(last['temperature_K'], temperature*10/(1+9/gamma), rel_tol=1e-12)
+    assert abs(last['temperature_K']-kelvin(253.02)) < .5
+    assert abs(last['energy_defect_J']) < 1e-7 and abs(last['mass_defect_kg']) < 1e-12
+
+    # Independent pressure and temperature data are from CoolProp 6.6.0
+    # saturation queries and direct D/U flashes in a SciPy time integration.
+    table = [
+        (100000, 77.243499730696, .001239786531, .219467603874, -122370.81790490531, 55126.086752751275),
+        (150000, 80.844647600874, .001265827972, .150859135742, -115019.32877956194, 57059.70692466382),
+        (200000, 83.625771443592, .001287340403, .115453002013, -109298.81133967191, 58426.03654169384),
+        (250000, 85.92652613421, .001306184538, .093702500098, -104532.23861072877, 59462.89580934506),
+        (285000, 87.340457802486, .001318285597, .08283862984, -101585.36010526058, 60054.51825528819),
+        (300000, 87.907261654518, .001323255765, .078925025326, -100399.93458197422, 60281.39711554845),
+        (350000, 89.657494812052, .001339061901, .06820068508, -96723.40435664266, 60942.99764111306),
+        (400000, 91.23271574439, .001353922256, .060046264941, -93391.97533575576, 61485.46457917421),
+        (450000, 92.669897829381, .00136805254, .053626605025, -90331.88218944285, 61933.75111698527),
+        (500000, 93.995017846619, .001381606442, .048434699605, -87491.27651927315, 62305.24130789919),
+    ]
+    keys = ('pressure_Pa', 'temperature_K', 'liquid_volume_m3_kg', 'vapor_volume_m3_kg',
+            'liquid_energy_J_kg', 'vapor_energy_J_kg')
+    properties = dict(kind='saturation_table', points=[dict(zip(keys, row, strict=True)) for row in table])
+    blowdown = dict(fill, volume_m3=.002, initial_mass_kg=.11873939365139105,
+                    initial_internal_energy_J=-8105.58657553057, initial_wall_temperature_K=95,
+                    wall_conductance_W_K=.3, properties=properties,
+                    schedule=[interval(2, outlet=150000, vent=2e-8, heating=4), interval(1, outlet=150000)])
+    initial, vented, closed = run(blowdown)['samples']
+    assert [s['time_s'] for s in (initial, vented, closed)] == [0, 2, 3]
+    assert abs(initial['pressure_Pa']-300000) < 1e-3
+    assert initial['mass_kg'] > vented['mass_kg'] == closed['mass_kg']
+    assert closed['pressure_Pa'] > vented['pressure_Pa']
+    for row, expected in zip((vented, closed), [(288517.949131, 87.4753315, .203361567),
+                                                (288633.449227, 87.4797390, .203439217)], strict=True):
+        assert abs(row['pressure_Pa']-expected[0]) < 500
+        assert abs(row['temperature_K']-expected[1]) < .05
+        assert abs(row['quality']-expected[2]) < .001
+        assert abs(row['mass_kg']-.11297141183346904) < 3e-5
+        assert abs(row['energy_defect_J']) < 1e-8 and abs(row['mass_defect_kg']) < 1e-13
+    # Measure time refinement independently of the saturation-table interpolation error.
+    coarse, medium, fine, reference = [run(dict(blowdown, maximum_step_s=dt))['samples'][-1]['pressure_Pa']
+                                       for dt in (1, .5, .25, .015625)]
+    assert abs(fine-reference) < abs(medium-reference)/8 < abs(coarse-reference)/64
+    run(dict(blowdown, initial_internal_energy_J=0), 'vessel_saturation_domain')
+    bad_table = [dict(row) for row in properties['points']]
+    bad_table[1]['liquid_energy_J_kg'] = bad_table[0]['liquid_energy_J_kg']
+    run(dict(blowdown, properties=dict(properties, points=bad_table)), 'vessel_properties')
+    run(dict(fill, maximum_step_s=1e-12), 'vessel_step_limit')
+
+
+def check_heat_pipe_transient(worker, candidate, env):
+    from scipy.optimize import brentq
+
+    def run(request, error=None):
+        return run_worker(worker, candidate, env, '--heat-pipe-transient', request, error)
+
+    hydraulics = dict(length_m=2, evaporator_length_m=.5, condenser_length_m=.5, evaporator_elevation_m=0,
+                      capillary_head_Pa=5, liquid_density_kg_m3=1000, gravity_m_s2=0,
+                      liquid_loss_Pa_W_m=2/3, vapor_loss_Pa_W_m=0)
+    pipe = dict(schema_version=1, hydraulics=hydraulics, condenser_temperature_K=300, initial_temperature_K=300,
+                startup_temperature_K=302, evaporator_capacity_J_K=10, passive_conductance_W_K=0,
+                latent_conductance_W_K=2, latent_heat_J_kg=100, fluid_mass_kg=.5, initial_wick_mass_kg=.05,
+                reprime_mass_kg=.025, refill_rate_kg_s=.05, schedule=[dict(duration_s=6, heat_load_W=20)])
+    result = run(pipe)
+    assert result['capillary_limit_W'] == 5
+    start, dry, refill, restart, *_ = result['events']
+    assert [row['mode'] for row in (start, dry, refill, restart)] == ['active', 'dry', 'priming', 'active']
+    assert math.isclose(start['time_s'], 1, abs_tol=1e-12, rel_tol=0)
+    # Starting at a 2 K rise, the active evaporator approaches a 10 K rise.
+    # Integrate latent demand above the 5 W cap to find the first dryout.
+    above = 5*math.log(8/7.5)
+    first_dry = 1+brentq(lambda t: 15*(t-above)+80*(math.exp(-t/5)-math.exp(-above/5))-5,
+                         above, 5)
+    assert abs(dry['time_s']-first_dry) < 1e-10 and dry['wick_mass_kg'] == 0
+    assert abs(refill['time_s']-dry['time_s']-.5) < 1e-12 and refill['wick_mass_kg'] == .025
+    assert restart['time_s'] == refill['time_s']
+    for row in result['events']+result['samples']:
+        assert abs(row['wick_mass_kg']+row['reservoir_mass_kg']-.5) < 1e-14
+        assert abs(row['energy_defect_J']) < 1e-10
+    split = run(dict(pipe, schedule=[dict(duration_s=.25, heat_load_W=20)]*24))
+    assert [row['mode'] for row in split['events']] == [row['mode'] for row in result['events']]
+    for a, b in zip(split['events']+split['samples'][-1:], result['events']+result['samples'][-1:], strict=True):
+        for key in ('time_s', 'temperature_K', 'wick_mass_kg', 'rejected_energy_J'):
+            assert abs(a[key]-b[key]) < 1e-10
+    empty = run(dict(pipe, initial_wick_mass_kg=0, refill_rate_kg_s=0))
+    assert empty['events'] == [] and empty['samples'][-1]['mode'] == 'dry'
+    run(dict(pipe, reprime_mass_kg=.6), 'heat_pipe_transient_input')

@@ -235,6 +235,8 @@ class ExchangeTests(unittest.TestCase):
         expressions = [
             ("EXPRESSION","power","fcst-expr/1",'quantity(10,"W") / 2',"power"),
             ("PROCEDURE","return_power","fcst-pure-return/1",'power + quantity(3,"W")',"power"),
+            ("PROCEDURE","adjust_power","fcst-pure-return/2",
+             'scaled = power * 2\ncorrected = scaled + quantity(3,"W")\nreturn corrected / 2',"power"),
             ("EXPRESSION","delta","fcst-expr/1",'quantity(30,"degC") - quantity(20,"degC")',"temperature_difference")]
         raw = network()
         for kind,handle,language,text,dimension in expressions:
@@ -247,9 +249,10 @@ class ExchangeTests(unittest.TestCase):
             if tree["op"] == "literal": return tree["quantity"]["value"]
             if tree["op"] == "symbol": return evaluate(trees[tree["expression_id"]])
             a,b = map(evaluate,tree["args"])
-            return {"add":lambda:a+b,"subtract":lambda:a-b,"divide":lambda:a/b}[tree["op"]]()
+            return {"add":lambda:a+b,"subtract":lambda:a-b,"multiply":lambda:a*b,"divide":lambda:a/b}[tree["op"]]()
         self.assertEqual(evaluate(trees[target_id(("a","power"))]),5)
         self.assertEqual(evaluate(trees[target_id(("a","return_power"))]),8)
+        self.assertEqual(evaluate(trees[target_id(("a","adjust_power"))]),6.5)
         self.assertEqual(evaluate(trees[target_id(("a","delta"))]),10)
 
     def test_unreviewed_code_import_never_executes_or_grants_authority(self):
@@ -265,6 +268,12 @@ class ExchangeTests(unittest.TestCase):
         self.assertFalse(marker.exists())
         for text in (code,"x.y","[x for x in []]","True","lambda: 1","2 ** 100","abs(x=1)"):
             with self.assertRaises(ExchangeError): translate(text,"fcst-expr/1",{})
+        for text in (f"x = {code}\nreturn x", "x = 1\nreturn 2", "x = 1\nx = 2\nreturn x",
+                     "x = y\ny = 1\nreturn x + y", "if 1:\n    return 1", "return"):
+            with self.assertRaises(ExchangeError): translate(text,"fcst-pure-return/2",{})
+        doubling = "x0 = 1\n" + "".join(f"x{i} = x{i-1} + x{i-1}\n" for i in range(1, 9))
+        with self.assertRaisesRegex(ExchangeError,"expression_limit"):
+            translate(doubling+"return x8","fcst-pure-return/2",{})
 
     def test_logic_cycles_units_undefined_symbols_and_domain_are_not_silently_accepted(self):
         for text,dim in [('quantity(1,"W") + quantity(2,"K")',"power"),

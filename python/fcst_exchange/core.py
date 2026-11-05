@@ -12,7 +12,7 @@ import uuid
 from fcst_contracts import BUNDLE, ContractError, dependency_order, loads, read, validate, verify_artifact
 from fcst_app.persistence import encode, is_link, safe_path, PersistenceError
 from .syntax import parse
-from .logic import translate, LANGUAGE, PROCEDURE_LANGUAGE, REGRESSION
+from .logic import translate, LANGUAGE, PROCEDURE_LANGUAGES, REGRESSION
 
 STATUSES = ("native-reconstructed", "bridged-executable", "retained-opaque", "approximated", "unsupported")
 DIALECT = "fcst-network/1"
@@ -299,8 +299,9 @@ def _convert(sources, graph, diagnostics):
         row, value = by_source[record.source_id], record.value
         try:
             if record.kind in {"EXPRESSION", "PROCEDURE"}:
-                language = LANGUAGE if record.kind == "EXPRESSION" else PROCEDURE_LANGUAGE
-                if value["language"] != language:
+                language = value["language"]
+                allowed = {LANGUAGE} if record.kind == "EXPRESSION" else PROCEDURE_LANGUAGES
+                if not isinstance(language, str) or language not in allowed:
                     reject("unreviewed_language")
                 symbols = expression_symbols.get(key[0],{})
                 entity = {"id":target, "kind":"expression", "dimension":value["dimension"],

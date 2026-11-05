@@ -567,3 +567,35 @@ The flow-boiling and capillary cases use scalar references and execute in
 the existing thermal stage. Local Release acceptance recorded 0.063 s and
 0.094 s for the two cases, respectively, after the build. Both configurations
 retain the existing numerical coverage and exact-file publication checks.
+
+## WP-20 transient follow-up
+
+The latest [passing PR run 41962759575](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41962759575)
+verified `8dcf990`. Its exact handoff recorded warm Debug and Release
+drivers at 569.594 s with three workers and 284.141 s with two. Debug was
+on the critical path through the unit receipt and aggregate gate. Its
+longest stage, radiation, took 315.875 s with 313.359 CPU seconds.
+The preceding warm run recorded 214.469 s and 212.531 CPU seconds for
+that stage. Both ran 208 processes and preserved the frozen ray workloads.
+The observed difference was mostly CPU time within the stage. Hosted
+runner variation and source differences limit causal attribution.
+The overlapping Embree job took 643 s, including 570.813 s of compilation.
+
+Tested whether updating acceptance priority estimates to the latest
+warm measurements could shorten the Debug tail. Replaying each warm
+workload independently with the configured worker counts and SUNDIALS
+serialization gave the following idealized acceptance times.
+
+| Profile | Current order (s) | Latest estimates (s) |
+|---|---:|---:|
+| Debug, `315f485` | 361.891 | 356.359 |
+| Debug, `8dcf990` | 520.844 | 520.844 |
+| Release, `315f485` | 202.984 | 202.999 |
+| Release, `8dcf990` | 213.250 | 213.156 |
+
+The small gain on the earlier Debug observation disappeared on the
+longer workload. The replay preserves every case and models neither
+setup nor contention. Keep the existing order, worker counts and
+passing baseline. The transient verification cases use local scalar
+references within the existing thermal stage, and the procedure tests
+extend existing exchange cases.

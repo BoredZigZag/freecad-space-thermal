@@ -58,6 +58,13 @@ run through thermal acceptance in both configurations. Their checked-in
 inputs are scalar observations and independently generated property
 values. Preflight covers those exact inputs and bounded verdicts.
 Downloaded reference software, source documents and raw executions stay local.
+The transient vessel and heat-pipe worker cases add a bounded published
+SINDA/FLUINT tabular comparison, CoolProp pressure/enthalpy observations,
+and synthetic event and conservation checks. The reviewed
+`fcst-pure-return/2` exchange checks exercise translation and rejection
+of impure or over-budget procedures. TST-021 clears exact worker and
+translator sources, the shared DWG source pins, scalar fixture observations,
+bounded reports and GitHub prose before publication.
 
 The 29 October independent TD exchange correction also extends TST-021.
 Execute `tests/test_independent_dwg.py` and `tools/check_td.py` in unattended
@@ -998,7 +1005,10 @@ The [spectral beam prototype](../docs/radiation-engine.md#spectral-beam-prototyp
 exercises deterministic native ray and power accounting. The
 [open-source comparison cases](../docs/advanced-physics.md) cover steady
 adiabatic gas-duct pressure loss, a thin-dielectric optical law, isobaric
-flow boiling and a steady capillary heat-pipe envelope. GAP-ADVANCED remains
+flow boiling, a steady capillary heat-pipe envelope, rigid-vessel
+blowdown and reduced heat-pipe startup and dryout. A public SINDA/FLUINT
+rigid-tank filling observation adds one source comparison without a
+licensed executable. GAP-ADVANCED remains
 open until the mandatory advanced cases and licensed reference observations
 are identified. Keep the actual source equations, initialization, event
 semantics and validity limits in the case contracts before qualifying the

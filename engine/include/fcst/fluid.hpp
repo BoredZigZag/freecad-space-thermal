@@ -4,6 +4,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 namespace fcst::fluid {
@@ -44,4 +45,38 @@ struct CapillaryBalance {
 };
 CapillaryBalance capillary_balance(const HeatPipe&, double heat_load);
 std::string inspect_heat_pipe(std::string_view);
+
+struct IdealGas { double gas_constant, cv; };
+struct SaturationPoint {
+  double pressure, temperature, liquid_volume, vapor_volume, liquid_energy, vapor_energy;
+};
+using VesselProperties=std::variant<IdealGas,std::vector<SaturationPoint>>;
+struct Vessel {
+  double volume, initial_mass, initial_energy, initial_wall_temperature, wall_capacity, wall_conductance, maximum_step;
+};
+struct VesselInterval {
+  double duration, inlet_mass_flow, inlet_enthalpy, outlet_pressure, outlet_conductance, wall_power;
+};
+struct VesselSample {
+  double time, mass, energy, wall_temperature, pressure, temperature;
+  std::optional<double> quality;
+  double mass_discharged, energy_discharged, mass_defect, energy_defect;
+};
+std::vector<VesselSample> solve_vessel(const Vessel&, const VesselProperties&, std::span<const VesselInterval>);
+std::string inspect_vessel(std::string_view);
+
+struct HeatPipeTransient {
+  HeatPipe hydraulics;
+  double condenser_temperature, initial_temperature, startup_temperature, evaporator_capacity;
+  double passive_conductance, latent_conductance, latent_heat, fluid_mass, initial_wick_mass, reprime_mass, refill_rate;
+};
+struct HeatPipeInterval { double duration, heat_load; };
+enum class HeatPipeMode { priming, active, dry };
+struct HeatPipeSample {
+  double time, temperature, wick_mass, reservoir_mass, rejected_energy, energy_defect;
+  HeatPipeMode mode;
+};
+struct HeatPipeRun { std::vector<HeatPipeSample> samples, events; double capillary_limit; };
+HeatPipeRun solve_heat_pipe(const HeatPipeTransient&, std::span<const HeatPipeInterval>);
+std::string inspect_heat_pipe_transient(std::string_view);
 } // namespace fcst::fluid

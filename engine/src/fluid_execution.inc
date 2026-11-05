@@ -18,6 +18,11 @@ template<class Evaluate> std::string fluid_request(std::string_view input, Evalu
     catch (const Error& e) { return dump(J(J::O{{"status",J("failed")},{"code",J(e.code)}})); }
     catch (...) { return "{\"status\":\"failed\",\"code\":\"fluid_schema\"}"; }
 }
+fluid::HeatPipe read_heat_pipe(const J& request) {
+  return {request.at("length_m").num(),request.at("evaporator_length_m").num(),request.at("condenser_length_m").num(),
+    request.at("evaporator_elevation_m").num(),request.at("capillary_head_Pa").num(),request.at("liquid_density_kg_m3").num(),
+    request.at("gravity_m_s2").num(),request.at("liquid_loss_Pa_W_m").num(),request.at("vapor_loss_Pa_W_m").num()};
+}
 }
 
 std::string fluid::inspect_duct(std::string_view input) {
@@ -69,12 +74,83 @@ std::string fluid::inspect_heat_pipe(std::string_view input) {
   return fluid_request(input,[](const J& request) {
     execution_keys(request,{"schema_version","length_m","evaporator_length_m","condenser_length_m","evaporator_elevation_m",
       "capillary_head_Pa","liquid_density_kg_m3","gravity_m_s2","liquid_loss_Pa_W_m","vapor_loss_Pa_W_m","heat_load_W"});
-    const HeatPipe pipe{request.at("length_m").num(),request.at("evaporator_length_m").num(),request.at("condenser_length_m").num(),
-      request.at("evaporator_elevation_m").num(),request.at("capillary_head_Pa").num(),request.at("liquid_density_kg_m3").num(),
-      request.at("gravity_m_s2").num(),request.at("liquid_loss_Pa_W_m").num(),request.at("vapor_loss_Pa_W_m").num()};
+    const auto pipe=read_heat_pipe(request);
     const auto result=capillary_balance(pipe,request.at("heat_load_W").num());
     return J::O{{"effective_length_m",J(result.effective_length)},{"hydrostatic_head_Pa",J(result.hydrostatic_head)},
       {"liquid_loss_Pa",J(result.liquid_loss)},{"vapor_loss_Pa",J(result.vapor_loss)},{"margin_Pa",J(result.margin)},
       {"power_limit_W",J(result.power_limit)},{"capillary_supported",J(result.supported)}};
+  });
+}
+
+std::string fluid::inspect_vessel(std::string_view input) {
+  return fluid_request(input,[](const J& request) {
+    execution_keys(request,{"schema_version","volume_m3","initial_mass_kg","initial_internal_energy_J",
+      "initial_wall_temperature_K","wall_capacity_J_K","wall_conductance_W_K","maximum_step_s","properties","schedule"});
+    const Vessel vessel{request.at("volume_m3").num(),request.at("initial_mass_kg").num(),
+      request.at("initial_internal_energy_J").num(),request.at("initial_wall_temperature_K").num(),
+      request.at("wall_capacity_J_K").num(),request.at("wall_conductance_W_K").num(),request.at("maximum_step_s").num()};
+    const auto& props=request.at("properties");
+    const auto& kind=props.at("kind").str();
+    VesselProperties properties;
+    if (kind=="ideal_gas") {
+      execution_keys(props,{"kind","gas_constant_J_kg_K","cv_J_kg_K"});
+      properties=IdealGas{props.at("gas_constant_J_kg_K").num(),props.at("cv_J_kg_K").num()};
+    } else if (kind=="saturation_table") {
+      execution_keys(props,{"kind","points"});
+      std::vector<SaturationPoint> rows;
+      for (const auto& p:props.at("points").arr()) {
+        execution_keys(p,{"pressure_Pa","temperature_K","liquid_volume_m3_kg","vapor_volume_m3_kg",
+          "liquid_energy_J_kg","vapor_energy_J_kg"});
+        rows.push_back({p.at("pressure_Pa").num(),p.at("temperature_K").num(),p.at("liquid_volume_m3_kg").num(),
+          p.at("vapor_volume_m3_kg").num(),p.at("liquid_energy_J_kg").num(),p.at("vapor_energy_J_kg").num()});
+      }
+      properties=std::move(rows);
+    } else fail("vessel_properties");
+    std::vector<VesselInterval> schedule;
+    for (const auto& s:request.at("schedule").arr()) {
+      execution_keys(s,{"duration_s","inlet_mass_flow_kg_s","inlet_enthalpy_J_kg","outlet_pressure_Pa",
+        "outlet_conductance_kg_s_Pa","wall_power_W"});
+      schedule.push_back({s.at("duration_s").num(),s.at("inlet_mass_flow_kg_s").num(),s.at("inlet_enthalpy_J_kg").num(),
+        s.at("outlet_pressure_Pa").num(),s.at("outlet_conductance_kg_s_Pa").num(),s.at("wall_power_W").num()});
+    }
+    const auto result=solve_vessel(vessel,properties,schedule);
+    J::A samples;
+    for (const auto& s:result) samples.emplace_back(J::O{{"time_s",J(s.time)},{"mass_kg",J(s.mass)},{"internal_energy_J",J(s.energy)},
+      {"wall_temperature_K",J(s.wall_temperature)},{"pressure_Pa",J(s.pressure)},{"temperature_K",J(s.temperature)},
+      {"quality",s.quality?J(*s.quality):J()},{"discharged_mass_kg",J(s.mass_discharged)},{"discharged_energy_J",J(s.energy_discharged)},
+      {"mass_defect_kg",J(s.mass_defect)},{"energy_defect_J",J(s.energy_defect)}});
+    return J::O{{"samples",J(std::move(samples))}};
+  });
+}
+
+std::string fluid::inspect_heat_pipe_transient(std::string_view input) {
+  return fluid_request(input,[](const J& request) {
+    execution_keys(request,{"schema_version","hydraulics","condenser_temperature_K","initial_temperature_K","startup_temperature_K",
+      "evaporator_capacity_J_K","passive_conductance_W_K","latent_conductance_W_K","latent_heat_J_kg","fluid_mass_kg",
+      "initial_wick_mass_kg","reprime_mass_kg","refill_rate_kg_s","schedule"});
+    const auto& h=request.at("hydraulics");
+    execution_keys(h,{"length_m","evaporator_length_m","condenser_length_m","evaporator_elevation_m","capillary_head_Pa",
+      "liquid_density_kg_m3","gravity_m_s2","liquid_loss_Pa_W_m","vapor_loss_Pa_W_m"});
+    const HeatPipeTransient pipe{read_heat_pipe(h),request.at("condenser_temperature_K").num(),request.at("initial_temperature_K").num(),
+      request.at("startup_temperature_K").num(),request.at("evaporator_capacity_J_K").num(),request.at("passive_conductance_W_K").num(),
+      request.at("latent_conductance_W_K").num(),request.at("latent_heat_J_kg").num(),request.at("fluid_mass_kg").num(),
+      request.at("initial_wick_mass_kg").num(),request.at("reprime_mass_kg").num(),request.at("refill_rate_kg_s").num()};
+    std::vector<HeatPipeInterval> schedule;
+    for (const auto& s:request.at("schedule").arr()) {
+      execution_keys(s,{"duration_s","heat_load_W"});
+      schedule.push_back({s.at("duration_s").num(),s.at("heat_load_W").num()});
+    }
+    const auto result=solve_heat_pipe(pipe,schedule);
+    const auto rows=[](const auto& samples) {
+      J::A out;
+      for (const auto& s:samples) {
+        const char* mode=s.mode==HeatPipeMode::priming?"priming":s.mode==HeatPipeMode::active?"active":"dry";
+        out.emplace_back(J::O{{"time_s",J(s.time)},{"temperature_K",J(s.temperature)},{"wick_mass_kg",J(s.wick_mass)},
+          {"reservoir_mass_kg",J(s.reservoir_mass)},{"rejected_energy_J",J(s.rejected_energy)},{"energy_defect_J",J(s.energy_defect)},
+          {"mode",J(mode)}});
+      }
+      return out;
+    };
+    return J::O{{"samples",J(rows(result.samples))},{"events",J(rows(result.events))},{"capillary_limit_W",J(result.capillary_limit)}};
   });
 }
