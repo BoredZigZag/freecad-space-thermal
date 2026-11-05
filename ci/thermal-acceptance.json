@@ -37,6 +37,8 @@
     "safe-failures",
     "build-identity",
     "fluid-moose-pressure-drop",
+    "fluid-openflume-flow-boiling",
+    "fluid-nasa-heat-pipe-capillary",
     "assembly-balance",
     "assembly-algebraic-boundary",
     "assembly-enthalpy-step",

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #include "fcst/fluid.hpp"
 #include "fcst/thermal.hpp"
+#include <algorithm>
 #include <cmath>
 #include <numeric>
 
@@ -86,5 +87,74 @@ std::vector<Station> solve_duct(const Duct& d, std::span<const double> positions
     result.push_back({pressure,temperature,velocity,density,enthalpy});
   }
   return result;
+}
+
+std::vector<HeatedState> heated_stream(const Saturation& s, double mass_flow, double inlet_enthalpy,
+                                        std::span<const double> segment_heat) {
+  for (double value:{s.pressure,s.temperature,s.liquid_density,s.vapor_density,s.liquid_cp,s.vapor_cp,
+                    s.minimum_temperature,s.maximum_temperature,mass_flow})
+    if (!positive(value)) throw Error("fluid_heated_input");
+  const double latent_heat=s.vapor_enthalpy-s.liquid_enthalpy;
+  if (!positive(latent_heat) || !std::isfinite(inlet_enthalpy) || s.liquid_density<=s.vapor_density ||
+      s.minimum_temperature>s.temperature || s.maximum_temperature<s.temperature)
+    throw Error("fluid_heated_input");
+  if (segment_heat.empty() || segment_heat.size()>4096) throw Error("fluid_heated_input");
+
+  auto evaluate=[&](double heat_added) {
+    const double h=inlet_enthalpy+heat_added/mass_flow;
+    if (!std::isfinite(h)) throw Error("fluid_range");
+    HeatedState state{heat_added,h,s.temperature,Phase::saturated,{},{}};
+    if (h<s.liquid_enthalpy) {
+      state.phase=Phase::liquid;
+      state.temperature+=(h-s.liquid_enthalpy)/s.liquid_cp;
+    } else if (h>s.vapor_enthalpy) {
+      state.phase=Phase::vapor;
+      state.temperature+=(h-s.vapor_enthalpy)/s.vapor_cp;
+    } else {
+      const double x=(h-s.liquid_enthalpy)/latent_heat;
+      const double rho=1/std::lerp(1/s.liquid_density,1/s.vapor_density,x);
+      if (!positive(rho)) throw Error("fluid_range");
+      state.quality=x;
+      state.density=rho;
+    }
+    if (state.temperature<s.minimum_temperature || state.temperature>s.maximum_temperature)
+      throw Error("fluid_temperature_domain");
+    return state;
+  };
+  std::vector<HeatedState> result;
+  result.reserve(segment_heat.size()+1);
+  double heat_added=0;
+  result.push_back(evaluate(heat_added));
+  for (double heat:segment_heat) {
+    heat_added+=heat;
+    result.push_back(evaluate(heat_added));
+  }
+  return result;
+}
+
+CapillaryBalance capillary_balance(const HeatPipe& pipe, double heat_load) {
+  for (double value:{pipe.length,pipe.evaporator_length,pipe.condenser_length,pipe.capillary_head,pipe.liquid_density})
+    if (!positive(value)) throw Error("heat_pipe_input");
+  const double active_length=pipe.evaporator_length+pipe.condenser_length;
+  if (active_length>pipe.length || !std::isfinite(pipe.evaporator_elevation) ||
+      std::abs(pipe.evaporator_elevation)>pipe.length)
+    throw Error("heat_pipe_input");
+  for (double value:{pipe.gravity,pipe.liquid_loss_coefficient,pipe.vapor_loss_coefficient,heat_load})
+    if (!std::isfinite(value) || value<0) throw Error("heat_pipe_input");
+
+  const double effective=pipe.length-active_length/2;
+  const double liquid_resistance=effective*pipe.liquid_loss_coefficient;
+  const double vapor_resistance=effective*pipe.vapor_loss_coefficient;
+  const double resistance=liquid_resistance+vapor_resistance;
+  if (!positive(resistance)) throw Error("heat_pipe_resistance");
+  const double head=pipe.liquid_density*pipe.gravity*pipe.evaporator_elevation;
+  const double liquid_loss=liquid_resistance*heat_load;
+  const double vapor_loss=vapor_resistance*heat_load;
+  const double available=pipe.capillary_head-head;
+  const double limit=std::max(0.0,available)/resistance;
+  const double margin=std::fma(-resistance,heat_load,available);
+  for (double value:{head,liquid_loss,vapor_loss,limit,margin})
+    if (!std::isfinite(value)) throw Error("fluid_range");
+  return {effective,head,liquid_loss,vapor_loss,margin,limit,available>=0 && heat_load<=limit};
 }
 } // namespace fcst::fluid

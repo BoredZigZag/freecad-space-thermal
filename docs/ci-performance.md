@@ -537,3 +537,33 @@ Beam acceptance runs in the existing radiation stage and emits a single
 required case verdict and scalar duration. TST-021 covers the exact
 outgoing sources and summary. Raw ray inputs and reports, native binaries,
 build trees and logs stay local.
+
+## WP-20 boiling and capillary acceptance
+
+The preceding [passing run 41960948357](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41960948357)
+verified commit `315f485`. The exact Foundation handoff recorded warm
+Debug and Release drivers at 401.078 s with three workers and 269.875 s
+with two. Debug radiation was its longest stage at 214.469 s. The older
+main observation used cold caches, so the stage delta cannot isolate
+the BVH change.
+
+Embree was the critical path. Its job took 602 s and finished 45 s
+after Debug, followed by a 20 s gate. The 557.562 s package probe
+included 529.688 s compiling with Visual Studio 2022, two build workers
+and four compiler workers on four logical CPUs. Compiler-phase CPU time
+was 2091.922 s, about 3.95 CPU seconds per wall second. The warm baseline
+records 338.813 s for the package and lacks phase resource measurements.
+The warning remains open. The existing matched three/four-worker
+experiment did not establish a hosted gain.
+
+Tested whether configuration overhead could account for the time above
+the ten-minute feedback target. Subtracting the entire 19.890 s Embree
+configure phase from this run's 624 s job-and-gate path still leaves
+about 604 s. This is a timing bound using unchanged job durations and
+dependencies. It leaves the critical-path investigation focused on
+compilation. The passing baseline and worker budgets remain in place.
+
+The flow-boiling and capillary cases use scalar references and execute in
+the existing thermal stage. Local Release acceptance recorded 0.063 s and
+0.094 s for the two cases, respectively, after the build. Both configurations
+retain the existing numerical coverage and exact-file publication checks.

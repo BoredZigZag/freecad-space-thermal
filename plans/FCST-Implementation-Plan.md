@@ -53,6 +53,11 @@ pressure profile in `tools/check_thermal.py` and a pbrt-derived oracle in
 `tools/check_radiation.py`. TST-021 scans the exact scalar fixture code,
 references and attribution, source/worker-bound verdicts, timings, and GitHub
 prose. The comparison runs use FCST and publish bounded evidence.
+The OpenFLUME/CoolProp flow-boiling and NASA capillary-envelope cases also
+run through thermal acceptance in both configurations. Their checked-in
+inputs are scalar observations and independently generated property
+values. Preflight covers those exact inputs and bounded verdicts.
+Downloaded reference software, source documents and raw executions stay local.
 
 The 29 October independent TD exchange correction also extends TST-021.
 Execute `tests/test_independent_dwg.py` and `tools/check_td.py` in unattended
@@ -992,7 +997,8 @@ Plan and prototype this work from WP-01 findings; do not wait for Q1 to discover
 The [spectral beam prototype](../docs/radiation-engine.md#spectral-beam-prototype)
 exercises deterministic native ray and power accounting. The
 [open-source comparison cases](../docs/advanced-physics.md) cover steady
-adiabatic gas-duct pressure loss and a thin-dielectric optical law. GAP-ADVANCED remains
+adiabatic gas-duct pressure loss, a thin-dielectric optical law, isobaric
+flow boiling and a steady capillary heat-pipe envelope. GAP-ADVANCED remains
 open until the mandatory advanced cases and licensed reference observations
 are identified. Keep the actual source equations, initialization, event
 semantics and validity limits in the case contracts before qualifying the

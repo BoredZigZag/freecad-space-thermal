@@ -56,6 +56,95 @@ The reference implementation is [pbrt-v4 ThinDielectricBxDF](https://github.com/
 by Matt Pharr, Wenzel Jakob, and Greg Humphreys under [Apache-2.0](https://github.com/mmp/pbrt-v4/blob/b0bdf461ba5dd6504b70ebf0932acc0fe7aa744f/LICENSE.txt).
 FCST implements the formula independently and uses synthetic test geometry.
 
-These references verify the stated native operating ranges. Detailed heat
-pipes, multiphase networks, source-logic translation and the mandatory
-FLUINT/FloCAD comparison evidence remain in WP-20 qualification scope.
+## Equilibrium flow boiling and condensation
+
+`fcst-worker --fluid-heated-stream` accepts version 1 JSON with positive
+`mass_flow_kg_s`, `inlet_enthalpy_J_kg` and a `segment_heat_W` array of
+1 to 4,096 signed heat rates. The `saturation` object gives the fixed
+`pressure_Pa` and `temperature_K`, liquid and vapor enthalpies
+(`liquid_enthalpy_J_kg`, `vapor_enthalpy_J_kg`), densities
+(`liquid_density_kg_m3`, `vapor_density_kg_m3`) and local specific heats
+(`liquid_cp_J_kg_K`, `vapor_cp_J_kg_K`). The declared
+`minimum_temperature_K` and `maximum_temperature_K` bound the approximation.
+
+At each station, enthalpy increases by net heat added per unit mass flow.
+Between saturation endpoints, temperature is constant and quality is
+$x=(h-h_f)/(h_g-h_f)$. Homogeneous mixture specific volume is
+$(1-x)/\rho_f+x/\rho_g$. Outside the dome, a local constant specific heat
+relates enthalpy to temperature. Those states return null quality and
+density. The model assumes steady low-speed flow with prescribed uniform
+pressure and mass flow. Its approximation excludes pressure loss, phase
+slip and transient inventory.
+
+The acceptance case takes the nitrogen inlet, pressure, flow and four
+heat additions from OpenFLUME's flow-boiling string. This is an isobaric
+reduction of its network case. The test compares each heated station
+against independent pressure-enthalpy flashes generated with CoolProp
+6.6.0 and checks the energy balance. A synthetic cycle tests both
+saturation endpoints, superheating and condensation. The checked-in
+reference consists of scalar data and does not add a solver dependency.
+
+Sources are the [OpenFLUME flow-boiling test](https://github.com/OpenFLUME/OpenFLUME/blob/464512786990485de60d16ec5ee39b22df1762bd/src/core/__tests__/twoPhaseFlow.test.ts)
+and [MIT license](https://github.com/OpenFLUME/OpenFLUME/blob/464512786990485de60d16ec5ee39b22df1762bd/LICENSE),
+the [CoolProp nitrogen equation of state](https://coolprop.org/fluid_properties/fluids/Nitrogen.html),
+and [CoolProp 6.6.0](https://pypi.org/project/CoolProp/6.6.0/). Generation
+used the CPython 3.11 Windows x64 wheel with SHA-256
+`b22c30a23603ce3df88a18a445fad14f93fd9757720f43d3b8041549e93c4b93`.
+
+## Steady capillary heat-pipe envelope
+
+`fcst-worker --heat-pipe-capillary` accepts version 1 JSON with
+`length_m`, `evaporator_length_m`, `condenser_length_m`, and
+`evaporator_elevation_m` measured upward relative to the condenser.
+Supply `capillary_head_Pa`, `liquid_density_kg_m3`, `gravity_m_s2`,
+`liquid_loss_Pa_W_m` and `vapor_loss_Pa_W_m` at the selected operating
+point, and a nonnegative `heat_load_W`.
+
+Effective flow length is the total length less half the sum of the
+evaporator and condenser lengths. The model computes separate liquid and
+vapor pressure losses proportional to heat load and effective length.
+It subtracts those losses and the signed liquid hydrostatic head from
+the maximum capillary head. The result gives the pressure margin, the
+nonnegative heat load limit, and whether the requested load is supported.
+A head deficit at zero load returns an unsupported state with a zero limit.
+This steady, linear-loss envelope uses caller-supplied capillary and
+flow properties. It diagnoses capillary margin and does not simulate
+startup, dryout or other transport limits.
+
+The ammonia comparison uses the 45-inch effective length of NASA's
+worked example. It calibrates the head from the published zero-gravity
+capacity product and predicts the adverse-tilt limit using a CoolProp
+liquid density at 263.15 K. The result is checked within 3 W of the
+chart's approximate 84 W. The separate limit, gravity sign, and margin
+checks exercise both supported and unsupported operating points.
+
+Sources are the [NASA axially grooved heat-pipe example, slides 12 and 16–19](https://ntrs.nasa.gov/citations/20230009276),
+the [NASA wick pressure-balance report](https://ntrs.nasa.gov/citations/19690020461),
+and the [CoolProp ammonia properties](https://coolprop.org/fluid_properties/fluids/Ammonia.html).
+
+The `fluid-openflume-flow-boiling` and `fluid-nasa-heat-pipe-capillary`
+cases run in thermal acceptance on both Windows configurations.
+Detailed heat-pipe transients, pressure-coupled multiphase networks,
+source-logic translation and the mandatory FLUINT/FloCAD comparison
+evidence remain in WP-20 qualification scope.
+
+## Published references for coupled transients
+
+The NBS cryogenic transfer-line experiment has published pressure, flow
+and temperature observations. C&R published a comparison against its
+SINDA/FLUINT 5.2 and FloCAD calculations. NASA's GFSSP documentation
+includes the same experiment as a conjugate heat-transfer example. This
+is a candidate for testing two-phase momentum, wall cooling and
+conservation against several independent sources. Access to the C&R
+model deck and its exact numerical outputs remains unverified.
+[NBS experiment](https://ntrs.nasa.gov/citations/19670007291) ·
+[C&R comparison report](https://www.crtech.com/sites/default/files/files/NBS1966CryoLineCooldownStudy.pdf) ·
+[NASA GFSSP example 14](https://ntrs.nasa.gov/citations/20160005401)
+
+C&R also published steady multi-evaporator loop calculations and a
+transient startup study based on test data. These give reference cases
+for pressure loss and capillary head under unequal loading, and for
+startup under adverse tilt. Input closure and reusable numerical
+observations still need review for executable comparisons.
+[Multi-evaporator study](https://www.crtech.com/sites/default/files/publications/TFAWS06-1012_Paper_Khrustalev.pdf) ·
+[Startup study](https://www.crtech.com/sites/default/files/publications/AIAA2000-2285.PDF)
