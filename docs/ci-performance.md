@@ -504,3 +504,36 @@ limit assertions. Retain the smoke-test setting for this new integration
 case. The earlier timings are from sequential local runs on the same
 prebuilt Windows Debug executable with no rebuild or download in either
 sample. The hosted case timing is collected separately.
+
+## WP-20 spectral beam prototype
+
+The latest passing [Foundation run 41550990460](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41550990460)
+reported cold download caches in both configurations. Debug verification was
+on the dependency critical path after the unit receipt, with a 629 s job and
+a 560.953 s driver using three workers. Radiation was its longest stage at
+328.609 s. The overlapping Embree job took 612 s, including a 560.422 s
+package probe. Its warning against the warm 338.813 s baseline remains open.
+Release used two workers and took 294.906 s in the driver. Differences in
+cache state, setup and workload limit direct comparison with the baseline.
+
+Rejecting a triangle immediately when its first barycentric coordinate is
+outside [0,1] should save work in the dominant Debug radiation stage. Five
+alternating local pairs per geometry used the same prebuilt MSVC 19.31 Debug
+configuration, one trace process, seed 1701 and 65,536 rays per patch. Trace
+timings exclude construction, build and download. Every raw hit row matched.
+
+| Geometry | Before median and range (s) | Early rejection median and range (s) |
+|---|---:|---:|
+| Plates | 0.419 (0.399–0.465) | 0.415 (0.385–0.460) |
+| Spheres | 2.173 (2.126–2.471) | 1.946 (1.822–2.032) |
+| Cube | 2.514 (2.437–2.595) | 2.230 (2.092–2.514) |
+
+Plates showed no clear gain and cube ranges overlapped. The sphere workload
+had a lower trace time in all five pairs. Retain the early rejection and
+keep the same frozen workload, stage scheduling, worker budgets and passing
+baseline. The microbenchmark measures local trace time.
+
+Beam acceptance runs in the existing radiation stage and emits a single
+required case verdict and scalar duration. TST-021 covers the exact
+outgoing sources and summary. Raw ray inputs and reports, native binaries,
+build trees and logs stay local.

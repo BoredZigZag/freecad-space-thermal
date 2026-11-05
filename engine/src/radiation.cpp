@@ -203,8 +203,9 @@ std::optional<Hit> Mesh::Impl::intersect(const Ray& r,std::optional<std::size_t>
       auto h=cross(r.direction,e2); double det=dot(e1,h);
       if (std::abs(det)<=geometry->determinant_limit) continue;
       auto s=sub(r.origin,f.vertices[0]); double u=dot(s,h)/det;
+      if (u<0 || u>1) continue;
       auto q=cross(s,e1); double v=dot(r.direction,q)/det;
-      if (u<0 || v<0 || u+v>1) continue;
+      if (v<0 || u+v>1) continue;
       double distance=dot(e2,q)/det;
       if (distance>0 && (!best || distance<best->distance || (distance==best->distance && i<best->facet))) best=Hit{i,det<0,distance};
     }
@@ -261,6 +262,68 @@ struct Sampler {
   }
 };
 Row trace_row(const Mesh& mesh,std::size_t source,const Sampling& s,const IntersectionBackend* backend) { return Sampler::row(mesh,source,s,backend); }
+
+BeamBalance trace_beam(std::vector<SpectralFacet> surfaces, std::span<const double> wavelengths_nm,
+                       std::size_t band, const Ray& ray, double power, std::size_t maximum_interactions) {
+  if (surfaces.empty() || surfaces.size()>4096 || wavelengths_nm.size()>64 || band>=wavelengths_nm.size() ||
+      maximum_interactions==0 || maximum_interactions>16384) throw Error("beam_limit");
+  if (!std::isfinite(power) || power<=0 || power>1e15) throw Error("beam_power");
+  double previous=0;
+  for (double wavelength:wavelengths_nm) {
+    if (!std::isfinite(wavelength) || wavelength<=previous) throw Error("beam_wavelength");
+    previous=wavelength;
+  }
+  std::sort(surfaces.begin(),surfaces.end(),[](const auto& a,const auto& b) { return a.geometry.id<b.geometry.id; });
+  std::vector<Facet> geometry;
+  geometry.reserve(surfaces.size());
+  for (auto& surface:surfaces) {
+    for (const auto& side:surface.sides) {
+      if (!side.empty() && side.size()!=wavelengths_nm.size()) throw Error("beam_optics");
+      for (const auto& law:side) {
+        if (!std::isfinite(law.specular_reflectance) || !std::isfinite(law.transmittance) ||
+            law.specular_reflectance<0 || law.transmittance<0 ||
+            law.specular_reflectance+law.transmittance>1) throw Error("beam_optics");
+      }
+    }
+    // The beam laws are indexed by facet and side, independently of diffuse patches.
+    geometry.push_back(std::move(surface.geometry));
+  }
+  Mesh mesh(std::move(geometry));
+  struct Branch { Ray ray; double power; std::optional<std::size_t> ignore; };
+  std::vector<Branch> pending{{ray,power,{}}};
+  BeamBalance balance;
+  // Every ray query consumes budget, including rays that escape or hit a blocker.
+  for (std::size_t query=0; query<maximum_interactions && !pending.empty(); ++query) {
+    auto branch=pending.back();
+    pending.pop_back();
+    const auto hit=mesh.intersect(branch.ray,branch.ignore);
+    if (!hit) {
+      balance.escaped+=branch.power;
+      continue;
+    }
+    const auto& side=surfaces[hit->facet].sides[hit->back?1:0];
+    if (side.empty()) {
+      balance.blocked+=branch.power;
+      continue;
+    }
+    const auto& law=side[band];
+    const auto& facet=mesh.facets()[hit->facet];
+    const double reflected=branch.power*law.specular_reflectance;
+    const double transmitted=std::min(branch.power-reflected,branch.power*law.transmittance);
+    balance.absorbed[facet.node]+=branch.power-reflected-transmitted;
+    const auto point=add(branch.ray.origin,mul(branch.ray.direction,hit->distance));
+    if (transmitted>0) pending.push_back({{point,branch.ray.direction},transmitted,hit->facet});
+    if (reflected>0) {
+      const auto n=normal(facet);
+      auto direction=sub(branch.ray.direction,mul(n,2*dot(branch.ray.direction,n)));
+      direction=mul(direction,1/norm(direction));
+      pending.push_back({{point,direction},reflected,hit->facet});
+    }
+  }
+  for (const auto& branch:pending) balance.unresolved+=branch.power;
+  return balance;
+}
+
 Interval wilson(std::uint64_t hits,std::uint64_t samples,double z) {
   if (!samples || hits>samples || !std::isfinite(z) || z<=0) throw Error("radiation_statistics");
   double n=static_cast<double>(samples),p=static_cast<double>(hits)/n,d=1+z*z/n;

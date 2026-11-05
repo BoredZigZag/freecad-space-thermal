@@ -41,6 +41,13 @@ temporary AppContainer profiles/denial manifests, operational project databases
 and raw host/native logs remain local. The imported licensed Q1 qualification
 holds are never converted into synthetic passes.
 
+The WP-20 spectral beam prototype adds analytic split, side, wavelength,
+energy-closure, refinement and malformed-input checks to `tools/check_radiation.py`
+in both Windows configurations. TST-021 scans exact sources, synthetic checks,
+the bounded radiation verdict and scalar timings, staged bytes, outgoing history,
+approved identities and final GitHub prose. Raw ray reports, build output and
+restricted source cases remain local.
+
 The 29 October independent TD exchange correction also extends TST-021.
 Execute `tests/test_independent_dwg.py` and `tools/check_td.py` in unattended
 Windows verification, plus `tests/test_native_dwg.py` and `tests/test_sinda_writer.py`.
@@ -975,6 +982,13 @@ The Windows application CLI runs bounded steady and transient campaigns and gene
 ### Step 20 — WP-20: implement required Q2 advanced owned physics and logic
 
 Plan and prototype this work from WP-01 findings; do not wait for Q1 to discover its architecture. Production tasks can proceed after their interfaces are ready. Q2 acceptance follows Q1.
+
+The [spectral beam prototype](../docs/radiation-engine.md#spectral-beam-prototype)
+exercises deterministic native ray and power accounting. GAP-ADVANCED remains
+open until the mandatory advanced cases and licensed reference observations
+are identified. Keep the actual source equations, initialization, event
+semantics and validity limits in the case contracts before qualifying the
+native coupled fluid, optics and source-logic implementations.
 
 1. Turn each required advanced corpus feature into an explicit equation/semantics contract and automated oracle/reference case. Unknown scope remains visible rather than being estimated as a small generic add-on.
 2. For required fluid networks, define pressure/flow/enthalpy states, mass/momentum/energy equations, fluid-property ranges and component laws; model pumps/valves/heat exchangers only as required by the corpus.

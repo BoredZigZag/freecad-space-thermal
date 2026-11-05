@@ -31,6 +31,74 @@ def input_hashes():
     return {p: digest(ROOT/p) for p in paths}
 
 
+def check_spectral_beam(execute, worker, candidate):
+    def law(reflectance, transmittance=0):
+        return dict(specular_reflectance=reflectance, transmittance=transmittance)
+
+    black = [law(0), law(0)]
+
+    def facet(name, node, x, z, front, back):
+        return dict(id=name, node=node, vertices_m=[[x-.3, 0, z], [x+.3, 0, z], [x, .6, z]],
+                    front=front, back=back)
+
+    def run(value, name, status='passed', code=None):
+        payload = json.dumps(value).encode()
+        completed = execute(worker, ['--radiation-beam'], 'beam-'+name, payload)
+        report = json.loads(completed.stdout)
+        require(not completed.stderr and completed.returncode == (0 if status == 'passed' else 1))
+        require(report['status'] == status)
+        if status == 'failed':
+            require(report == dict(status='failed', code=code))
+            return
+        require(report['source_revision'] == candidate and report['schema_version'] == 1
+                and report['input_sha256'] == hashlib.sha256(payload).hexdigest())
+        absorbed = {row['node']: row['power_W'] for row in report['absorbed']}
+        escaped, blocked, unresolved = (report[k+'_W'] for k in ('escaped', 'blocked', 'unresolved'))
+        require(all(watts >= 0 for watts in (*absorbed.values(), escaped, blocked, unresolved)))
+        require(abs(math.fsum([*absorbed.values(), escaped, blocked, unresolved])-value['power_W']) < 1e-12)
+        return absorbed, escaped, blocked, unresolved
+
+    # An oblique ray hits the splitter at x=0. Reflection hits the back of
+    # the upper target at x=.75 and transmission hits the lower target at x=.75.
+    scene = dict(schema_version=1, wavelengths_nm=[450, 850], band=0,
+                 ray=dict(origin_m=[-.75, .25, 1], direction=[.6, 0, -.8]),
+                 power_W=8, maximum_interactions=16,
+                 facets=[facet('splitter', 0, 0, 0, [law(.25, .5), law(.75, 0)], []),
+                         facet('upper', 1, .75, 1, [], black),
+                         facet('lower', 2, .75, -1, black, [])])
+    require(run(scene, 'split') == ({0: 2, 1: 2, 2: 4}, 0, 0, 0))
+    scene['band'] = 1
+    require(run(scene, 'wavelength') == ({0: 2, 1: 6}, 0, 0, 0))
+    scene['facets'].reverse()
+    require(run(scene, 'reordered') == ({0: 2, 1: 6}, 0, 0, 0))
+    scene['facets'].pop(1)
+    require(run(scene, 'escape') == ({0: 2}, 6, 0, 0))
+    scene['facets'].insert(1, facet('upper', 1, .75, 1, black, []))
+    require(run(scene, 'blocked-back') == ({0: 2}, 0, 6, 0))
+
+    # Alternating half-power absorption. The unresolved tail is exactly 8/2^n.
+    half = [law(.5), law(.5)]
+    cavity = deepcopy(scene)
+    cavity.update(ray=dict(origin_m=[0, .25, .5], direction=[0, 0, -1]),
+                  facets=[facet('floor', 0, 0, 0, half, []), facet('ceiling', 1, 0, 1, [], half)])
+    for budget in (2, 8, 16):
+        cavity['maximum_interactions'] = budget
+        absorbed, escaped, blocked, unresolved = run(cavity, f'cavity-{budget}', 'incomplete')
+        require(unresolved == 8/2**budget and escaped == blocked == 0)
+        require(abs(absorbed[0]-(16/3)*(1-2**-budget)) < 1e-12)
+        require(abs(absorbed[1]-(8/3)*(1-2**-budget)) < 1e-12)
+
+    invalid = deepcopy(scene)
+    invalid['facets'][-1]['front'][0] = law(.7, .5)
+    run(invalid, 'reject-coefficients', 'failed', 'beam_optics')
+    invalid = deepcopy(scene)
+    invalid['wavelengths_nm'].reverse()
+    run(invalid, 'reject-wavelengths', 'failed', 'beam_wavelength')
+    invalid = deepcopy(scene)
+    invalid['ray']['direction'] = [0, 0, -2]
+    run(invalid, 'reject-direction', 'failed', 'radiation_ray')
+
+
 def check_environment(execute, worker, steady_fixture):
     from scipy.integrate import solve_ivp
 
@@ -259,6 +327,9 @@ def check(subject, native, worker, output):
     started = time.monotonic()
     check_environment(execute, worker, steady_fixture)
     records.append(dict(id='worker-environment-transient', status='passed', seconds=round(time.monotonic()-started, 3)))
+    started = time.monotonic()
+    check_spectral_beam(execute, worker, candidate)
+    records.append(dict(id='worker-spectral-beam', status='passed', seconds=round(time.monotonic()-started, 3)))
     # Actual JSON boundary mutations: no unsupported optics, malformed geometry,
     # missing node temperatures, unknown fields, nonintegral seeds or raw echo.
     mutations = []
