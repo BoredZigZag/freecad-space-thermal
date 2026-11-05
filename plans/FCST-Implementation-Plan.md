@@ -41,6 +41,31 @@ temporary AppContainer profiles/denial manifests, operational project databases
 and raw host/native logs remain local. The imported licensed Q1 qualification
 holds are never converted into synthetic passes.
 
+The WP-20 spectral beam prototype adds analytic split, side, wavelength,
+energy-closure, refinement and malformed-input checks to `tools/check_radiation.py`
+in both Windows configurations. TST-021 scans exact sources, synthetic checks,
+the bounded radiation verdict and scalar timings, staged bytes, outgoing history,
+approved identities and final GitHub prose. Raw ray reports, build output and
+restricted source cases remain local.
+
+The open-source WP-20 comparisons extend those checks with a pinned MOOSE
+pressure profile in `tools/check_thermal.py` and a pbrt-derived oracle in
+`tools/check_radiation.py`. TST-021 scans the exact scalar fixture code,
+references and attribution, source/worker-bound verdicts, timings, and GitHub
+prose. The comparison runs use FCST and publish bounded evidence.
+The OpenFLUME/CoolProp flow-boiling and NASA capillary-envelope cases also
+run through thermal acceptance in both configurations. Their checked-in
+inputs are scalar observations and independently generated property
+values. Preflight covers those exact inputs and bounded verdicts.
+Downloaded reference software, source documents and raw executions stay local.
+The transient vessel and heat-pipe worker cases add a bounded published
+SINDA/FLUINT tabular comparison, CoolProp pressure/enthalpy observations,
+and synthetic event and conservation checks. The reviewed
+`fcst-pure-return/2` exchange checks exercise translation and rejection
+of impure or over-budget procedures. TST-021 clears exact worker and
+translator sources, the shared DWG source pins, scalar fixture observations,
+bounded reports and GitHub prose before publication.
+
 The 29 October independent TD exchange correction also extends TST-021.
 Execute `tests/test_independent_dwg.py` and `tools/check_td.py` in unattended
 Windows verification, plus `tests/test_native_dwg.py` and `tests/test_sinda_writer.py`.
@@ -975,6 +1000,19 @@ The Windows application CLI runs bounded steady and transient campaigns and gene
 ### Step 20 — WP-20: implement required Q2 advanced owned physics and logic
 
 Plan and prototype this work from WP-01 findings; do not wait for Q1 to discover its architecture. Production tasks can proceed after their interfaces are ready. Q2 acceptance follows Q1.
+
+The [spectral beam prototype](../docs/radiation-engine.md#spectral-beam-prototype)
+exercises deterministic native ray and power accounting. The
+[open-source comparison cases](../docs/advanced-physics.md) cover steady
+adiabatic gas-duct pressure loss, a thin-dielectric optical law, isobaric
+flow boiling, a steady capillary heat-pipe envelope, rigid-vessel
+blowdown and reduced heat-pipe startup and dryout. A public SINDA/FLUINT
+rigid-tank filling observation adds one source comparison without a
+licensed executable. GAP-ADVANCED remains
+open until the mandatory advanced cases and licensed reference observations
+are identified. Keep the actual source equations, initialization, event
+semantics and validity limits in the case contracts before qualifying the
+native coupled fluid, optics and source-logic implementations.
 
 1. Turn each required advanced corpus feature into an explicit equation/semantics contract and automated oracle/reference case. Unknown scope remains visible rather than being estimated as a small generic add-on.
 2. For required fluid networks, define pressure/flow/enthalpy states, mass/momentum/energy equations, fluid-property ranges and component laws; model pumps/valves/heat exchangers only as required by the corpus.

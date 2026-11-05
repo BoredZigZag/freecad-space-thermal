@@ -504,3 +504,98 @@ limit assertions. Retain the smoke-test setting for this new integration
 case. The earlier timings are from sequential local runs on the same
 prebuilt Windows Debug executable with no rebuild or download in either
 sample. The hosted case timing is collected separately.
+
+## WP-20 spectral beam prototype
+
+The latest passing [Foundation run 41550990460](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41550990460)
+reported cold download caches in both configurations. Debug verification was
+on the dependency critical path after the unit receipt, with a 629 s job and
+a 560.953 s driver using three workers. Radiation was its longest stage at
+328.609 s. The overlapping Embree job took 612 s, including a 560.422 s
+package probe. Its warning against the warm 338.813 s baseline remains open.
+Release used two workers and took 294.906 s in the driver. Differences in
+cache state, setup and workload limit direct comparison with the baseline.
+
+Rejecting a triangle immediately when its first barycentric coordinate is
+outside [0,1] should save work in the dominant Debug radiation stage. Five
+alternating local pairs per geometry used the same prebuilt MSVC 19.31 Debug
+configuration, one trace process, seed 1701 and 65,536 rays per patch. Trace
+timings exclude construction, build and download. Every raw hit row matched.
+
+| Geometry | Before median and range (s) | Early rejection median and range (s) |
+|---|---:|---:|
+| Plates | 0.419 (0.399–0.465) | 0.415 (0.385–0.460) |
+| Spheres | 2.173 (2.126–2.471) | 1.946 (1.822–2.032) |
+| Cube | 2.514 (2.437–2.595) | 2.230 (2.092–2.514) |
+
+Plates showed no clear gain and cube ranges overlapped. The sphere workload
+had a lower trace time in all five pairs. Retain the early rejection and
+keep the same frozen workload, stage scheduling, worker budgets and passing
+baseline. The microbenchmark measures local trace time.
+
+Beam acceptance runs in the existing radiation stage and emits a single
+required case verdict and scalar duration. TST-021 covers the exact
+outgoing sources and summary. Raw ray inputs and reports, native binaries,
+build trees and logs stay local.
+
+## WP-20 boiling and capillary acceptance
+
+The preceding [passing run 41960948357](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41960948357)
+verified commit `315f485`. The exact Foundation handoff recorded warm
+Debug and Release drivers at 401.078 s with three workers and 269.875 s
+with two. Debug radiation was its longest stage at 214.469 s. The older
+main observation used cold caches, so the stage delta cannot isolate
+the BVH change.
+
+Embree was the critical path. Its job took 602 s and finished 45 s
+after Debug, followed by a 20 s gate. The 557.562 s package probe
+included 529.688 s compiling with Visual Studio 2022, two build workers
+and four compiler workers on four logical CPUs. Compiler-phase CPU time
+was 2091.922 s, about 3.95 CPU seconds per wall second. The warm baseline
+records 338.813 s for the package and lacks phase resource measurements.
+The warning remains open. The existing matched three/four-worker
+experiment did not establish a hosted gain.
+
+Tested whether configuration overhead could account for the time above
+the ten-minute feedback target. Subtracting the entire 19.890 s Embree
+configure phase from this run's 624 s job-and-gate path still leaves
+about 604 s. This is a timing bound using unchanged job durations and
+dependencies. It leaves the critical-path investigation focused on
+compilation. The passing baseline and worker budgets remain in place.
+
+The flow-boiling and capillary cases use scalar references and execute in
+the existing thermal stage. Local Release acceptance recorded 0.063 s and
+0.094 s for the two cases, respectively, after the build. Both configurations
+retain the existing numerical coverage and exact-file publication checks.
+
+## WP-20 transient follow-up
+
+The latest [passing PR run 41962759575](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41962759575)
+verified `8dcf990`. Its exact handoff recorded warm Debug and Release
+drivers at 569.594 s with three workers and 284.141 s with two. Debug was
+on the critical path through the unit receipt and aggregate gate. Its
+longest stage, radiation, took 315.875 s with 313.359 CPU seconds.
+The preceding warm run recorded 214.469 s and 212.531 CPU seconds for
+that stage. Both ran 208 processes and preserved the frozen ray workloads.
+The observed difference was mostly CPU time within the stage. Hosted
+runner variation and source differences limit causal attribution.
+The overlapping Embree job took 643 s, including 570.813 s of compilation.
+
+Tested whether updating acceptance priority estimates to the latest
+warm measurements could shorten the Debug tail. Replaying each warm
+workload independently with the configured worker counts and SUNDIALS
+serialization gave the following idealized acceptance times.
+
+| Profile | Current order (s) | Latest estimates (s) |
+|---|---:|---:|
+| Debug, `315f485` | 361.891 | 356.359 |
+| Debug, `8dcf990` | 520.844 | 520.844 |
+| Release, `315f485` | 202.984 | 202.999 |
+| Release, `8dcf990` | 213.250 | 213.156 |
+
+The small gain on the earlier Debug observation disappeared on the
+longer workload. The replay preserves every case and models neither
+setup nor contention. Keep the existing order, worker counts and
+passing baseline. The transient verification cases use local scalar
+references within the existing thermal stage, and the procedure tests
+extend existing exchange cases.

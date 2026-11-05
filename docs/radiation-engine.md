@@ -144,3 +144,38 @@ the bounded `radiation.json` before publication. Raw trajectories, mesh/result
 containers, executables, debug information, compiler/runtime logs, engineering
 originals and local environment identity remain local. CI clears the exact final
 report before artifact upload; no privacy exception is introduced.
+
+## Spectral beam prototype
+
+`fcst-worker --radiation-beam` accepts version 1 JSON on standard input.
+Supply `wavelengths_nm` as an increasing array of positive wavelengths (up to
+64) and `band` as the zero-based index for the incident beam. Supply
+`ray.origin_m`, a unit `ray.direction`, and positive `power_W`. Each facet has
+an `id`, a numeric `node` index, three `vertices_m` in front-face winding order,
+and `front` and `back` arrays. Each array has one law per wavelength, or is
+empty for a blocking side. Laws give `specular_reflectance` and
+`transmittance` as nonnegative fractions that sum to at most one, or a
+single `refractive_index` in [1, 10] for a lossless thin dielectric.
+
+At each hit, the native BVH selects a facet and side. The reflected branch
+follows the mirror direction, the transmitted branch continues straight,
+and the node receives the remaining power. Fixed fractions are
+angle-independent. The dielectric law models a parallel-sided sheet in air
+with angle-dependent Fresnel coefficients and incoherent internal reflections.
+Transmission stays straight and ignores lateral displacement across the
+sheet. The prototype scope is a single incident beam without diffuse
+scattering, thermal emission, or solver coupling.
+
+The deterministic split uses no random samples. The result accounts for
+power absorbed by each node, escaped into space, intercepted by blocking
+sides, and still unresolved. The request's `maximum_interactions` bounds
+all ray queries (1 through 16,384). An unfinished traversal returns
+`incomplete` with the unresolved power and exits with code 1. Synthetic
+acceptance checks an oblique splitter against geometric hit locations and
+analytic powers, side selection, energy closure, and the geometric tail of
+a partially reflecting cavity as the budget increases.
+
+The spectral laws are a separate versioned worker request. The dielectric
+law has an independent [pbrt formulation check](advanced-physics.md#thin-dielectric-beam). Mandatory
+source optical laws and reference results remain to be identified under
+GAP-ADVANCED before this work can qualify RAD-005.
