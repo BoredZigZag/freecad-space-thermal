@@ -48,6 +48,12 @@ the bounded radiation verdict and scalar timings, staged bytes, outgoing history
 approved identities and final GitHub prose. Raw ray reports, build output and
 restricted source cases remain local.
 
+The open-source WP-20 comparisons extend those checks with a pinned MOOSE
+pressure profile in `tools/check_thermal.py` and a pbrt-derived oracle in
+`tools/check_radiation.py`. TST-021 scans the exact scalar fixture code,
+references and attribution, source/worker-bound verdicts, timings, and GitHub
+prose. The comparison runs use FCST and publish bounded evidence.
+
 The 29 October independent TD exchange correction also extends TST-021.
 Execute `tests/test_independent_dwg.py` and `tools/check_td.py` in unattended
 Windows verification, plus `tests/test_native_dwg.py` and `tests/test_sinda_writer.py`.
@@ -984,7 +990,9 @@ The Windows application CLI runs bounded steady and transient campaigns and gene
 Plan and prototype this work from WP-01 findings; do not wait for Q1 to discover its architecture. Production tasks can proceed after their interfaces are ready. Q2 acceptance follows Q1.
 
 The [spectral beam prototype](../docs/radiation-engine.md#spectral-beam-prototype)
-exercises deterministic native ray and power accounting. GAP-ADVANCED remains
+exercises deterministic native ray and power accounting. The
+[open-source comparison cases](../docs/advanced-physics.md) cover steady
+adiabatic gas-duct pressure loss and a thin-dielectric optical law. GAP-ADVANCED remains
 open until the mandatory advanced cases and licensed reference observations
 are identified. Keep the actual source equations, initialization, event
 semantics and validity limits in the case contracts before qualifying the

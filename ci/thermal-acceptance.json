@@ -36,6 +36,7 @@
     "case-selection",
     "safe-failures",
     "build-identity",
+    "fluid-moose-pressure-drop",
     "assembly-balance",
     "assembly-algebraic-boundary",
     "assembly-enthalpy-step",

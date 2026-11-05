@@ -254,8 +254,13 @@ std::string radiation::inspect_beam(std::string_view input) {
       for (std::size_t i=0; i<3; ++i) geometry.vertices[i]=environment_vector<3>(vertices[i]);
       for (std::size_t side=0; side<2; ++side) {
         for (const auto& law:item.at(side?"back":"front").arr()) {
-          execution_keys(law,{"specular_reflectance","transmittance"});
-          surface.sides[side].push_back({law.at("specular_reflectance").num(),law.at("transmittance").num()});
+          if (law.has("refractive_index")) {
+            execution_keys(law,{"refractive_index"});
+            surface.sides[side].push_back({0,0,law.at("refractive_index").num()});
+          } else {
+            execution_keys(law,{"specular_reflectance","transmittance"});
+            surface.sides[side].push_back({law.at("specular_reflectance").num(),law.at("transmittance").num(),{}});
+          }
         }
       }
       surfaces.push_back(std::move(surface));

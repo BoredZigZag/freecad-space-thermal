@@ -317,7 +317,9 @@ def check(worker, native_tests, assembly_tests, steady_tests, transient_tests):
                                   capture_output=True,timeout=30)
             assert result.returncode==2 and not result.stderr and json.loads(result.stdout)['status']=='blocked'
     from campaign_acceptance import check as campaign_check
+    from fluid_acceptance import check as fluid_check
     cli = {'campaign-synthetic-replay':lambda:campaign_check(worker,fixture.parent/'transient-single.json'),
+           'fluid-moose-pressure-drop':lambda:fluid_check(worker,build_info['source_revision'],env),
            'steady-cli-linear':steady_linear,'steady-cli-singular':steady_singular,'steady-cli-rejections':steady_rejections,
            'transient-cli-analytic':transient_analytic,'transient-cli-checkpoint':transient_checkpoint,
            'transient-cli-events':transient_events,'transient-cli-failures':transient_failures,'transient-cli-capabilities':transient_capabilities,

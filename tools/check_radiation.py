@@ -67,6 +67,25 @@ def check_spectral_beam(execute, worker, candidate):
                          facet('upper', 1, .75, 1, [], black),
                          facet('lower', 2, .75, -1, black, [])])
     require(run(scene, 'split') == ({0: 2, 1: 2, 2: 4}, 0, 0, 0))
+
+    # The pbrt ThinDielectricBxDF formulation sums incoherent internal
+    # reflections. Evaluate it independently using Snell's law and a series.
+    window = deepcopy(scene)
+    window['facets'][0]['front'] = [dict(refractive_index=1.5), dict(refractive_index=1.7)]
+    theta = math.acos(.8)
+    for band, index in enumerate((1.5, 1.7)):
+        window['band'] = band
+        inside = math.asin(math.sin(theta)/index)
+        rs = math.sin(theta-inside)/math.sin(theta+inside)
+        rp = math.tan(theta-inside)/math.tan(theta+inside)
+        interface = (rs**2+rp**2)/2
+        reflected = interface+math.fsum((1-interface)**2*interface**(2*i+1) for i in range(30))
+        absorbed, escaped, blocked, unresolved = run(window, f'thin-dielectric-{band}')
+        require(absorbed[0] == escaped == blocked == unresolved == 0)
+        require(abs(absorbed[1]-8*reflected) < 1e-12 and abs(absorbed[2]-8*(1-reflected)) < 1e-12)
+    window['facets'][0]['front'][1]['refractive_index'] = .9
+    run(window, 'reject-index', 'failed', 'beam_optics')
+
     scene['band'] = 1
     require(run(scene, 'wavelength') == ({0: 2, 1: 6}, 0, 0, 0))
     scene['facets'].reverse()

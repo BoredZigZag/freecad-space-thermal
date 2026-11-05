@@ -8,6 +8,7 @@
 #include "fcst/radiation.hpp"
 #include "fcst/environment.hpp"
 #include "fcst/spatial.hpp"
+#include "fcst/fluid.hpp"
 #include "offline_probe.hpp"
 #include <iostream>
 #include <string>
@@ -27,7 +28,7 @@ int main(int argc, char* argv[]) {
   const std::string_view operation=argc>=2?argv[1]:"";
   if ((argc == 3 && operation == "--contract") ||
       (argc == 2 && (operation == "--environment-transient" || operation == "--spatial-evaluate" ||
-       operation == "--radiation-evaluate" || operation == "--radiation-steady" || operation == "--radiation-beam" ||
+       operation == "--radiation-evaluate" || operation == "--radiation-steady" || operation == "--radiation-beam" || operation == "--fluid-duct" ||
        operation == "--thermal-prepare" || operation == "--thermal-steady" || operation == "--thermal-transient"))) {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1) return 2;
@@ -38,6 +39,7 @@ int main(int argc, char* argv[]) {
     auto result = argc == 2 ? (operation == "--spatial-evaluate" ? fcst::spatial::inspect(input) :
       operation == "--radiation-evaluate" || operation == "--radiation-steady" ? fcst::radiation::inspect(input,operation == "--radiation-steady") :
       operation == "--radiation-beam" ? fcst::radiation::inspect_beam(input) :
+      operation == "--fluid-duct" ? fcst::fluid::inspect_duct(input) :
       operation == "--environment-transient" ? fcst::environment::inspect(input) :
       operation == "--thermal-transient" ? fcst::thermal::inspect_transient(input) :
       operation == "--thermal-steady" ? fcst::thermal::inspect_steady(input) : fcst::thermal::inspect(input)) : fcst::inspect_contract(argv[2], input);

@@ -49,6 +49,16 @@ double emission(double t) {
   if (!std::isfinite(t) || t<0) throw Error("radiation_temperature");
   return checked(sigma*t*t*t*t);
 }
+double thin_dielectric_reflectance(double index, double incident_cosine) {
+  if (index==1) return 0;
+  const double c=std::clamp(incident_cosine,0.0,1.0);
+  const double inside=std::sqrt(1-(1-c*c)/(index*index));
+  const double s=(c-index*inside)/(c+index*inside);
+  const double p=(index*c-inside)/(index*c+inside);
+  const double single=(s*s+p*p)/2;
+  // Sum the incoherent internal reflections between two reciprocal interfaces.
+  return 2*single/(1+single);
+}
 }
 struct Mesh::Impl {
   struct Box { Vec3 lo,hi; };
@@ -283,6 +293,9 @@ BeamBalance trace_beam(std::vector<SpectralFacet> surfaces, std::span<const doub
         if (!std::isfinite(law.specular_reflectance) || !std::isfinite(law.transmittance) ||
             law.specular_reflectance<0 || law.transmittance<0 ||
             law.specular_reflectance+law.transmittance>1) throw Error("beam_optics");
+        if (law.refractive_index && (!std::isfinite(*law.refractive_index) || *law.refractive_index<1 ||
+            *law.refractive_index>10 || law.specular_reflectance!=0 || law.transmittance!=0))
+          throw Error("beam_optics");
       }
     }
     // The beam laws are indexed by facet and side, independently of diffuse patches.
@@ -308,13 +321,17 @@ BeamBalance trace_beam(std::vector<SpectralFacet> surfaces, std::span<const doub
     }
     const auto& law=side[band];
     const auto& facet=mesh.facets()[hit->facet];
-    const double reflected=branch.power*law.specular_reflectance;
-    const double transmitted=std::min(branch.power-reflected,branch.power*law.transmittance);
+    const auto n=normal(facet);
+    double reflected=branch.power*law.specular_reflectance;
+    double transmitted=std::min(branch.power-reflected,branch.power*law.transmittance);
+    if (law.refractive_index) {
+      reflected=branch.power*thin_dielectric_reflectance(*law.refractive_index,std::abs(dot(branch.ray.direction,n)));
+      transmitted=branch.power-reflected;
+    }
     balance.absorbed[facet.node]+=branch.power-reflected-transmitted;
     const auto point=add(branch.ray.origin,mul(branch.ray.direction,hit->distance));
     if (transmitted>0) pending.push_back({{point,branch.ray.direction},transmitted,hit->facet});
     if (reflected>0) {
-      const auto n=normal(facet);
       auto direction=sub(branch.ray.direction,mul(n,2*dot(branch.ray.direction,n)));
       direction=mul(direction,1/norm(direction));
       pending.push_back({{point,direction},reflected,hit->facet});

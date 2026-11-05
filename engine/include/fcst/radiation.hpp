@@ -34,7 +34,10 @@ struct Patch {
 };
 struct Ray { Vec3 origin, direction; };
 struct Hit { std::size_t facet; bool back; double distance; };
-struct DirectionalLaw { double specular_reflectance, transmittance; };
+struct DirectionalLaw {
+  double specular_reflectance=0, transmittance=0;
+  std::optional<double> refractive_index;
+};
 struct SpectralFacet {
   Facet geometry;
   // Front and back. Empty denotes a blocking side. Otherwise one law per wavelength.

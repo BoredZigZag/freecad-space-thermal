@@ -14,7 +14,7 @@ def input_hashes(root):
     names = ['CMakeLists.txt', 'CMakePresets.json', 'engine/src/contracts.cpp',
              'engine/worker/main.cpp', 'engine/include/fcst/contract_bundle.hpp',
              'tools/generate_contracts.py', 'tools/thermal_schema.py', 'tools/check_thermal.py',
-             'tools/campaign_acceptance.py', 'python/fcst_app/campaign.py',
+             'tools/campaign_acceptance.py', 'tools/fluid_acceptance.py', 'python/fcst_app/campaign.py',
              'python/fcst_app/process_limits.py', 'python/fcst_cli/campaign.py',
              'python/fcst_cli/__main__.py',
              'python/fcst_tools/thermal.py', 'ci/thermal-acceptance.json',
