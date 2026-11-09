@@ -227,6 +227,96 @@ def check_vessel(worker, candidate, env):
     run(dict(fill, maximum_step_s=1e-12), 'vessel_step_limit')
 
 
+def check_vessel_network(worker, candidate, env):
+    from scipy.integrate import solve_ivp
+
+    def run(request, error=None):
+        return run_worker(worker, candidate, env, '--fluid-vessel-network', request, error)
+
+    # A manufactured saturation table with an analytic (V/M,U/M) inverse.
+    # With constant phase volumes and latent energy, pressure is affine in
+    # specific energy and quality. The oracle uses no native flash code.
+    liquid_volume, vapor_volume, latent, slope = .001, .1, 20000, .3
+    anchor = 300000
+    points = [dict(pressure_Pa=p, temperature_K=350+(p-anchor)/20000,
+                   liquid_volume_m3_kg=liquid_volume, vapor_volume_m3_kg=vapor_volume,
+                   liquid_energy_J_kg=slope*(p-anchor), vapor_energy_J_kg=slope*(p-anchor)+latent)
+              for p in (250000, 300000, 400000)]
+    volumes = [.002, .002, .002]
+    masses = [.12, .1, .08]
+    pressures = [310000, 290000, 300000]
+    capacity, wall_conductance = 20, 15
+    vessels = []
+    initial = []
+    for volume, mass, pressure in zip(volumes, masses, pressures, strict=True):
+        quality = (volume/mass-liquid_volume)/(vapor_volume-liquid_volume)
+        energy = mass*(slope*(pressure-anchor)+latent*quality)
+        wall = 350+(pressure-anchor)/20000
+        vessels.append(dict(volume_m3=volume, initial_mass_kg=mass, initial_internal_energy_J=energy,
+                            initial_wall_temperature_K=wall, wall_capacity_J_K=capacity,
+                            wall_conductance_W_K=wall_conductance))
+        initial.extend([mass, energy, wall])
+    links = [{'from': 0, 'to': 1, 'conductance_kg_s_Pa': 1e-7},
+             {'from': 1, 'to': 2, 'conductance_kg_s_Pa': 8e-8}]
+    schedule = [dict(duration_s=1, wall_power_W=[0, 0, 0], opening=[1, 1]),
+                dict(duration_s=2, wall_power_W=[0, 600, 0], opening=[0, 0]),
+                dict(duration_s=1, wall_power_W=[0, 0, 0], opening=[.5, 1])]
+    request = dict(schema_version=1, maximum_step_s=.025, properties=dict(kind='saturation_table', points=points),
+                   vessels=vessels, links=links, schedule=schedule)
+
+    def equilibrium(values):
+        quality = [(volumes[i]/values[3*i]-liquid_volume)/(vapor_volume-liquid_volume) for i in range(3)]
+        pressure = [anchor+(values[3*i+1]/values[3*i]-latent*quality[i])/slope for i in range(3)]
+        return quality, pressure
+
+    def rate(values, interval):
+        _, pressure = equilibrium(values)
+        transfer = []
+        for i in range(3):
+            heat = wall_conductance*(values[3*i+2]-(350+(pressure[i]-anchor)/20000))
+            transfer.extend([0, heat, (interval['wall_power_W'][i]-heat)/capacity])
+        for i, opening in enumerate(interval['opening']):
+            flow = opening*links[i]['conductance_kg_s_Pa']*(pressure[i]-pressure[i+1])
+            donor = i if flow >= 0 else i+1
+            advected = flow*(values[3*donor+1]+pressure[donor]*volumes[donor])/values[3*donor]
+            transfer[3*i] -= flow
+            transfer[3*(i+1)] += flow
+            transfer[3*i+1] -= advected
+            transfer[3*(i+1)+1] += advected
+        return transfer
+
+    reference = [initial]
+    for interval in schedule:
+        solution = solve_ivp(lambda _, y: rate(y, interval), [0, interval['duration_s']], reference[-1],
+                             rtol=1e-12, atol=1e-13)
+        assert solution.success
+        reference.append(solution.y[:, -1])
+    rows = run(request)['samples']
+    assert [s['time_s'] for s in rows] == [0, 1, 3, 4]
+    assert rows[0]['link_flow_kg_s'][0] > 0 and rows[-1]['link_flow_kg_s'][0] < 0
+    assert rows[2]['link_flow_kg_s'] == [0, 0]
+    for left, right in zip(rows[1]['vessels'], rows[2]['vessels'], strict=True):
+        assert left['mass_kg'] == right['mass_kg']
+    for row, expected in zip(rows, reference, strict=True):
+        assert abs(row['mass_defect_kg']) < 1e-13 and abs(row['energy_defect_J']) < 1e-8
+        quality, pressure = equilibrium(expected)
+        for i, node in enumerate(row['vessels']):
+            assert abs(node['mass_kg']-expected[3*i]) < 1e-8
+            assert abs(node['internal_energy_J']-expected[3*i+1]) < .001
+            assert abs(node['wall_temperature_K']-expected[3*i+2]) < 1e-5
+            assert abs(node['pressure_Pa']-pressure[i]) < .02
+            assert abs(node['quality']-quality[i]) < 1e-7
+    errors = []
+    expected_pressure = equilibrium(reference[-1])[1]
+    for step in (.5, .25, .125):
+        final = run(dict(request, maximum_step_s=step))['samples'][-1]['vessels']
+        errors.append(max(abs(node['pressure_Pa']-p) for node, p in zip(final, expected_pressure, strict=True)))
+    assert errors[2] < errors[1]/8 < errors[0]/64
+    run(dict(request, links=[dict(links[0], to=0)]), 'vessel_network_link')
+    run(dict(request, schedule=[dict(schedule[0], opening=[1, 2])]), 'vessel_network_schedule')
+    run(dict(request, maximum_step_s=1e-12), 'vessel_step_limit')
+
+
 def check_heat_pipe_transient(worker, candidate, env):
     from scipy.optimize import brentq
 

@@ -65,6 +65,10 @@ and synthetic event and conservation checks. The reviewed
 of impure or over-budget procedures. TST-021 clears exact worker and
 translator sources, the shared DWG source pins, scalar fixture observations,
 bounded reports and GitHub prose before publication.
+The connected-vessel case adds a manufactured saturation table and a
+SciPy pressure, flow, wall-energy and conservation comparison to thermal
+acceptance in both configurations. TST-021 scans exact network sources,
+scalar test inputs, verdicts, timings and outgoing history.
 
 The 29 October independent TD exchange correction also extends TST-021.
 Execute `tests/test_independent_dwg.py` and `tools/check_td.py` in unattended
@@ -1006,7 +1010,8 @@ exercises deterministic native ray and power accounting. The
 [open-source comparison cases](../docs/advanced-physics.md) cover steady
 adiabatic gas-duct pressure loss, a thin-dielectric optical law, isobaric
 flow boiling, a steady capillary heat-pipe envelope, rigid-vessel
-blowdown and reduced heat-pipe startup and dryout. A public SINDA/FLUINT
+blowdown, closed resistive vessel networks and reduced heat-pipe startup
+and dryout. A public SINDA/FLUINT
 rigid-tank filling observation adds one source comparison without a
 licensed executable. GAP-ADVANCED remains
 open until the mandatory advanced cases and licensed reference observations

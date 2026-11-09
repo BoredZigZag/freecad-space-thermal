@@ -172,6 +172,42 @@ coarser 50 kPa table produced a pressure error of about 1.1 kPa.
 The test preserves the 500 Pa comparison limit and separately measures
 fourth-order time refinement on the final table.
 
+## Connected vessel networks
+
+`fcst-worker --fluid-vessel-network` accepts version 1 JSON with a shared
+`properties` object in the vessel format, `maximum_step_s`, and arrays of
+`vessels`, `links`, and `schedule` intervals. Each vessel supplies the six
+initial-state and wall fields from the single-vessel request. A link uses
+zero-based `from` and `to` indices and `conductance_kg_s_Pa`. Parallel links
+have independent conductances. Each schedule interval supplies
+`duration_s`, one `wall_power_W` value per vessel, and one `opening` in
+[0, 1] per link.
+
+Each RK4 stage flashes all vessels before computing branch flow. The
+linear branch momentum closure gives signed flow as conductance times
+opening times the pressure difference. The donor's bulk enthalpy follows
+the flow, including during reversal. Both endpoints receive equal and
+opposite mass and enthalpy fluxes. The wall exchanges energy with its
+vessel at the same stage. This version models rigid, perfectly mixed
+volumes and quasi-steady resistive links. The user supplies a step bound
+appropriate to the hydraulic and thermal timescales. The saturation
+domain restrictions of the single-vessel solver apply at every stage.
+
+The output includes the initial state and each interval endpoint, signed
+link flows, and network mass and energy defects. Link flows at interval
+endpoints use the opening from the interval that just ended. The solver
+bounds the request to 64 vessels, 256 links, 256 intervals and a step
+budget inversely proportional to the sum of vessels and links.
+
+The automated case compares three two-phase vessels against a SciPy
+trajectory with an independently invertible manufactured saturation
+table. It checks conservation, reversal, closed links, pressure,
+temperature, quality and time refinement. Dynamic pipe momentum,
+single-phase transitions outside the saturation table, and source-case
+qualification remain in scope for later work. For a reference with
+dynamic branch momentum, see NASA's network formulation.
+[NASA GFSSP fluid transients](https://www.nasa.gov/wp-content/uploads/2024/04/gfssp-primingfluidtransient-jpp2014.pdf)
+
 ## Heat-pipe startup, dryout and refill
 
 `fcst-worker --heat-pipe-transient` accepts a version 1 request. Supply
@@ -197,7 +233,7 @@ and dryout event times and checks schedule-split invariance.
 This is a reduced model with a fixed-temperature condenser, prescribed
 startup and reprime thresholds, and no latent storage outside the
 instantaneous transport law. Hardware-specific startup and dryout
-qualification, pressure-coupled multiphase networks, mandatory legacy
+qualification, dynamic pipe momentum, mandatory legacy
 procedure mappings and project-level model and result persistence
 remain in WP-20 scope.
 
@@ -221,3 +257,11 @@ startup under adverse tilt. Input closure and reusable numerical
 observations still need review for executable comparisons.
 [Multi-evaporator study](https://www.crtech.com/sites/default/files/publications/TFAWS06-1012_Paper_Khrustalev.pdf) ·
 [Startup study](https://www.crtech.com/sites/default/files/publications/AIAA2000-2285.PDF)
+
+NASA's miniature loop heat-pipe tests provide a public hardware
+comparison candidate for startup, load sharing, and recovery after
+dryout. The two-evaporator, two-condenser experiment reported a heat
+transport capacity of 100 to 120 W and recovery after the evaporator
+loads were reduced. Replaying the test requires coupled evaporators,
+condensers, and compensation chambers.
+[NASA miniature loop heat-pipe test](https://ntrs.nasa.gov/citations/20070032906)

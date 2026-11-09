@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #pragma once
+#include <cstddef>
 #include <optional>
 #include <span>
 #include <string>
@@ -64,6 +65,24 @@ struct VesselSample {
 };
 std::vector<VesselSample> solve_vessel(const Vessel&, const VesselProperties&, std::span<const VesselInterval>);
 std::string inspect_vessel(std::string_view);
+
+struct VesselLink { std::size_t from, to; double conductance; };
+struct VesselNetworkInterval {
+  double duration;
+  std::vector<double> wall_power, opening;
+};
+struct VesselNetworkNode {
+  double mass, energy, wall_temperature, pressure, temperature;
+  std::optional<double> quality;
+};
+struct VesselNetworkSample {
+  double time, mass_defect, energy_defect;
+  std::vector<VesselNetworkNode> nodes;
+  std::vector<double> link_flow;
+};
+std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel>, const VesselProperties&,
+    std::span<const VesselLink>, std::span<const VesselNetworkInterval>);
+std::string inspect_vessel_network(std::string_view);
 
 struct HeatPipeTransient {
   HeatPipe hydraulics;

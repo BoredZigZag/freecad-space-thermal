@@ -599,3 +599,29 @@ setup nor contention. Keep the existing order, worker counts and
 passing baseline. The transient verification cases use local scalar
 references within the existing thermal stage, and the procedure tests
 extend existing exchange cases.
+
+## WP-20 connected-vessel acceptance
+
+The [passing Foundation run 41964891138](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41964891138)
+verified `e74ec3e`. The exact handoff recorded cold Debug and Release
+drivers of 415.344 s and 264.468 s using the configured three and two
+acceptance workers. Debug radiation took 211.062 s, its longest stage.
+The run's job-and-gate path took 658 s. Embree finished 46 s after Debug
+and was the critical path. Its package probe took 577.985 s, including
+546.000 s of compilation and 2,150.688 build CPU seconds.
+
+Tested whether fuller CPU utilization during Embree compilation could
+reach the ten-minute feedback target at the same amount of compiler
+work. With four logical CPUs, the measured work has a best-case
+parallel lower bound of 537.672 s, only 8.328 s below observed wall
+time. This bound holds compiler work and other phases fixed and omits
+host contention. The earlier warm observation and the latest cold
+run cannot isolate cache or compiler effects. Retain the worker
+settings and the passing baseline while compilation remains the
+largest cost.
+
+The network oracle runs as one additional required case within thermal
+acceptance. It uses analytic saturation properties and an independent
+SciPy trajectory, with no extra dependency setup or artifact upload.
+The comparison retains the fixed radiation workloads and existing
+publication checks in both configurations.

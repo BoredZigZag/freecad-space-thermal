@@ -84,21 +84,28 @@ State add_scaled(State state,const State& rate,double step) {
   for (std::size_t i=0; i<state.size(); ++i) state[i]+=step*rate[i];
   return state;
 }
+void validate_vessel(const Vessel& vessel) {
+  for (double x:{vessel.volume,vessel.initial_mass,vessel.initial_wall_temperature,vessel.wall_capacity,vessel.maximum_step})
+    if (!positive(x)) throw Error("vessel_input");
+  if (!std::isfinite(vessel.initial_energy) || !std::isfinite(vessel.wall_conductance) || vessel.wall_conductance<0)
+    throw Error("vessel_input");
+}
+Equilibrium vessel_equilibrium(const Vessel& vessel,const VesselProperties& properties,
+                                double mass,double energy,double wall_temperature) {
+  if (!positive(mass) || !positive(wall_temperature)) throw Error("vessel_state");
+  return flash(properties,vessel.volume/mass,energy/mass);
+}
 }
 
 std::vector<VesselSample> solve_vessel(const Vessel& vessel, const VesselProperties& properties,
                                        std::span<const VesselInterval> schedule) {
   validate(properties);
-  for (double x:{vessel.volume,vessel.initial_mass,vessel.initial_wall_temperature,vessel.wall_capacity,vessel.maximum_step})
-    if (!positive(x)) throw Error("vessel_input");
-  if (!std::isfinite(vessel.initial_energy) || !std::isfinite(vessel.wall_conductance) ||
-      vessel.wall_conductance<0 || schedule.empty() || schedule.size()>4096)
-    throw Error("vessel_input");
+  validate_vessel(vessel);
+  if (schedule.empty() || schedule.size()>4096) throw Error("vessel_input");
 
   State state{vessel.initial_mass,vessel.initial_energy,vessel.initial_wall_temperature,0,0};
   const auto equilibrium=[&](const State& values) {
-    if (!positive(values[0]) || !positive(values[2])) throw Error("vessel_state");
-    return flash(properties,vessel.volume/values[0],values[1]/values[0]);
+    return vessel_equilibrium(vessel,properties,values[0],values[1],values[2]);
   };
   std::vector<VesselSample> result;
   result.reserve(schedule.size()+1);
@@ -144,6 +151,110 @@ std::vector<VesselSample> solve_vessel(const Vessel& vessel, const VesselPropert
     fed_mass+=interval.duration*interval.inlet_mass_flow;
     fed_energy+=interval.duration*(interval.wall_power+interval.inlet_mass_flow*interval.inlet_enthalpy);
     record();
+  }
+  return result;
+}
+
+std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel> vessels,
+    const VesselProperties& properties,std::span<const VesselLink> links,std::span<const VesselNetworkInterval> schedule) {
+  if (vessels.size()<2 || vessels.size()>64 || links.empty() || links.size()>256 ||
+      schedule.empty() || schedule.size()>256) throw Error("vessel_network_size");
+  validate(properties);
+  for (const auto& link:links)
+    if (link.from>=vessels.size() || link.to>=vessels.size() || link.from==link.to || !positive(link.conductance))
+      throw Error("vessel_network_link");
+  for (const auto& interval:schedule) {
+    if (!positive(interval.duration) || interval.wall_power.size()!=vessels.size() ||
+        interval.opening.size()!=links.size()) throw Error("vessel_network_schedule");
+    for (double power:interval.wall_power)
+      if (!std::isfinite(power)) throw Error("vessel_network_schedule");
+    for (double opening:interval.opening)
+      if (!std::isfinite(opening) || opening<0 || opening>1) throw Error("vessel_network_schedule");
+  }
+
+  using NodeState=std::array<double,3>; // mass, internal energy, wall temperature
+  std::vector<NodeState> state;
+  state.reserve(vessels.size());
+  double maximum_step=vessels.front().maximum_step;
+  for (const auto& vessel:vessels) {
+    validate_vessel(vessel);
+    maximum_step=std::min(maximum_step,vessel.maximum_step);
+    state.push_back({vessel.initial_mass,vessel.initial_energy,vessel.initial_wall_temperature});
+  }
+  std::vector<Equilibrium> equilibrium(vessels.size());
+  std::vector<double> enthalpy(vessels.size()), flow(links.size());
+  const auto evaluate=[&](const auto& values,const auto& interval) {
+    for (std::size_t i=0; i<vessels.size(); ++i) {
+      const auto& [mass,energy,wall]=values[i];
+      equilibrium[i]=vessel_equilibrium(vessels[i],properties,mass,energy,wall);
+      enthalpy[i]=energy/mass+equilibrium[i].pressure*(vessels[i].volume/mass);
+      if (!std::isfinite(enthalpy[i])) throw Error("vessel_state");
+    }
+    for (std::size_t i=0; i<links.size(); ++i) {
+      const auto& link=links[i];
+      flow[i]=link.conductance*interval.opening[i]*(equilibrium[link.from].pressure-equilibrium[link.to].pressure);
+      if (!std::isfinite(flow[i])) throw Error("vessel_state");
+    }
+  };
+  double time=0, input_energy=0;
+  std::vector<VesselNetworkSample> result;
+  result.reserve(schedule.size()+1);
+  const auto record=[&](const auto& interval) {
+    evaluate(state,interval);
+    VesselNetworkSample sample{time,0,-input_energy,{},flow};
+    sample.nodes.reserve(vessels.size());
+    for (std::size_t i=0; i<vessels.size(); ++i) {
+      const auto& [mass,energy,wall]=state[i];
+      const auto& vessel=vessels[i];
+      const auto& eq=equilibrium[i];
+      sample.nodes.push_back({mass,energy,wall,eq.pressure,eq.temperature,eq.quality});
+      sample.mass_defect+=mass-vessel.initial_mass;
+      sample.energy_defect+=(energy-vessel.initial_energy)+vessel.wall_capacity*(wall-vessel.initial_wall_temperature);
+    }
+    if (!std::isfinite(sample.mass_defect) || !std::isfinite(sample.energy_defect)) throw Error("vessel_state");
+    result.push_back(std::move(sample));
+  };
+  const auto rate=[&](const auto& values,const auto& interval,auto& rates) {
+    evaluate(values,interval);
+    for (std::size_t i=0; i<vessels.size(); ++i) {
+      const double heat=vessels[i].wall_conductance*(values[i][2]-equilibrium[i].temperature);
+      rates[i]={0,heat,(interval.wall_power[i]-heat)/vessels[i].wall_capacity};
+    }
+    for (std::size_t i=0; i<links.size(); ++i) {
+      const auto& link=links[i];
+      const double mass=flow[i], energy=mass*enthalpy[mass>=0?link.from:link.to];
+      rates[link.from][0]-=mass;
+      rates[link.to][0]+=mass;
+      rates[link.from][1]-=energy;
+      rates[link.to][1]+=energy;
+    }
+  };
+  std::vector<NodeState> k1(vessels.size()),k2(k1),k3(k1),k4(k1),trial(k1);
+  const auto stage=[&](const auto& rates,double dt) {
+    for (std::size_t i=0; i<state.size(); ++i)
+      for (std::size_t j=0; j<3; ++j) trial[i][j]=state[i][j]+dt*rates[i][j];
+  };
+  record(schedule.front());
+  std::size_t remaining_steps=250000/(vessels.size()+links.size());
+  for (const auto& interval:schedule) {
+    const double count=std::max(1.0,std::ceil(interval.duration/maximum_step));
+    if (count>static_cast<double>(remaining_steps)) throw Error("vessel_step_limit");
+    const auto steps=static_cast<std::size_t>(count);
+    remaining_steps-=steps;
+    const double dt=interval.duration/count;
+    for (std::size_t step=0; step<steps; ++step) {
+      rate(state,interval,k1);
+      stage(k1,dt/2); rate(trial,interval,k2);
+      stage(k2,dt/2); rate(trial,interval,k3);
+      stage(k3,dt); rate(trial,interval,k4);
+      for (std::size_t i=0; i<state.size(); ++i)
+        for (std::size_t j=0; j<3; ++j)
+          state[i][j]+=dt*(k1[i][j]+2*k2[i][j]+2*k3[i][j]+k4[i][j])/6;
+    }
+    if (!positive(time+interval.duration) || time+interval.duration<=time) throw Error("vessel_network_schedule");
+    time+=interval.duration;
+    input_energy+=interval.duration*std::accumulate(interval.wall_power.begin(),interval.wall_power.end(),0.0);
+    record(interval);
   }
   return result;
 }

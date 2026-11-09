@@ -40,6 +40,7 @@
     "fluid-openflume-flow-boiling",
     "fluid-nasa-heat-pipe-capillary",
     "fluid-fluint-vessel-and-blowdown",
+    "fluid-coupled-vessel-network",
     "fluid-heat-pipe-startup-dryout",
     "assembly-balance",
     "assembly-algebraic-boundary",

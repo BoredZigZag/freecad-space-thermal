@@ -23,6 +23,28 @@ fluid::HeatPipe read_heat_pipe(const J& request) {
     request.at("evaporator_elevation_m").num(),request.at("capillary_head_Pa").num(),request.at("liquid_density_kg_m3").num(),
     request.at("gravity_m_s2").num(),request.at("liquid_loss_Pa_W_m").num(),request.at("vapor_loss_Pa_W_m").num()};
 }
+fluid::Vessel read_vessel(const J& request,double step) {
+  return {request.at("volume_m3").num(),request.at("initial_mass_kg").num(),
+    request.at("initial_internal_energy_J").num(),request.at("initial_wall_temperature_K").num(),
+    request.at("wall_capacity_J_K").num(),request.at("wall_conductance_W_K").num(),step};
+}
+fluid::VesselProperties read_vessel_properties(const J& props) {
+  const auto& kind=props.at("kind").str();
+  if (kind=="ideal_gas") {
+    execution_keys(props,{"kind","gas_constant_J_kg_K","cv_J_kg_K"});
+    return fluid::IdealGas{props.at("gas_constant_J_kg_K").num(),props.at("cv_J_kg_K").num()};
+  }
+  if (kind!="saturation_table") fail("vessel_properties");
+  execution_keys(props,{"kind","points"});
+  std::vector<fluid::SaturationPoint> rows;
+  for (const auto& p:props.at("points").arr()) {
+    execution_keys(p,{"pressure_Pa","temperature_K","liquid_volume_m3_kg","vapor_volume_m3_kg",
+      "liquid_energy_J_kg","vapor_energy_J_kg"});
+    rows.push_back({p.at("pressure_Pa").num(),p.at("temperature_K").num(),p.at("liquid_volume_m3_kg").num(),
+      p.at("vapor_volume_m3_kg").num(),p.at("liquid_energy_J_kg").num(),p.at("vapor_energy_J_kg").num()});
+  }
+  return rows;
+}
 }
 
 std::string fluid::inspect_duct(std::string_view input) {
@@ -86,26 +108,8 @@ std::string fluid::inspect_vessel(std::string_view input) {
   return fluid_request(input,[](const J& request) {
     execution_keys(request,{"schema_version","volume_m3","initial_mass_kg","initial_internal_energy_J",
       "initial_wall_temperature_K","wall_capacity_J_K","wall_conductance_W_K","maximum_step_s","properties","schedule"});
-    const Vessel vessel{request.at("volume_m3").num(),request.at("initial_mass_kg").num(),
-      request.at("initial_internal_energy_J").num(),request.at("initial_wall_temperature_K").num(),
-      request.at("wall_capacity_J_K").num(),request.at("wall_conductance_W_K").num(),request.at("maximum_step_s").num()};
-    const auto& props=request.at("properties");
-    const auto& kind=props.at("kind").str();
-    VesselProperties properties;
-    if (kind=="ideal_gas") {
-      execution_keys(props,{"kind","gas_constant_J_kg_K","cv_J_kg_K"});
-      properties=IdealGas{props.at("gas_constant_J_kg_K").num(),props.at("cv_J_kg_K").num()};
-    } else if (kind=="saturation_table") {
-      execution_keys(props,{"kind","points"});
-      std::vector<SaturationPoint> rows;
-      for (const auto& p:props.at("points").arr()) {
-        execution_keys(p,{"pressure_Pa","temperature_K","liquid_volume_m3_kg","vapor_volume_m3_kg",
-          "liquid_energy_J_kg","vapor_energy_J_kg"});
-        rows.push_back({p.at("pressure_Pa").num(),p.at("temperature_K").num(),p.at("liquid_volume_m3_kg").num(),
-          p.at("vapor_volume_m3_kg").num(),p.at("liquid_energy_J_kg").num(),p.at("vapor_energy_J_kg").num()});
-      }
-      properties=std::move(rows);
-    } else fail("vessel_properties");
+    const auto vessel=read_vessel(request,request.at("maximum_step_s").num());
+    const auto properties=read_vessel_properties(request.at("properties"));
     std::vector<VesselInterval> schedule;
     for (const auto& s:request.at("schedule").arr()) {
       execution_keys(s,{"duration_s","inlet_mass_flow_kg_s","inlet_enthalpy_J_kg","outlet_pressure_Pa",
@@ -119,6 +123,43 @@ std::string fluid::inspect_vessel(std::string_view input) {
       {"wall_temperature_K",J(s.wall_temperature)},{"pressure_Pa",J(s.pressure)},{"temperature_K",J(s.temperature)},
       {"quality",s.quality?J(*s.quality):J()},{"discharged_mass_kg",J(s.mass_discharged)},{"discharged_energy_J",J(s.energy_discharged)},
       {"mass_defect_kg",J(s.mass_defect)},{"energy_defect_J",J(s.energy_defect)}});
+    return J::O{{"samples",J(std::move(samples))}};
+  });
+}
+
+std::string fluid::inspect_vessel_network(std::string_view input) {
+  return fluid_request(input,[](const J& request) {
+    execution_keys(request,{"schema_version","maximum_step_s","properties","vessels","links","schedule"});
+    const auto step=request.at("maximum_step_s").num();
+    const auto properties=read_vessel_properties(request.at("properties"));
+    std::vector<Vessel> vessels;
+    for (const auto& node:request.at("vessels").arr()) {
+      execution_keys(node,{"volume_m3","initial_mass_kg","initial_internal_energy_J",
+        "initial_wall_temperature_K","wall_capacity_J_K","wall_conductance_W_K"});
+      vessels.push_back(read_vessel(node,step));
+    }
+    std::vector<VesselLink> links;
+    for (const auto& link:request.at("links").arr()) {
+      execution_keys(link,{"from","to","conductance_kg_s_Pa"});
+      links.push_back({execution_count(link.at("from")),execution_count(link.at("to")),link.at("conductance_kg_s_Pa").num()});
+    }
+    std::vector<VesselNetworkInterval> schedule;
+    for (const auto& interval:request.at("schedule").arr()) {
+      execution_keys(interval,{"duration_s","wall_power_W","opening"});
+      schedule.push_back({interval.at("duration_s").num(),execution_numbers(interval.at("wall_power_W")),
+                          execution_numbers(interval.at("opening"))});
+    }
+    auto result=solve_vessel_network(vessels,properties,links,schedule);
+    J::A samples;
+    for (const auto& row:result) {
+      J::A nodes,flows;
+      for (const auto& n:row.nodes) nodes.emplace_back(J::O{{"mass_kg",J(n.mass)},{"internal_energy_J",J(n.energy)},
+        {"wall_temperature_K",J(n.wall_temperature)},{"pressure_Pa",J(n.pressure)},{"temperature_K",J(n.temperature)},
+        {"quality",n.quality?J(*n.quality):J()}});
+      for (double flow:row.link_flow) flows.emplace_back(flow);
+      samples.emplace_back(J::O{{"time_s",J(row.time)},{"mass_defect_kg",J(row.mass_defect)},
+        {"energy_defect_J",J(row.energy_defect)},{"vessels",J(std::move(nodes))},{"link_flow_kg_s",J(std::move(flows))}});
+    }
     return J::O{{"samples",J(std::move(samples))}};
   });
 }
