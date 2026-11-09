@@ -1033,9 +1033,12 @@ portable project files, operational databases and binaries remain local.
 The steady axial-groove operation computes the charge-limited
 capillary transport with local meniscus area, drainage, puddle
 return and separate fluid losses. Both Windows thermal stages
-compare it to an independent trajectory, two held-out plain-groove
-tilts, and a separate measured ATS pipe. The ATS absolute limit
-and transient hardware qualification remain open. TST-021 clears
+compare it to an independent trajectory and held-out tilts from the
+plain-groove and ATS pipes. The ATS case preserves measured taper
+geometry, fits the evaporator wetting constraint at 6 and 8 mm,
+and requires improvement at the 10 and 12 mm holdouts. The
+higher-charge ATS series and transient hardware qualification
+remain open. TST-021 clears
 the exact new solver and oracle sources, graph-derived scalar
 fixtures, bounded verdicts and timings, outgoing history and final
 GitHub prose. Downloaded references and raw calculations stay local.

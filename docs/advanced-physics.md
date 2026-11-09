@@ -307,7 +307,7 @@ the steady linear capillary model for the tested hardware.
 ### Steady axial-groove solver
 
 `fcst-worker --heat-pipe-grooved` accepts a version 1 request for a
-straight pipe with uniformly spaced rectangular grooves. Supply
+straight pipe with uniformly spaced rectangular or tapered grooves. Supply
 `length_m`, `evaporator_length_m`, `condenser_length_m`,
 `evaporator_end_rise_m` (the positive end-to-end adverse elevation),
 `vapor_core_diameter_m`, `groove_count`, `groove_width_m`,
@@ -319,8 +319,16 @@ temperature. Optional `liquid_flow_factor` scales the groove
 conductance (default 1). `steps_per_section` controls the axial RK4
 grid (16–256, default 64).
 
+For a tapered groove, also give `groove_area_m2` as the measured
+single-groove area. The throat width sets capillary curvature. The
+area and depth set the mean width and vapor-fill volume. The
+conductance uses a linear taper with that mean width and the
+rectangular base-wall correction. This approximation represents the
+measured opening, depth, and area together and averages over the
+rounded corners.
+
 The calculation shoots from the evaporator tip toward the condenser.
-At the limit, the lowest groove reaches its capillary pressure
+In the capillary-only calculation, the lowest groove reaches its capillary pressure
 `2 σ cos(θ) / width`. The other grooves experience different suction
 because of their elevation in the cross-section. A circular meniscus
 reduces the liquid area in each groove, and a reduced wetting law
@@ -335,6 +343,17 @@ The solver varies the power until the integrated liquid and vapor
 masses match the charge. This reduced closure assumes heat spreads to
 the remaining wetted grooves at the evaporator.
 [NASA CR-156678, sections 3.2 and 3.4](https://ntrs.nasa.gov/citations/19780008374)
+
+Optional `evaporator_wetting` adds a heat transfer constraint at the
+evaporator tip. Give `minimum_wetted_fraction` in [0, 1) and a
+positive `fully_wet_limit_W`. Power capacity rises linearly from
+zero at the minimum fraction to the supplied limit when fully wet.
+The solver averages the remaining wet fractions of the grooves and
+reduces tip suction when the current power would require more wet
+area. The charge solve includes that change in wetted area and return
+flow. The response includes `evaporator_wetted_fraction` for a
+sustained solution. This closure represents finite heat transfer to
+the remaining wetted grooves with two hardware-dependent inputs.
 
 Results give `power_limit_W`, `minimum_charge_kg`,
 `charge_residual_kg`, `pool_mass_kg` and `maximum_vapor_reynolds`.
@@ -367,17 +386,37 @@ inputs fixed gives 37.9–45.2 W. This is a sensitivity check. It does
 not estimate the hardware measurement uncertainty.
 [NASA TM X-2557, Figure 2](https://ntrs.nasa.gov/citations/19720018727)
 
-An independent run uses the published 11.2 g charge and 273 K
-temperature of the ATS extrusion, the nominal flow factor, and a
-rectangle of equal opening and area to approximate its tapered groove.
-The model gives 134, 103, and 73 W at 8, 10, and 12 mm of tilt. The
-plotted operating-to-dryout brackets are about 98–104, 67–75, and
-44–48 W. The prediction at 6 mm falls outside the laminar domain.
-The solver reproduces the direction of the tilt and charge effects,
-but it overpredicts absolute capacity for this pipe. The automated
-comparison records this limitation alongside the plain-groove
-improvement. A zero-gravity manufactured charge checks the solver
-against a SciPy trajectory and an analytic wetting threshold.
+The ATS extrusion uses the measured 0.67 mm opening, 1.08 mm
+depth and 0.7704 mm² groove area, with the published 11.2 g charge
+and 273 K operating temperature. Replacing the equal-area rectangle
+with this taper increased the overprediction on its own. The
+evaporator wetting constraint uses the midpoints of the 6 and 8 mm
+operating-to-dryout brackets for calibration (129 and 101 W).
+The fit gives a minimum wetted fraction of 0.32095 and a
+fully wetted limit of 609.85 W. The latter is a model input, with
+actual transport also bounded by the available charge and suction.
+The two other tilts were held out of the fit.
+
+| Adverse tilt | Hardware bracket | Previous rectangle | Taper only | Taper with wetting |
+|---|---:|---:|---:|---:|
+| 10 mm | 67–75 W | 109.7 W | 112.6 W | 73.1 W |
+| 12 mm | 44–48 W | 77.6 W | 80.0 W | 45.8 W |
+
+Refitting the four combinations of calibration bracket endpoints
+gives 64–82 W at 10 mm and 31–60 W at 12 mm. These ranges show
+sensitivity to the chart readings and are separate from measurement
+confidence intervals.
+
+An experimental proportional wetting law without a minimum fraction,
+fit at 6 mm on the rectangular baseline, still predicted about
+70 W at 12 mm. With the two-parameter fit fixed, raising the charge
+to 13 g increases the 12 mm prediction to 72.2 W, below the plotted
+88–95 W bracket. The source flags uncertainty in the 13 g
+observations. Automated verification requires improvement at both
+11.2 g holdouts and checks charge response and axial refinement.
+The manufactured zero-gravity case checks the analytical charge
+threshold, the independently integrated trajectory, and operation
+at the fully wetted ceiling.
 [NASA CR-156678, Figures 3-7 and 3-19](https://ntrs.nasa.gov/citations/19780008374)
 
 ## Published references for coupled transients

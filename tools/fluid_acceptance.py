@@ -240,12 +240,24 @@ def check_grooved_heat_pipe_oracle(worker, candidate, env):
     result = run(loaded)
     assert abs(result['power_limit_W']-power) < .02
     assert abs(result['charge_residual_kg']) < 1e-10 and result['pool_mass_kg'] == 0
+    assert 'evaporator_wetted_fraction' not in result
     doubled = run(dict(loaded, latent_heat_J_kg=2*pipe['latent_heat_J_kg']))
     assert math.isclose(doubled['power_limit_W'], 2*result['power_limit_W'], rel_tol=1e-10)
+    capped = run(dict(loaded, evaporator_wetting=dict(minimum_wetted_fraction=.3, fully_wet_limit_W=5)))
+    assert capped['power_limit_W'] == 5 and capped['evaporator_wetted_fraction'] == 1
+    assert abs(capped['charge_residual_kg']) < 1e-10
+    tapered_area = 1.1*w*d
+    tapered = run(dict(pipe, groove_area_m2=tapered_area, fluid_charge_kg=low_charge))
+    tapered_vapor_fill = rv*(math.pi*diameter**2/4+count*tapered_area)*length
+    tapered_minimum = tapered_vapor_fill+(rl-rv)*count*length*(tapered_area-math.pi*w*w/8)
+    assert math.isclose(tapered['minimum_charge_kg'], tapered_minimum, rel_tol=1e-13)
     run(dict(pipe, fluid_charge_kg=vapor_fill/2), 'grooved_heat_pipe_charge')
     run(dict(pipe, fluid_charge_kg=.1), 'grooved_heat_pipe_flooded')
     run(dict(pipe, groove_depth_m=w/3), 'grooved_heat_pipe_input')
     run(dict(pipe, evaporator_end_rise_m=-.01), 'grooved_heat_pipe_input')
+    run(dict(pipe, groove_area_m2=.9*w*d), 'grooved_heat_pipe_input')
+    run(dict(pipe, evaporator_wetting=dict(minimum_wetted_fraction=1, fully_wet_limit_W=5)),
+        'grooved_heat_pipe_input')
 
 
 def check_grooved_heat_pipe_hardware(worker, candidate, env):
@@ -271,23 +283,43 @@ def check_grooved_heat_pipe_hardware(worker, candidate, env):
     assert low['power_limit_W'] < predicted[2] < high['power_limit_W']
     assert low['pool_mass_kg'] < rows[2]['pool_mass_kg'] < high['pool_mass_kg']
 
-    # NASA CR-156678 Fig. 3-19, independent ATS extrusion at 273 K.
-    # Represent its tapered section by a rectangle of equal opening and area.
+    # NASA CR-156678 Figs. 3-7 and 3-19, ATS extrusion at 273 K.
+    # Preserve the measured opening, depth and area separately.
     ats = dict(pipe, length_m=.916, evaporator_length_m=.3048, condenser_length_m=.154,
                vapor_core_diameter_m=.00864, groove_count=27, groove_width_m=.00067,
-               groove_depth_m=7.704e-7/.00067, fluid_charge_kg=.0112, liquid_flow_factor=1,
+               groove_depth_m=.00108, groove_area_m2=7.704e-7, fluid_charge_kg=.0112, liquid_flow_factor=1,
                liquid_density_kg_m3=638.84222631035, vapor_density_kg_m3=3.4376659040195,
                liquid_viscosity_Pa_s=.000170439803504, vapor_viscosity_Pa_s=9.05127935376e-6,
                surface_tension_N_m=.0263300871601, latent_heat_J_kg=1262304.58289)
-    run(dict(ats, evaporator_end_rise_m=.006), 'grooved_heat_pipe_vapor_regime')
-    comparisons = [(run(dict(ats, evaporator_end_rise_m=h))['power_limit_W'], operating, dryout)
-                   for h, operating, dryout in ((.008, 98, 104), (.010, 67, 75), (.012, 44, 48))]
-    # Keep the known high-side discrepancy bounded while allowing a
-    # future model to land inside the observed bracket.
-    assert all(operating-5 <= power <= dryout+32 for power, operating, dryout in comparisons)
-    assert all(a[0] > b[0] for a, b in zip(comparisons, comparisons[1:]))
-    more_charge = run(dict(ats, evaporator_end_rise_m=.012, fluid_charge_kg=.013))
-    assert more_charge['power_limit_W'] > comparisons[-1][0]
+    rectangular = dict(ats, groove_depth_m=ats['groove_area_m2']/ats['groove_width_m'])
+    del rectangular['groove_area_m2']
+    run(dict(rectangular, evaporator_end_rise_m=.006), 'grooved_heat_pipe_vapor_regime')
+    # Fit both wetting parameters using only the 6 and 8 mm bracket midpoints.
+    wetting = dict(minimum_wetted_fraction=.32095, fully_wet_limit_W=609.85)
+    limited = dict(ats, evaporator_wetting=wetting)
+    for h, target in ((.006, 129), (.008, 101)):
+        assert abs(run(dict(limited, evaporator_end_rise_m=h))['power_limit_W']-target) < .1
+    holdouts = ((.010, 67, 75), (.012, 44, 48))
+    predictions = {}
+    for h, operating, dryout in holdouts:
+        baseline = run(dict(rectangular, evaporator_end_rise_m=h))['power_limit_W']
+        result = run(dict(limited, evaporator_end_rise_m=h))
+        power = result['power_limit_W']
+        assert operating <= power <= dryout < baseline
+        assert abs(power-(operating+dryout)/2) < .15*abs(baseline-(operating+dryout)/2)
+        assert abs(result['charge_residual_kg']) < 1e-10
+        assert math.isclose(result['evaporator_wetted_fraction'],
+                            .32095+(1-.32095)*power/609.85, abs_tol=1e-9)
+        predictions[h] = result
+    refined = run(dict(limited, evaporator_end_rise_m=.012, steps_per_section=128))
+    nominal = predictions[.012]
+    assert abs(refined['power_limit_W']-nominal['power_limit_W']) < .02
+
+    # Hold the calibration fixed for the 13 g series. The report itself
+    # flags the high-charge elevations as uncertain.
+    more_charge = run(dict(limited, evaporator_end_rise_m=.012, fluid_charge_kg=.013))
+    assert more_charge['pool_mass_kg'] > nominal['pool_mass_kg']
+    assert nominal['power_limit_W'] < more_charge['power_limit_W'] <= 100
 
 
 def check_vessel(worker, candidate, env):

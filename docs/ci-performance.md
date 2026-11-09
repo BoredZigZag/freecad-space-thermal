@@ -683,3 +683,28 @@ In a sequential local pass, both cases took 2.455 s in Debug and
 0.735 s in Release, including worker launches. The first pass loads
 SciPy. These observations estimate added acceptance cost and do
 not compare compiler optimization levels.
+
+## WP-20 ATS taper and evaporator wetting
+
+The latest passing handoff available during this change was
+[42549331633](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/42549331633),
+with the cold driver and Embree timings recorded above. In the
+[successor run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/42552824774),
+Debug was still executing its verification driver when Embree
+finished. Replaying that ordering with the prior Embree compile
+time reduced to its CPU work bound leaves the observed Debug
+critical path unchanged. This rejects Embree compile tuning as
+a way to shorten that observed tail. Retain the existing stage
+ordering and timing baseline while the Debug stage measurements
+are pending.
+
+The wetting boundary reuses the cross-section table and locates
+the admissible suction with a binary search. Each RK4 stage uses
+one section lookup for all interpolated properties. The new ATS
+checks extend the two existing thermal cases. A sequential local
+run per configuration with three repetitions took 1.973, 1.200,
+and 1.210 s in Debug and 1.526, 0.725, and 0.720 s in Release. The
+first repetition includes SciPy initialization. The warm
+repetitions bound the cost of the expanded checks. The workload
+changed from the previous pass, and these samples do not measure
+a hosted-runner speedup.

@@ -4,8 +4,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 namespace fcst::fluid {
@@ -32,7 +34,7 @@ double recessed_area(double width,double sine) {
 }
 
 struct Section {
-  double liquid_area, pool_area, resistance, inverse_vapor_diameter;
+  double liquid_area, pool_area, resistance, inverse_vapor_diameter, wetted_fraction;
 };
 
 struct Shot {
@@ -51,6 +53,15 @@ void validate(const GroovedHeatPipe& p) {
       p.groove_count*p.groove_width>pi*p.core_diameter || p.groove_depth<p.groove_width/2 ||
       p.liquid_flow_factor<.1 || p.liquid_flow_factor>10 || p.steps_per_section<16 || p.steps_per_section>256)
     throw Error("grooved_heat_pipe_input");
+  if (p.groove_area && (!positive(*p.groove_area) || *p.groove_area<p.groove_width*p.groove_depth ||
+                       *p.groove_area>1.5*p.groove_width*p.groove_depth))
+    throw Error("grooved_heat_pipe_input");
+  if (p.evaporator_wetting) {
+    const auto& wetting=*p.evaporator_wetting;
+    if (!std::isfinite(wetting.minimum_wetted_fraction) || wetting.minimum_wetted_fraction<0 ||
+        wetting.minimum_wetted_fraction>=1 || !positive(wetting.fully_wet_limit))
+      throw Error("grooved_heat_pipe_input");
+  }
 }
 }
 
@@ -61,7 +72,7 @@ GroovedHeatPipeLimit grooved_heat_pipe_limit(const GroovedHeatPipe& p) {
   const double axial_head_gradient=density_difference*p.gravity*slope;
   const double normal_head_gradient=density_difference*p.gravity*std::sqrt(1-slope*slope);
   const double radius=p.core_diameter/2;
-  const double groove_area=p.groove_width*p.groove_depth;
+  const double groove_area=p.groove_area.value_or(p.groove_width*p.groove_depth);
   const double core_area=pi*radius*radius;
   const double vapor_fill_mass=p.vapor_density*(core_area+p.groove_count*groove_area)*p.length;
   const double capillary_scale=2*p.surface_tension/p.groove_width;
@@ -70,25 +81,34 @@ GroovedHeatPipeLimit grooved_heat_pipe_limit(const GroovedHeatPipe& p) {
   groove_offsets.reserve(p.groove_count);
   for (std::size_t i=0; i<p.groove_count; ++i)
     groove_offsets.push_back(normal_head_gradient*radius*std::cos(2*pi*(i+.5)/p.groove_count));
-  const double evaporator_suction=groove_limit-*std::min_element(groove_offsets.begin(),groove_offsets.end());
+  const double capillary_suction=groove_limit-*std::min_element(groove_offsets.begin(),groove_offsets.end());
   // A puddle occupying more than three quarters of the core diameter
   // lies outside the shallow-pool approximation.
   const double suction_floor=-normal_head_gradient*radius/2;
-  const double groove_conductance=full_groove_conductance(p.groove_width,p.groove_depth)*p.liquid_flow_factor;
+  const double mean_width=p.groove_area?groove_area/p.groove_depth:p.groove_width;
+  if (p.groove_area && p.groove_count*(2*mean_width-p.groove_width)>pi*(p.core_diameter+2*p.groove_depth))
+    throw Error("grooved_heat_pipe_input");
+  const double taper=(mean_width-p.groove_width)/mean_width;
+  // The average of the cube of a linearly varying width is the
+  // cube of its mean times (1 + taper^2). Retain the rectangular
+  // floor correction at the mean width.
+  const double groove_conductance=full_groove_conductance(mean_width,p.groove_depth)*
+    (1+taper*taper)*p.liquid_flow_factor;
   const double core_conductance=pi*std::pow(radius,4)/8;
-  if (!positive(vapor_fill_mass) || !positive(groove_limit) || !positive(evaporator_suction-suction_floor) ||
+  if (!positive(vapor_fill_mass) || !positive(groove_limit) || !positive(capillary_suction-suction_floor) ||
       !positive(groove_conductance) || !positive(core_conductance))
     throw Error("grooved_heat_pipe_range");
   if (p.fluid_charge<vapor_fill_mass) throw Error("grooved_heat_pipe_charge");
 
   const auto section_at=[&](double suction) {
-    double liquid_area=0, liquid_conductance=0, shear_weight=0;
+    double liquid_area=0, liquid_conductance=0, shear_weight=0, wet_grooves=0;
     for (double offset:groove_offsets) {
       const double local=suction+offset;
       const double sine=std::clamp(local/capillary_scale,0.0,1.0);
       // Beyond depinning, regularize the transition to a drained groove
       // over 15% of its critical suction. This is a reduced wetting law.
       const double wet=std::clamp(1-(local-groove_limit)/(.15*groove_limit),0.0,1.0);
+      wet_grooves+=wet;
       const double area=(groove_area-recessed_area(p.groove_width,sine))*wet;
       const double fraction=area/groove_area;
       const double partial_conductance=groove_conductance*fraction*fraction;
@@ -114,7 +134,7 @@ GroovedHeatPipeLimit grooved_heat_pipe_limit(const GroovedHeatPipe& p) {
     // conductance and interface width per liquid area.
     const double shear_resistance=vapor_resistance*vapor_diameter*shear_weight/(4*liquid_conductance);
     const Section section{liquid_area+pool_area,pool_area,liquid_resistance+vapor_resistance+shear_resistance,
-                          1/vapor_diameter};
+                          1/vapor_diameter,wet_grooves/p.groove_count};
     if (!positive(section.resistance) || !positive(section.inverse_vapor_diameter))
       throw Error("grooved_heat_pipe_range");
     return section;
@@ -123,21 +143,47 @@ GroovedHeatPipeLimit grooved_heat_pipe_limit(const GroovedHeatPipe& p) {
   // Reuse cross-section geometry for every shooting iterate. Only the
   // axial integration depends on the trial heat load.
   constexpr std::size_t bins=2048;
+  const auto suction_at=[&](double index) {return std::lerp(suction_floor,capillary_suction,index/bins);};
   std::vector<Section> table;
   table.reserve(bins+1);
   for (std::size_t i=0; i<=bins; ++i)
-    table.push_back(section_at(std::lerp(suction_floor,evaporator_suction,static_cast<double>(i)/bins)));
-  const auto shoot=[&](double power) {
-    double suction=evaporator_suction, liquid_volume=0, pool_volume=0, peak_reynolds=0;
+    table.push_back(section_at(suction_at(static_cast<double>(i))));
+  const auto section_index=[&](double suction) {
+    if (!std::isfinite(suction)) throw Error("grooved_heat_pipe_range");
+    const double index=bins*std::clamp((suction-suction_floor)/(capillary_suction-suction_floor),0.0,1.0);
+    const auto i=std::min(static_cast<std::size_t>(index),bins-1);
+    return std::pair{i,index-i};
+  };
+  double thermal_ceiling=std::numeric_limits<double>::infinity();
+  if (p.evaporator_wetting) {
+    const auto& wetting=*p.evaporator_wetting;
+    thermal_ceiling=wetting.fully_wet_limit*
+      ((table.front().wetted_fraction-wetting.minimum_wetted_fraction)/(1-wetting.minimum_wetted_fraction));
+    if (!positive(thermal_ceiling)) throw Error("grooved_heat_pipe_wetting_domain");
+  }
+  const auto tip_suction=[&](double power) {
+    if (!p.evaporator_wetting) return capillary_suction;
+    const auto& wetting=*p.evaporator_wetting;
+    // Invert the wetting law for the highest suction that can sustain
+    // this power. Higher suction leaves less wetted evaporator area.
+    const double required=std::min(table.front().wetted_fraction,
+      std::lerp(wetting.minimum_wetted_fraction,1.0,power/wetting.fully_wet_limit));
+    if (table.back().wetted_fraction>=required) return capillary_suction;
+    const auto upper=std::partition_point(table.begin(),table.end(),
+      [&](const Section& section) {return section.wetted_fraction>=required;});
+    const auto lower=upper-1;
+    const double fraction=(lower->wetted_fraction-required)/(lower->wetted_fraction-upper->wetted_fraction);
+    return suction_at(static_cast<double>(lower-table.begin())+fraction);
+  };
+  const auto shoot=[&](double power,double suction) {
+    double liquid_volume=0, pool_volume=0, peak_reynolds=0;
     const auto rate=[&](double pressure,double fraction) {
-      if (!std::isfinite(pressure)) throw Error("grooved_heat_pipe_range");
-      const double index=bins*std::clamp((pressure-suction_floor)/(evaporator_suction-suction_floor),0.0,1.0);
-      const auto i=std::min(static_cast<std::size_t>(index),bins-1);
-      const auto interpolate=[&](auto member) {return std::lerp(table[i].*member,table[i+1].*member,index-i);};
+      const auto [i,weight]=section_index(pressure);
+      const auto at=[&](auto member) {return std::lerp(table[i].*member,table[i+1].*member,weight);};
       const double mass_flow=power*fraction/p.latent_heat;
-      peak_reynolds=std::max(peak_reynolds,4*mass_flow*interpolate(&Section::inverse_vapor_diameter)/(pi*p.vapor_viscosity));
-      return std::array{-axial_head_gradient-mass_flow*interpolate(&Section::resistance),
-                        interpolate(&Section::liquid_area),interpolate(&Section::pool_area)};
+      peak_reynolds=std::max(peak_reynolds,4*mass_flow*at(&Section::inverse_vapor_diameter)/(pi*p.vapor_viscosity));
+      return std::array{-axial_head_gradient-mass_flow*at(&Section::resistance),
+                        at(&Section::liquid_area),at(&Section::pool_area)};
     };
     const auto advance=[&](double length,double inlet_fraction,double outlet_fraction) {
       if (length==0) return;
@@ -164,27 +210,52 @@ GroovedHeatPipeLimit grooved_heat_pipe_limit(const GroovedHeatPipe& p) {
                 p.liquid_density*pool_volume,peak_reynolds};
   };
 
-  const auto unloaded=shoot(0);
+  const auto minimum_charge_at=[&](double power) {return shoot(power,tip_suction(power));};
+  const auto unloaded=minimum_charge_at(0);
   if (p.fluid_charge<=unloaded.charge)
-    return {0,unloaded.charge,unloaded.charge-p.fluid_charge,0,0};
-  double lo=0,hi=1;
-  auto trial=shoot(hi);
-  for (int i=0; i<40 && trial.charge<p.fluid_charge && trial.condenser_suction>=suction_floor; ++i) {
-    hi*=2;
-    trial=shoot(hi);
+    return {0,unloaded.charge,unloaded.charge-p.fluid_charge,0,0,{}};
+  double lo=0,hi=std::min(1.0,thermal_ceiling);
+  auto trial=minimum_charge_at(hi);
+  for (int i=0; i<40 && hi<thermal_ceiling && trial.charge<p.fluid_charge && trial.condenser_suction>=suction_floor; ++i) {
+    hi=std::min(2*hi,thermal_ceiling);
+    trial=minimum_charge_at(hi);
   }
-  if (trial.charge<p.fluid_charge) throw Error("grooved_heat_pipe_flooded");
-  for (int i=0; i<40; ++i) {
-    const double mid=std::midpoint(lo,hi);
-    if (shoot(mid).charge<p.fluid_charge) lo=mid;
-    else hi=mid;
+  double power, suction;
+  if (trial.charge<p.fluid_charge) {
+    if (hi!=thermal_ceiling || trial.condenser_suction<suction_floor)
+      throw Error("grooved_heat_pipe_flooded");
+    // At the thermal ceiling, fill extra inventory by reducing
+    // evaporator suction without reducing heat transport.
+    power=hi;
+    lo=suction_floor;
+    hi=tip_suction(power);
+    if (shoot(power,lo).charge<p.fluid_charge) throw Error("grooved_heat_pipe_flooded");
+    for (int i=0; i<40; ++i) {
+      const double mid=std::midpoint(lo,hi);
+      if (shoot(power,mid).charge>p.fluid_charge) lo=mid;
+      else hi=mid;
+    }
+    suction=hi;
+  } else {
+    for (int i=0; i<40; ++i) {
+      const double mid=std::midpoint(lo,hi);
+      if (minimum_charge_at(mid).charge<p.fluid_charge) lo=mid;
+      else hi=mid;
+    }
+    power=lo;
+    suction=tip_suction(power);
   }
-  const auto result=shoot(lo);
+  const auto result=shoot(power,suction);
   if (result.condenser_suction<suction_floor) throw Error("grooved_heat_pipe_flooded");
   if (result.peak_reynolds>2300) throw Error("grooved_heat_pipe_vapor_regime");
   const double residual=result.charge-p.fluid_charge;
   if (!std::isfinite(residual) || !std::isfinite(result.pool_mass) ||
       std::abs(residual)>1e-9*p.fluid_charge) throw Error("grooved_heat_pipe_range");
-  return {lo,unloaded.charge,residual,result.pool_mass,result.peak_reynolds};
+  std::optional<double> wetted_fraction;
+  if (p.evaporator_wetting) {
+    const auto [i,weight]=section_index(suction);
+    wetted_fraction=std::lerp(table[i].wetted_fraction,table[i+1].wetted_fraction,weight);
+  }
+  return {power,unloaded.charge,residual,result.pool_mass,result.peak_reynolds,wetted_fraction};
 }
 } // namespace fcst::fluid

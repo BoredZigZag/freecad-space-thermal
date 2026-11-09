@@ -120,22 +120,32 @@ std::string fluid::inspect_grooved_heat_pipe(std::string_view input) {
       "evaporator_end_rise_m","vapor_core_diameter_m","groove_count","groove_width_m","groove_depth_m",
       "contact_angle_deg","gravity_m_s2","fluid_charge_kg","liquid_density_kg_m3","vapor_density_kg_m3",
       "liquid_viscosity_Pa_s","vapor_viscosity_Pa_s","surface_tension_N_m","latent_heat_J_kg"},
-      {"liquid_flow_factor","steps_per_section"});
+      {"liquid_flow_factor","steps_per_section","groove_area_m2","evaporator_wetting"});
     const auto bounded_integer=[](double value,double minimum,double maximum) {
       if (value<minimum || value>maximum || std::floor(value)!=value) fail("grooved_heat_pipe_input");
       return static_cast<std::size_t>(value);
     };
-    const GroovedHeatPipe pipe{r.at("length_m").num(),r.at("evaporator_length_m").num(),r.at("condenser_length_m").num(),
+    GroovedHeatPipe pipe{r.at("length_m").num(),r.at("evaporator_length_m").num(),r.at("condenser_length_m").num(),
       r.at("evaporator_end_rise_m").num(),r.at("vapor_core_diameter_m").num(),bounded_integer(r.at("groove_count").num(),1,256),
       r.at("groove_width_m").num(),r.at("groove_depth_m").num(),r.at("contact_angle_deg").num(),r.at("gravity_m_s2").num(),
       r.at("fluid_charge_kg").num(),r.at("liquid_density_kg_m3").num(),r.at("vapor_density_kg_m3").num(),
       r.at("liquid_viscosity_Pa_s").num(),r.at("vapor_viscosity_Pa_s").num(),r.at("surface_tension_N_m").num(),
       r.at("latent_heat_J_kg").num(),r.has("liquid_flow_factor")?r.at("liquid_flow_factor").num():1,
-      r.has("steps_per_section")?bounded_integer(r.at("steps_per_section").num(),16,256):64};
+      r.has("steps_per_section")?bounded_integer(r.at("steps_per_section").num(),16,256):64,{},{}};
+    if (r.has("groove_area_m2")) pipe.groove_area=r.at("groove_area_m2").num();
+    if (r.has("evaporator_wetting")) {
+      const auto& wetting=r.at("evaporator_wetting");
+      execution_keys(wetting,{"minimum_wetted_fraction","fully_wet_limit_W"});
+      pipe.evaporator_wetting=GrooveEvaporatorWetting{wetting.at("minimum_wetted_fraction").num(),
+                                                    wetting.at("fully_wet_limit_W").num()};
+    }
     const auto result=grooved_heat_pipe_limit(pipe);
-    return J::O{{"power_limit_W",J(result.power)},{"minimum_charge_kg",J(result.minimum_charge)},
+    J::O response{{"power_limit_W",J(result.power)},{"minimum_charge_kg",J(result.minimum_charge)},
       {"charge_residual_kg",J(result.charge_residual)},{"pool_mass_kg",J(result.pool_mass)},
       {"maximum_vapor_reynolds",J(result.maximum_vapor_reynolds)}};
+    if (pipe.evaporator_wetting)
+      response.emplace("evaporator_wetted_fraction",result.evaporator_wetted_fraction?J(*result.evaporator_wetted_fraction):J());
+    return response;
   });
 }
 
