@@ -9,7 +9,11 @@
 namespace fcst::fluid {
 namespace {
 using thermal::Error;
-struct Equilibrium { double pressure, temperature; std::optional<double> quality; };
+struct Equilibrium {
+  double pressure, temperature;
+  std::optional<double> quality;
+  std::optional<Phase> phase;
+};
 
 bool positive(double value) { return std::isfinite(value) && value>0; }
 double latent_slope(const SaturationPoint& p) {
@@ -18,6 +22,28 @@ double latent_slope(const SaturationPoint& p) {
 void validate(const VesselProperties& properties) {
   if (const auto* gas=std::get_if<IdealGas>(&properties)) {
     if (!positive(gas->gas_constant) || !positive(gas->cv)) throw Error("vessel_properties");
+    return;
+  }
+  if (const auto* grid=std::get_if<VolumeEnergyTable>(&properties)) {
+    const auto valid_axis=[](const auto& axis) {
+      return axis.size()>=2 && axis.size()<=64 &&
+        std::all_of(axis.begin(),axis.end(),[](double x) { return std::isfinite(x); }) &&
+        std::adjacent_find(axis.begin(),axis.end(),[](double a,double b) {
+          return b<=a || !std::isfinite(b-a);
+        })==axis.end();
+    };
+    if (!valid_axis(grid->volumes) || !valid_axis(grid->energies) || grid->volumes.front()<=0 ||
+        grid->points.size()!=grid->volumes.size()*grid->energies.size()) throw Error("vessel_properties");
+    for (std::size_t i=0; i<grid->points.size(); ++i) {
+      const auto& point=grid->points[i];
+      if (!positive(point.pressure) || !positive(point.temperature) || !std::isfinite(point.phase_coordinate))
+        throw Error("vessel_properties");
+      if (i%grid->energies.size()!=0) {
+        const auto& previous=grid->points[i-1];
+        if (point.pressure<previous.pressure || point.temperature<previous.temperature ||
+            point.phase_coordinate<previous.phase_coordinate) throw Error("vessel_properties");
+      }
+    }
     return;
   }
   const auto& table=std::get<std::vector<SaturationPoint>>(properties);
@@ -47,7 +73,27 @@ Equilibrium flash(const VesselProperties& properties, double volume, double ener
     const double temperature=energy/gas->cv;
     const double pressure=gas->gas_constant*temperature/volume;
     if (!positive(pressure) || !positive(temperature)) throw Error("vessel_state");
-    return {pressure,temperature,{}};
+    return {pressure,temperature,{},{}};
+  }
+  if (const auto* grid=std::get_if<VolumeEnergyTable>(&properties)) {
+    const auto bracket=[](const auto& axis,double value) {
+      if (value<axis.front() || value>axis.back()) throw Error("vessel_volume_energy_domain");
+      return static_cast<std::size_t>(std::lower_bound(axis.begin()+1,axis.end(),value)-axis.begin()-1);
+    };
+    const auto v=bracket(grid->volumes,volume), u=bracket(grid->energies,energy), stride=grid->energies.size();
+    const double fv=(volume-grid->volumes[v])/(grid->volumes[v+1]-grid->volumes[v]);
+    const double fu=(energy-grid->energies[u])/(grid->energies[u+1]-grid->energies[u]);
+    const auto interpolate=[&](auto field) {
+      const auto a=v*stride+u, b=a+stride;
+      return std::lerp(std::lerp(grid->points[a].*field,grid->points[a+1].*field,fu),
+                       std::lerp(grid->points[b].*field,grid->points[b+1].*field,fu),fv);
+    };
+    const double p=interpolate(&VolumeEnergyPoint::pressure), t=interpolate(&VolumeEnergyPoint::temperature);
+    const double x=interpolate(&VolumeEnergyPoint::phase_coordinate);
+    if (!positive(p) || !positive(t) || !std::isfinite(x)) throw Error("vessel_properties");
+    if (x<0) return {p,t,{},Phase::liquid};
+    if (x>1) return {p,t,{},Phase::vapor};
+    return {p,t,x,Phase::saturated};
   }
   const auto& table=std::get<std::vector<SaturationPoint>>(properties);
   if (volume<table.back().liquid_volume || volume>table.back().vapor_volume)
@@ -76,7 +122,7 @@ Equilibrium flash(const VesselProperties& properties, double volume, double ener
     else high=mid;
   }
   const double f=std::midpoint(low,high);
-  return {std::lerp(a.pressure,b.pressure,f),std::lerp(a.temperature,b.temperature,f),at(f).first};
+  return {std::lerp(a.pressure,b.pressure,f),std::lerp(a.temperature,b.temperature,f),at(f).first,Phase::saturated};
 }
 
 using State=std::array<double,5>; // mass, internal energy, wall T, discharged mass and enthalpy
@@ -161,7 +207,9 @@ std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel> ve
       schedule.empty() || schedule.size()>256) throw Error("vessel_network_size");
   validate(properties);
   for (const auto& link:links)
-    if (link.from>=vessels.size() || link.to>=vessels.size() || link.from==link.to || !positive(link.conductance))
+    if (link.from>=vessels.size() || link.to>=vessels.size() || link.from==link.to || !positive(link.conductance) ||
+        !std::isfinite(link.inertance) || link.inertance<0 || !std::isfinite(link.initial_flow) ||
+        (link.inertance==0 && link.initial_flow!=0))
       throw Error("vessel_network_link");
   for (const auto& interval:schedule) {
     if (!positive(interval.duration) || interval.wall_power.size()!=vessels.size() ||
@@ -182,8 +230,12 @@ std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel> ve
     state.push_back({vessel.initial_mass,vessel.initial_energy,vessel.initial_wall_temperature});
   }
   std::vector<Equilibrium> equilibrium(vessels.size());
-  std::vector<double> enthalpy(vessels.size()), flow(links.size());
-  const auto evaluate=[&](const auto& values,const auto& interval) {
+  std::vector<double> enthalpy(vessels.size()), flow(links.size()), momentum(links.size());
+  for (std::size_t i=0; i<links.size(); ++i) {
+    momentum[i]=links[i].initial_flow;
+    if (schedule.front().opening[i]==0 && momentum[i]!=0) throw Error("vessel_network_link");
+  }
+  const auto evaluate=[&](const auto& values,const auto& rates,const auto& interval) {
     for (std::size_t i=0; i<vessels.size(); ++i) {
       const auto& [mass,energy,wall]=values[i];
       equilibrium[i]=vessel_equilibrium(vessels[i],properties,mass,energy,wall);
@@ -192,7 +244,8 @@ std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel> ve
     }
     for (std::size_t i=0; i<links.size(); ++i) {
       const auto& link=links[i];
-      flow[i]=link.conductance*interval.opening[i]*(equilibrium[link.from].pressure-equilibrium[link.to].pressure);
+      const double difference=equilibrium[link.from].pressure-equilibrium[link.to].pressure;
+      flow[i]=interval.opening[i]==0?0:link.inertance>0?rates[i]:link.conductance*interval.opening[i]*difference;
       if (!std::isfinite(flow[i])) throw Error("vessel_state");
     }
   };
@@ -200,22 +253,22 @@ std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel> ve
   std::vector<VesselNetworkSample> result;
   result.reserve(schedule.size()+1);
   const auto record=[&](const auto& interval) {
-    evaluate(state,interval);
+    evaluate(state,momentum,interval);
     VesselNetworkSample sample{time,0,-input_energy,{},flow};
     sample.nodes.reserve(vessels.size());
     for (std::size_t i=0; i<vessels.size(); ++i) {
       const auto& [mass,energy,wall]=state[i];
       const auto& vessel=vessels[i];
       const auto& eq=equilibrium[i];
-      sample.nodes.push_back({mass,energy,wall,eq.pressure,eq.temperature,eq.quality});
+      sample.nodes.push_back({mass,energy,wall,eq.pressure,eq.temperature,eq.quality,eq.phase});
       sample.mass_defect+=mass-vessel.initial_mass;
       sample.energy_defect+=(energy-vessel.initial_energy)+vessel.wall_capacity*(wall-vessel.initial_wall_temperature);
     }
     if (!std::isfinite(sample.mass_defect) || !std::isfinite(sample.energy_defect)) throw Error("vessel_state");
     result.push_back(std::move(sample));
   };
-  const auto rate=[&](const auto& values,const auto& interval,auto& rates) {
-    evaluate(values,interval);
+  const auto rate=[&](const auto& values,const auto& link_state,const auto& interval,auto& rates,auto& link_rate) {
+    evaluate(values,link_state,interval);
     for (std::size_t i=0; i<vessels.size(); ++i) {
       const double heat=vessels[i].wall_conductance*(values[i][2]-equilibrium[i].temperature);
       rates[i]={0,heat,(interval.wall_power[i]-heat)/vessels[i].wall_capacity};
@@ -223,6 +276,11 @@ std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel> ve
     for (std::size_t i=0; i<links.size(); ++i) {
       const auto& link=links[i];
       const double mass=flow[i], energy=mass*enthalpy[mass>=0?link.from:link.to];
+      link_rate[i]=0;
+      if (link.inertance>0 && interval.opening[i]>0) {
+        const double difference=equilibrium[link.from].pressure-equilibrium[link.to].pressure;
+        link_rate[i]=(difference-mass/(link.conductance*interval.opening[i]))/link.inertance;
+      }
       rates[link.from][0]-=mass;
       rates[link.to][0]+=mass;
       rates[link.from][1]-=energy;
@@ -230,9 +288,11 @@ std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel> ve
     }
   };
   std::vector<NodeState> k1(vessels.size()),k2(k1),k3(k1),k4(k1),trial(k1);
-  const auto stage=[&](const auto& rates,double dt) {
+  std::vector<double> q1(links.size()),q2(q1),q3(q1),q4(q1),trial_flow(q1);
+  const auto stage=[&](const auto& rates,const auto& link_rate,double dt) {
     for (std::size_t i=0; i<state.size(); ++i)
       for (std::size_t j=0; j<3; ++j) trial[i][j]=state[i][j]+dt*rates[i][j];
+    for (std::size_t i=0; i<links.size(); ++i) trial_flow[i]=momentum[i]+dt*link_rate[i];
   };
   record(schedule.front());
   std::size_t remaining_steps=250000/(vessels.size()+links.size());
@@ -242,14 +302,21 @@ std::vector<VesselNetworkSample> solve_vessel_network(std::span<const Vessel> ve
     const auto steps=static_cast<std::size_t>(count);
     remaining_steps-=steps;
     const double dt=interval.duration/count;
+    for (std::size_t i=0; i<links.size(); ++i) {
+      if (interval.opening[i]==0) momentum[i]=0;
+      else if (links[i].inertance>0 && dt>2*(links[i].inertance*(links[i].conductance*interval.opening[i])))
+        throw Error("vessel_momentum_step");
+    }
     for (std::size_t step=0; step<steps; ++step) {
-      rate(state,interval,k1);
-      stage(k1,dt/2); rate(trial,interval,k2);
-      stage(k2,dt/2); rate(trial,interval,k3);
-      stage(k3,dt); rate(trial,interval,k4);
+      rate(state,momentum,interval,k1,q1);
+      stage(k1,q1,dt/2); rate(trial,trial_flow,interval,k2,q2);
+      stage(k2,q2,dt/2); rate(trial,trial_flow,interval,k3,q3);
+      stage(k3,q3,dt); rate(trial,trial_flow,interval,k4,q4);
       for (std::size_t i=0; i<state.size(); ++i)
         for (std::size_t j=0; j<3; ++j)
           state[i][j]+=dt*(k1[i][j]+2*k2[i][j]+2*k3[i][j]+k4[i][j])/6;
+      for (std::size_t i=0; i<links.size(); ++i)
+        momentum[i]+=dt*(q1[i]+2*q2[i]+2*q3[i]+q4[i])/6;
     }
     if (!positive(time+interval.duration) || time+interval.duration<=time) throw Error("vessel_network_schedule");
     time+=interval.duration;

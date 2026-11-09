@@ -625,3 +625,33 @@ acceptance. It uses analytic saturation properties and an independent
 SciPy trajectory, with no extra dependency setup or artifact upload.
 The comparison retains the fixed radiation workloads and existing
 publication checks in both configurations.
+
+## WP-20 inertial links, property grids and project replay
+
+The [passing Foundation run 42546398031](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/42546398031)
+verified `50d837e`. Its warm Debug and Release driver times were
+409.687 s and 282.984 s with three and two acceptance workers,
+respectively. Debug radiation and Release host acceptance were their
+longest stages. Embree's package probe took 539.640 s, of which
+514.016 s and 2,030.703 CPU seconds were compilation. It finished
+24 s after Debug on the 615 s job-and-gate path.
+
+Replayed that run's critical path with Embree compile time set to
+its four-logical-CPU work bound of 507.676 s. Even that ideal
+6.340 s saving leaves a 608.660 s path. An optimistic replay removing
+all 18.469 s of Embree configure time yields 596.531 s. The second
+replay would require preserving configure and consumer validation
+through equivalent work. Neither estimate models contention, cache
+variability, or queue time. Keep the existing probe and pinned
+baseline. The shared-runner timing warning remains an investigation
+item, and the cold and warm observations do not isolate its cause.
+
+The three new cases share the existing thermal stage and SciPy
+installation. The properties and hardware comparisons use bounded
+scalar fixtures. The project check saves and reopens small temporary
+packages. No reference runtime download or additional CI job is
+needed. One sequential local MSVC pass took 1.714 s in Debug and
+0.814 s in Release for the three cases, including worker launches and
+project I/O. The Debug observation includes the first SciPy import,
+so the two totals measure added case cost and do not compare
+optimization levels.

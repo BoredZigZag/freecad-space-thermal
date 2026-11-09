@@ -6,8 +6,8 @@ import math
 import subprocess
 
 
-def run_worker(worker, candidate, env, operation, request, expected_error=None):
-    payload = json.dumps(request, allow_nan=False).encode()
+def run_worker(worker, candidate, env, operation, request, expected_error=None, *, encoder=None):
+    payload = encoder(request) if encoder else json.dumps(request, allow_nan=False).encode()
     result = subprocess.run([str(worker), operation], input=payload, capture_output=True,
                             timeout=20, env=env)
     report = json.loads(result.stdout)
@@ -153,6 +153,31 @@ def check_heat_pipe(worker, candidate, env):
     assert static_dry['power_limit_W'] == 0 and static_dry['capillary_supported'] is False
     run(dict(pipe, condenser_length_m=pipe['length_m']), 'heat_pipe_input')
     run(dict(pipe, liquid_loss_Pa_W_m=0, vapor_loss_Pa_W_m=0), 'heat_pipe_resistance')
+
+
+def check_heat_pipe_hardware(worker, candidate, env):
+    # NASA NTRS 19720018727, Figure 2 (printed page 37). The text
+    # defines transport as power times midpoint spacing, in W-in.
+    # Fit head and total loss using two points on each measured curve.
+    inch, density, gravity = .0254, 610, 9.80665
+
+    def predict(level, tilted, transport, test_tilt):
+        loss_per_W_m = density*gravity*(tilted*inch)/(inch*(level-transport))
+        pipe = dict(schema_version=1, length_m=48*inch, evaporator_length_m=12*inch,
+                    condenser_length_m=12*inch, evaporator_elevation_m=test_tilt*inch,
+                    capillary_head_Pa=level*inch*loss_per_W_m, liquid_density_kg_m3=density,
+                    gravity_m_s2=gravity, liquid_loss_Pa_W_m=loss_per_W_m, vapor_loss_Pa_W_m=0,
+                    heat_load_W=0)
+        result = run_worker(worker, candidate, env, '--heat-pipe-capillary', pipe)
+        assert math.isclose(result['effective_length_m'], 36*inch, rel_tol=1e-14)
+        return result['power_limit_W']*result['effective_length_m']/inch
+
+    # Screen over grooves, pipe 4. Interior points were held out of the fit.
+    for tilt, observed in ((.2, 3125), (.3, 2675)):
+        assert abs(predict(4300, .5, 1800, tilt)-observed) <= 200
+    # Plain grooves, pipe 8. Keep the larger measured discrepancy visible.
+    residual = 1450-predict(5750, .2, 3125, .4)
+    assert 750 <= residual <= 1150
 
 
 def check_vessel(worker, candidate, env):
@@ -315,6 +340,157 @@ def check_vessel_network(worker, candidate, env):
     run(dict(request, links=[dict(links[0], to=0)]), 'vessel_network_link')
     run(dict(request, schedule=[dict(schedule[0], opening=[1, 2])]), 'vessel_network_schedule')
     run(dict(request, maximum_step_s=1e-12), 'vessel_step_limit')
+
+
+def check_network_momentum_and_persistence(worker, candidate, env, project_fixture):
+    from scipy.integrate import solve_ivp
+    from tempfile import TemporaryDirectory
+    from pathlib import Path
+    from fcst_app.network_runs import load_network_run, store_network_run
+    from fcst_app.persistence import Package, PersistenceError, encode
+    from fcst_app.store import ProjectStore
+
+    gas, cv, volume, temperature = 287, 717.5, .01, 300
+    conductance, inertance = 2e-6, 2e6
+    vessels = []
+    for pressure in (101000, 99000):
+        mass = pressure*volume/(gas*temperature)
+        vessels.append(dict(volume_m3=volume, initial_mass_kg=mass, initial_internal_energy_J=mass*cv*temperature,
+                            initial_wall_temperature_K=temperature, wall_capacity_J_K=25, wall_conductance_W_K=0))
+    schedule = [dict(duration_s=duration, wall_power_W=[0, 0], opening=[opening])
+                for duration, opening in ((.6, 1), (.05, .5), (.5, 0), (.1, 1))]
+    request = dict(schema_version=1, maximum_step_s=.005,
+                   properties=dict(kind='ideal_gas', gas_constant_J_kg_K=gas, cv_J_kg_K=cv), vessels=vessels,
+                   links=[{'from': 0, 'to': 1, 'conductance_kg_s_Pa': conductance, 'inertance_Pa_s2_kg': inertance}],
+                   schedule=schedule)
+    result = run_worker(worker, candidate, env, '--fluid-vessel-network', request, encoder=encode)
+    rows = result['samples']
+    assert rows[0]['link_flow_kg_s'] == rows[3]['link_flow_kg_s'] == [0]
+    assert rows[1]['vessels'][0]['pressure_Pa'] < rows[1]['vessels'][1]['pressure_Pa']
+    assert rows[1]['link_flow_kg_s'][0] > rows[2]['link_flow_kg_s'][0] > 0 > rows[4]['link_flow_kg_s'][0]
+    initial = [item[key] for item in vessels for key in ('initial_mass_kg', 'initial_internal_energy_J')] + [0]
+
+    def rate(y, opening):
+        m0, u0, m1, u1, q = y
+        if opening == 0:
+            return [0, 0, 0, 0, 0]
+        pressure_difference = gas*(u0-u1)/(volume*cv)
+        donor_enthalpy = (1+gas/cv)*(u0/m0 if q >= 0 else u1/m1)
+        return [-q, -q*donor_enthalpy, q, q*donor_enthalpy,
+                (pressure_difference-q/(conductance*opening))/inertance]
+
+    reference = initial
+    for interval, sample in zip(schedule, rows[1:], strict=True):
+        opening = interval['opening'][0]
+        if opening == 0:
+            reference[-1] = 0
+        solution = solve_ivp(lambda _, y: rate(y, opening), [0, interval['duration_s']], reference,
+                             rtol=1e-12, atol=1e-13)
+        assert solution.success
+        reference = solution.y[:, -1]
+        for node, m, u in zip(sample['vessels'], reference[0:4:2], reference[1:4:2], strict=True):
+            assert abs(node['mass_kg']-m) < 1e-9
+            assert abs(node['pressure_Pa']-gas*u/(cv*volume)) < .01
+        assert abs(sample['link_flow_kg_s'][0]-reference[-1]) < 1e-9
+        assert abs(sample['mass_defect_kg']) < 1e-14 and abs(sample['energy_defect_J']) < 1e-8
+    run_worker(worker, candidate, env, '--fluid-vessel-network',
+               dict(request, links=[dict(request['links'][0], inertance_Pa_s2_kg=1)]), 'vessel_momentum_step')
+
+    model = json.loads(project_fixture.read_bytes())
+    with TemporaryDirectory() as scratch:
+        root = Path(scratch)
+        target = root/'network.fcst'
+        with ProjectStore.create(root/'authoring.db', model) as store:
+            artifact = store_network_run(store, request, result, expected_revision=model['revision'])
+            draft = store_network_run(store, request)
+            try:
+                store_network_run(store, dict(request, maximum_step_s=.01), result)
+            except PersistenceError as error:
+                assert error.code == 'network_run_input_mismatch'
+            else:
+                raise AssertionError('mismatched input accepted')
+            entity = model['entities'][-1]
+            entity = dict(entity, conductance=dict(entity['conductance'], value=4))
+            store.apply('synthetic-actor', {'changes.apply'}, model['project_id'], model['revision'],
+                        'edit-conductance', {'upsert': [entity], 'delete': []})
+            try:
+                store_network_run(store, request, result, expected_revision=model['revision'])
+            except PersistenceError as error:
+                assert error.code == 'stale_revision'
+            else:
+                raise AssertionError('stale project revision accepted')
+            store.save(target)
+        package = Package.open(target)
+        restored = load_network_run(package, artifact)
+        assert restored['request'] == request and restored['result'] == result
+        assert restored['revision'] == model['revision'] < package.model['revision']
+        assert load_network_run(package, draft)['result'] is None
+        with ProjectStore.create(root/'reopened.db', package=package) as reopened:
+            again = root/'roundtrip.fcst'
+            reopened.save(again)
+        assert load_network_run(Package.open(again), artifact) == restored
+        replay = run_worker(worker, candidate, env, '--fluid-vessel-network', restored['request'], encoder=encode)
+        assert replay == result
+
+
+def check_network_phase_transition(worker, candidate, env):
+    # CoolProp 6.6.0 direct density/internal-energy flashes. Above the dew
+    # point, continue the phase coordinate from 1 using 160 kJ/kg as a scale.
+    points = [
+        (295407.396289, 87.735986619, .9862493082), (299175.733099, 87.8766647945, .998324529),
+        (299816.384785, 87.9248455128, 1.0001438805), (303400.967557, 88.8008169819, 1.0045188805),
+        (308525.461334, 90.0562067701, 1.0107688805), (318785.860064, 92.5798271938, 1.0232688805),
+        (287906.802642, 87.4519884266, .9869952886), (291570.806844, 87.5913937432, .9990341937),
+        (292562.699647, 87.7775199168, 1.0008739792), (296057.955053, 88.6549607277, 1.0052489792),
+        (301054.639898, 89.9123565665, 1.0114989792), (311058.812714, 92.4396981699, 1.0239989792),
+    ]
+    properties = dict(kind='volume_energy_table', volumes_m3_kg=[.079, .081],
+                      energies_J_kg=[58000, 60000, 60300, 61000, 62000, 64000],
+                      points=[dict(pressure_Pa=p, temperature_K=t, phase_coordinate=x) for p, t, x in points])
+    vessel = dict(volume_m3=.01, initial_mass_kg=.125, initial_internal_energy_J=.125*59000,
+                  initial_wall_temperature_K=100, wall_capacity_J_K=25, wall_conductance_W_K=15)
+    request = dict(schema_version=1, maximum_step_s=.025, properties=properties,
+                   vessels=[vessel, dict(vessel, wall_conductance_W_K=0)],
+                   links=[{'from': 0, 'to': 1, 'conductance_kg_s_Pa': 1e-7}],
+                   schedule=[dict(duration_s=dt, wall_power_W=[0, 0], opening=[0]) for dt in (3, 5)])
+    rows = run_worker(worker, candidate, env, '--fluid-vessel-network', request)['samples']
+    assert [row['vessels'][0]['phase'] for row in rows] == ['saturated', 'vapor', 'vapor']
+    assert rows[0]['vessels'][0]['quality'] > .99 and rows[1]['vessels'][0]['quality'] is None
+    for sample, p, t in zip(rows, (293466.714, 299478.490, 300684.896), (87.663021, 88.675967, 88.975177), strict=True):
+        node = sample['vessels'][0]
+        assert abs(node['pressure_Pa']-p) < 400 and abs(node['temperature_K']-t) < .06
+        assert abs(sample['energy_defect_J']) < 1e-9
+    run_worker(worker, candidate, env, '--fluid-vessel-network',
+               dict(request, vessels=[dict(vessel, initial_internal_energy_J=100), vessel]),
+               'vessel_volume_energy_domain')
+
+    # Manufactured constant-capacity fluid and wall. Compare heating
+    # through the bubble point and cooling back to liquid to an exact solution.
+    energies = [-10000, 0, 10000, 20000]
+    liquid_grid = dict(kind='volume_energy_table', volumes_m3_kg=[.079, .081], energies_J_kg=energies,
+                       points=[dict(pressure_Pa=p+u, temperature_K=280+u/1000, phase_coordinate=u/10000)
+                               for p in (301000, 299000) for u in energies])
+    active = dict(vessel, initial_internal_energy_J=-625, initial_wall_temperature_K=300,
+                  wall_capacity_J_K=125, wall_conductance_W_K=12.5)
+    durations = [(10, 0), (16, -200)]
+    liquid_request = dict(request, properties=liquid_grid, vessels=[active, dict(active, wall_conductance_W_K=0)],
+                          schedule=[dict(duration_s=dt, wall_power_W=[power, 0], opening=[0])
+                                    for dt, power in durations])
+    rows = run_worker(worker, candidate, env, '--fluid-vessel-network', liquid_request)['samples']
+    assert [row['vessels'][0]['phase'] for row in rows] == ['liquid', 'saturated', 'liquid']
+    mean, difference = 287.5, 25
+    for (dt, power), sample in zip(durations, rows[1:], strict=True):
+        mean += power*dt/250
+        equilibrium_difference = power/25
+        difference = equilibrium_difference+(difference-equilibrium_difference)*math.exp(-.2*dt)
+        temperature = mean-difference/2
+        node = sample['vessels'][0]
+        assert abs(node['temperature_K']-temperature) < 1e-8
+        if node['phase'] == 'saturated':
+            assert abs(node['quality']-(temperature-280)/10) < 1e-9
+        else:
+            assert node['quality'] is None
+        assert abs(sample['energy_defect_J']) < 1e-8
 
 
 def check_heat_pipe_transient(worker, candidate, env):

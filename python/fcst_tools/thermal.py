@@ -16,6 +16,8 @@ def input_hashes(root):
              'tools/generate_contracts.py', 'tools/thermal_schema.py', 'tools/check_thermal.py',
              'tools/campaign_acceptance.py', 'tools/fluid_acceptance.py', 'python/fcst_app/campaign.py',
              'python/fcst_app/process_limits.py', 'python/fcst_cli/campaign.py',
+             'python/fcst_app/network_runs.py', 'python/fcst_app/persistence.py', 'python/fcst_app/store.py',
+             'tests/fixtures/contracts/network.json',
              'python/fcst_cli/__main__.py',
              'python/fcst_tools/thermal.py', 'ci/thermal-acceptance.json',
              'python/fcst_tools/thermal_qualification.py','tools/compare_thermal_reference.py','ci/thermal-qualification-v1.json',

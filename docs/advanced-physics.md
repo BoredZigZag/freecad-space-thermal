@@ -183,15 +183,25 @@ have independent conductances. Each schedule interval supplies
 `duration_s`, one `wall_power_W` value per vessel, and one `opening` in
 [0, 1] per link.
 
-Each RK4 stage flashes all vessels before computing branch flow. The
-linear branch momentum closure gives signed flow as conductance times
-opening times the pressure difference. The donor's bulk enthalpy follows
-the flow, including during reversal. Both endpoints receive equal and
-opposite mass and enthalpy fluxes. The wall exchanges energy with its
-vessel at the same stage. This version models rigid, perfectly mixed
-volumes and quasi-steady resistive links. The user supplies a step bound
-appropriate to the hydraulic and thermal timescales. The saturation
-domain restrictions of the single-vessel solver apply at every stage.
+Each RK4 stage flashes all vessels before computing branch flow. By
+default, signed flow is the product of conductance, opening, and
+pressure difference. A link can supply positive `inertance_Pa_s2_kg`
+and optional signed `initial_flow_kg_s` (default zero) to integrate
+the flow as a state. With mass flow `q`, pressure drop `Δp`,
+conductance `G`, opening `a`, and inertance `I`, the open-link
+equation is `dq/dt = (Δp - q/(G*a))/I`. The rate remains continuous
+between nonzero openings. Closure resets the flow to zero and
+reopening starts from zero. A step larger than twice the open link's
+drag time constant `I*G*a` is rejected. The caller still needs to resolve
+pressure–inertance and thermal timescales.
+
+The donor's bulk enthalpy follows the signed flow, including during
+reversal. The two endpoints receive equal and opposite mass and
+enthalpy fluxes. The wall exchanges energy with its vessel at the same
+stage. The model assumes rigid, homogeneous volumes and lumped
+low-speed branches. The energy balance includes fluid internal energy
+and wall energy. The model has no distributed pipe volume, pressure
+waves, branch kinetic-energy storage, or closure impulse.
 
 The output includes the initial state and each interval endpoint, signed
 link flows, and network mass and energy defects. Link flows at interval
@@ -199,14 +209,50 @@ endpoints use the opening from the interval that just ended. The solver
 bounds the request to 64 vessels, 256 links, 256 intervals and a step
 budget inversely proportional to the sum of vessels and links.
 
-The automated case compares three two-phase vessels against a SciPy
+The resistive case compares three two-phase vessels against a SciPy
 trajectory with an independently invertible manufactured saturation
 table. It checks conservation, reversal, closed links, pressure,
-temperature, quality and time refinement. Dynamic pipe momentum,
-single-phase transitions outside the saturation table, and source-case
-qualification remain in scope for later work. For a reference with
-dynamic branch momentum, see NASA's network formulation.
+temperature, quality and time refinement. A second SciPy trajectory
+checks the inertial pressure-flow lag, reversal, closure, reopening,
+and conservation for an ideal gas. NASA's network formulation gives
+a reference for spatially distributed branch dynamics.
 [NASA GFSSP fluid transients](https://www.nasa.gov/wp-content/uploads/2024/04/gfssp-primingfluidtransient-jpp2014.pdf)
+
+### Phase changes beyond the saturation dome
+
+Both vessel operations also accept `properties.kind = "volume_energy_table"`.
+Give increasing axes `volumes_m3_kg` and `energies_J_kg`, each with
+2–64 values, and `points` ordered by volume first, then energy. Each
+point supplies positive `pressure_Pa`, positive `temperature_K`, and
+a continuous `phase_coordinate`. For each fixed volume these quantities
+are nondecreasing with energy. The worker interpolates bilinearly at
+every RK stage and rejects states outside the grid. Use coordinates
+below zero for liquid, quality in [0, 1] for saturation, and above
+one for vapor. The network emits `phase` and sets `quality` to null in
+single-phase states. Supply a sufficiently resolved property grid
+that spans the expected trajectory and phase boundaries.
+
+Acceptance checks a nitrogen trajectory from saturation to vapor
+against direct density and internal-energy flashes from CoolProp 6.6.0
+and a SciPy wall-coupling trajectory. A manufactured exact thermal
+solution checks liquid heating across the bubble point and condensation
+back to liquid. The worker runs without a property-library dependency.
+
+### Portable project runs
+
+`fcst_app.network_runs.store_network_run(store, request, result=None)`
+registers an immutable versioned network request and optional worker
+result in the project. The optional `expected_revision` keyword guards
+against saving against a newer model revision. Pass the bytes from
+`fcst_app.persistence.encode(request)` to the worker when retaining a
+result so the request digest matches. After saving and reopening the
+`.fcst` file, `load_network_run(package, artifact_id)` restores the
+request, result, and original model revision and semantic hash. The
+envelope is subject to the existing 1 MiB JSON item limit. It uses the
+existing evidence role and leaves the model and manifest schemas
+unchanged. It is available through the project-store API. The
+acceptance case checks request-only saves, result binding, mismatched
+request rejection, and native replay after reopen.
 
 ## Heat-pipe startup, dryout and refill
 
@@ -232,10 +278,31 @@ and dryout event times and checks schedule-split invariance.
 
 This is a reduced model with a fixed-temperature condenser, prescribed
 startup and reprime thresholds, and no latent storage outside the
-instantaneous transport law. Hardware-specific startup and dryout
-qualification, dynamic pipe momentum, mandatory legacy
-procedure mappings and project-level model and result persistence
-remain in WP-20 scope.
+instantaneous transport law. Hardware-specific startup, dryout timing,
+and refill qualification remain open.
+
+### Steady hardware comparison
+
+Figure 2 from the NASA heat-pipe tests gives measured transport limits
+for 48-inch aluminum pipes with 12-inch evaporator and condenser
+sections. The report defines transport as power times the 36-inch
+midpoint spacing. For ammonia pipe 4, which uses a screen over grooves,
+the level and 0.5-inch elevation points give approximately 4,300 and
+1,800 W·in. Fitting the capillary head and total loss to those two
+points predicts 3,300 and 2,800 W·in at the held-out 0.2- and 0.3-inch
+elevations. The plotted readings are approximately 3,125 and 2,675
+W·in. The test uses a 200 W·in comparison band for these coarse
+graph readings.
+
+For plain-groove ammonia pipe 8, fitting 5,750 and 3,125 W·in at
+0 and 0.2 inches predicts about 500 W·in at 0.4 inches. The plotted
+limit is about 1,450 W·in. The regression records this roughly 950
+W·in underprediction. The source reports nonlinear tilt dependence
+and identifies overcharge as a possible explanation. The fit lumps
+liquid and vapor losses, and its assumed density cancels from the
+transport prediction. These comparisons bound the applicability of
+the steady linear capillary model for the tested hardware.
+[NASA A-4047, Figure 2 on printed page 37](https://ntrs.nasa.gov/citations/19720018727)
 
 ## Published references for coupled transients
 

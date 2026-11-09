@@ -51,7 +51,12 @@ struct IdealGas { double gas_constant, cv; };
 struct SaturationPoint {
   double pressure, temperature, liquid_volume, vapor_volume, liquid_energy, vapor_energy;
 };
-using VesselProperties=std::variant<IdealGas,std::vector<SaturationPoint>>;
+struct VolumeEnergyPoint { double pressure, temperature, phase_coordinate; };
+struct VolumeEnergyTable {
+  std::vector<double> volumes, energies;
+  std::vector<VolumeEnergyPoint> points; // volume-major
+};
+using VesselProperties=std::variant<IdealGas,std::vector<SaturationPoint>,VolumeEnergyTable>;
 struct Vessel {
   double volume, initial_mass, initial_energy, initial_wall_temperature, wall_capacity, wall_conductance, maximum_step;
 };
@@ -66,7 +71,7 @@ struct VesselSample {
 std::vector<VesselSample> solve_vessel(const Vessel&, const VesselProperties&, std::span<const VesselInterval>);
 std::string inspect_vessel(std::string_view);
 
-struct VesselLink { std::size_t from, to; double conductance; };
+struct VesselLink { std::size_t from, to; double conductance, inertance=0, initial_flow=0; };
 struct VesselNetworkInterval {
   double duration;
   std::vector<double> wall_power, opening;
@@ -74,6 +79,7 @@ struct VesselNetworkInterval {
 struct VesselNetworkNode {
   double mass, energy, wall_temperature, pressure, temperature;
   std::optional<double> quality;
+  std::optional<Phase> phase;
 };
 struct VesselNetworkSample {
   double time, mass_defect, energy_defect;

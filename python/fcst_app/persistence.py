@@ -187,7 +187,10 @@ class Package:
             if record["role"] in {"audit", "evidence"}:
                 if suffix != ".json":
                     reject("storage_format")
-                loads(self.files[name])
+                value = loads(self.files[name])
+                if record["role"] == "evidence" and name.startswith("advanced-physics/vessel-network/"):
+                    from .network_runs import validate_network_run
+                    validate_network_run(value, self.model, name, self.files[name])
         for result in results:
             metadata = array_metadata.get(result["data"]["path"])
             if (result["project_id"] != self.model["project_id"] or not metadata or metadata["role"] != "result"

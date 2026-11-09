@@ -34,6 +34,16 @@ fluid::VesselProperties read_vessel_properties(const J& props) {
     execution_keys(props,{"kind","gas_constant_J_kg_K","cv_J_kg_K"});
     return fluid::IdealGas{props.at("gas_constant_J_kg_K").num(),props.at("cv_J_kg_K").num()};
   }
+  if (kind=="volume_energy_table") {
+    execution_keys(props,{"kind","volumes_m3_kg","energies_J_kg","points"});
+    fluid::VolumeEnergyTable grid{execution_numbers(props.at("volumes_m3_kg")),
+                                  execution_numbers(props.at("energies_J_kg")),{}};
+    for (const auto& p:props.at("points").arr()) {
+      execution_keys(p,{"pressure_Pa","temperature_K","phase_coordinate"});
+      grid.points.push_back({p.at("pressure_Pa").num(),p.at("temperature_K").num(),p.at("phase_coordinate").num()});
+    }
+    return grid;
+  }
   if (kind!="saturation_table") fail("vessel_properties");
   execution_keys(props,{"kind","points"});
   std::vector<fluid::SaturationPoint> rows;
@@ -140,8 +150,10 @@ std::string fluid::inspect_vessel_network(std::string_view input) {
     }
     std::vector<VesselLink> links;
     for (const auto& link:request.at("links").arr()) {
-      execution_keys(link,{"from","to","conductance_kg_s_Pa"});
-      links.push_back({execution_count(link.at("from")),execution_count(link.at("to")),link.at("conductance_kg_s_Pa").num()});
+      execution_keys(link,{"from","to","conductance_kg_s_Pa"},{"inertance_Pa_s2_kg","initial_flow_kg_s"});
+      links.push_back({execution_count(link.at("from")),execution_count(link.at("to")),link.at("conductance_kg_s_Pa").num(),
+        link.has("inertance_Pa_s2_kg")?link.at("inertance_Pa_s2_kg").num():0,
+        link.has("initial_flow_kg_s")?link.at("initial_flow_kg_s").num():0});
     }
     std::vector<VesselNetworkInterval> schedule;
     for (const auto& interval:request.at("schedule").arr()) {
@@ -153,9 +165,16 @@ std::string fluid::inspect_vessel_network(std::string_view input) {
     J::A samples;
     for (const auto& row:result) {
       J::A nodes,flows;
-      for (const auto& n:row.nodes) nodes.emplace_back(J::O{{"mass_kg",J(n.mass)},{"internal_energy_J",J(n.energy)},
-        {"wall_temperature_K",J(n.wall_temperature)},{"pressure_Pa",J(n.pressure)},{"temperature_K",J(n.temperature)},
-        {"quality",n.quality?J(*n.quality):J()}});
+      for (const auto& n:row.nodes) {
+        J::O node{{"mass_kg",J(n.mass)},{"internal_energy_J",J(n.energy)},
+          {"wall_temperature_K",J(n.wall_temperature)},{"pressure_Pa",J(n.pressure)},{"temperature_K",J(n.temperature)},
+          {"quality",n.quality?J(*n.quality):J()}};
+        if (std::holds_alternative<VolumeEnergyTable>(properties)) {
+          const char* phase=n.phase==Phase::liquid?"liquid":n.phase==Phase::vapor?"vapor":"saturated";
+          node.emplace("phase",J(phase));
+        }
+        nodes.emplace_back(std::move(node));
+      }
       for (double flow:row.link_flow) flows.emplace_back(flow);
       samples.emplace_back(J::O{{"time_s",J(row.time)},{"mass_defect_kg",J(row.mass_defect)},
         {"energy_defect_J",J(row.energy_defect)},{"vessels",J(std::move(nodes))},{"link_flow_kg_s",J(std::move(flows))}});

@@ -1010,14 +1010,25 @@ exercises deterministic native ray and power accounting. The
 [open-source comparison cases](../docs/advanced-physics.md) cover steady
 adiabatic gas-duct pressure loss, a thin-dielectric optical law, isobaric
 flow boiling, a steady capillary heat-pipe envelope, rigid-vessel
-blowdown, closed resistive vessel networks and reduced heat-pipe startup
-and dryout. A public SINDA/FLUINT
+blowdown, closed vessel networks with resistive or inertial links,
+bounded liquid and vapor transitions, and reduced heat-pipe startup
+and dryout. Native network requests and results round-trip through
+portable projects with their model revision and input identity. A
+calibrated comparison against NASA hardware holds out steady tilt
+observations and retains the plain-groove discrepancy. A public SINDA/FLUINT
 rigid-tank filling observation adds one source comparison without a
 licensed executable. GAP-ADVANCED remains
 open until the mandatory advanced cases and licensed reference observations
 are identified. Keep the actual source equations, initialization, event
 semantics and validity limits in the case contracts before qualifying the
 native coupled fluid, optics and source-logic implementations.
+
+Both Windows thermal suites run the momentum and portable replay,
+phase transition, and heat-pipe hardware cases. The TST-021 preflight
+clears exact staged solver, project-store, fixture and oracle sources,
+bounded verdict and timing reports, outgoing history and approved
+metadata, and final GitHub prose. Downloaded reports, raw trajectories,
+portable project files, operational databases and binaries remain local.
 
 1. Turn each required advanced corpus feature into an explicit equation/semantics contract and automated oracle/reference case. Unknown scope remains visible rather than being estimated as a small generic add-on.
 2. For required fluid networks, define pressure/flow/enthalpy states, mass/momentum/energy equations, fluid-property ranges and component laws; model pumps/valves/heat exchangers only as required by the corpus.
