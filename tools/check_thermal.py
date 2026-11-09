@@ -319,6 +319,7 @@ def check(worker, native_tests, assembly_tests, steady_tests, transient_tests):
     from campaign_acceptance import check as campaign_check
     from fluid_acceptance import (check as fluid_check, check_flow_boiling, check_heat_pipe, check_vessel,
                                   check_vessel_network, check_heat_pipe_transient, check_heat_pipe_hardware,
+                                  check_grooved_heat_pipe_oracle, check_grooved_heat_pipe_hardware,
                                   check_network_momentum_and_persistence, check_network_phase_transition)
     cli = {'campaign-synthetic-replay':lambda:campaign_check(worker,fixture.parent/'transient-single.json'),
            'fluid-moose-pressure-drop':lambda:fluid_check(worker,build_info['source_revision'],env),
@@ -330,6 +331,8 @@ def check(worker, native_tests, assembly_tests, steady_tests, transient_tests):
                worker,build_info['source_revision'],env,ROOT/'tests/fixtures/contracts/network.json'),
            'fluid-network-phase-transition':lambda:check_network_phase_transition(worker,build_info['source_revision'],env),
            'fluid-heat-pipe-hardware':lambda:check_heat_pipe_hardware(worker,build_info['source_revision'],env),
+           'fluid-grooved-heat-pipe-oracle':lambda:check_grooved_heat_pipe_oracle(worker,build_info['source_revision'],env),
+           'fluid-grooved-heat-pipe-hardware':lambda:check_grooved_heat_pipe_hardware(worker,build_info['source_revision'],env),
            'fluid-heat-pipe-startup-dryout':lambda:check_heat_pipe_transient(worker,build_info['source_revision'],env),
            'steady-cli-linear':steady_linear,'steady-cli-singular':steady_singular,'steady-cli-rejections':steady_rejections,
            'transient-cli-analytic':transient_analytic,'transient-cli-checkpoint':transient_checkpoint,

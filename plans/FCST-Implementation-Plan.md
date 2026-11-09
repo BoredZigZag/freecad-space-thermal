@@ -1030,6 +1030,16 @@ bounded verdict and timing reports, outgoing history and approved
 metadata, and final GitHub prose. Downloaded reports, raw trajectories,
 portable project files, operational databases and binaries remain local.
 
+The steady axial-groove operation computes the charge-limited
+capillary transport with local meniscus area, drainage, puddle
+return and separate fluid losses. Both Windows thermal stages
+compare it to an independent trajectory, two held-out plain-groove
+tilts, and a separate measured ATS pipe. The ATS absolute limit
+and transient hardware qualification remain open. TST-021 clears
+the exact new solver and oracle sources, graph-derived scalar
+fixtures, bounded verdicts and timings, outgoing history and final
+GitHub prose. Downloaded references and raw calculations stay local.
+
 1. Turn each required advanced corpus feature into an explicit equation/semantics contract and automated oracle/reference case. Unknown scope remains visible rather than being estimated as a small generic add-on.
 2. For required fluid networks, define pressure/flow/enthalpy states, mass/momentum/energy equations, fluid-property ranges and component laws; model pumps/valves/heat exchangers only as required by the corpus.
 3. Implement coupled thermal-fluid residual/Jacobian assembly, consistent initialization, event handling and conservation. Qualify strong/partitioned coupling choices against refinement/stability evidence rather than assuming either is sufficient.

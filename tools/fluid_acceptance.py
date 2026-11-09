@@ -180,6 +180,116 @@ def check_heat_pipe_hardware(worker, candidate, env):
     assert 750 <= residual <= 1150
 
 
+def _grooved_ammonia_pipe():
+    # Figure 2 pipe 8, NASA TM X-2557. The bore and wetting angle are
+    # assumptions. Saturation properties are CoolProp 6.6.0 at 293.15 K.
+    inch = .0254
+    return dict(schema_version=1, length_m=48*inch, evaporator_length_m=12*inch,
+                condenser_length_m=12*inch, evaporator_end_rise_m=0, vapor_core_diameter_m=.4*inch,
+                groove_count=30, groove_width_m=.026*inch, groove_depth_m=.030*inch,
+                contact_angle_deg=0, gravity_m_s2=9.80665, fluid_charge_kg=.01258319,
+                liquid_density_kg_m3=610.3873287742, vapor_density_kg_m3=6.69795091335,
+                liquid_viscosity_Pa_s=.000138488535846, vapor_viscosity_Pa_s=9.67629084682e-6,
+                surface_tension_N_m=.0216355056826, latent_heat_J_kg=1186299.39415, liquid_flow_factor=1.1849)
+
+
+def check_grooved_heat_pipe_oracle(worker, candidate, env):
+    from scipy.integrate import solve_ivp
+
+    def run(request, error=None):
+        return run_worker(worker, candidate, env, '--heat-pipe-grooved', request, error)
+
+    # Use zero gravity to remove azimuth and pool contributions. Construct
+    # the charge for a given limit by direct adaptive integration.
+    pipe = dict(_grooved_ammonia_pipe(), gravity_m_s2=0, liquid_flow_factor=1)
+    w, d, length = (pipe[k] for k in ('groove_width_m', 'groove_depth_m', 'length_m'))
+    count, diameter = pipe['groove_count'], pipe['vapor_core_diameter_m']
+    rl, rv = pipe['liquid_density_kg_m3'], pipe['vapor_density_kg_m3']
+    ml, mv = pipe['liquid_viscosity_Pa_s'], pipe['vapor_viscosity_Pa_s']
+    vapor_fill = rv*(math.pi*diameter**2/4+count*w*d)*length
+    cap = 2*pipe['surface_tension_N_m']/w
+    minimum = vapor_fill+(rl-rv)*count*length*(w*d-math.pi*w*w/8)
+    low_charge = (minimum+vapor_fill)/2
+    dry = run(dict(pipe, fluid_charge_kg=low_charge))
+    assert dry['power_limit_W'] == dry['pool_mass_kg'] == 0
+    assert math.isclose(dry['minimum_charge_kg'], minimum, rel_tol=1e-13)
+    assert math.isclose(dry['charge_residual_kg'], minimum-low_charge, rel_tol=1e-13)
+
+    series = sum(math.tanh(n*math.pi*d/w)/n**5 for n in range(1, 102, 2))
+    liquid_coefficient = count*d*w**3/12*(1-96*w*series/(math.pi**5*d))
+    vapor_resistance = 128*mv/(rv*math.pi*diameter**4)
+    power = 20
+    evaporator, condenser = pipe['evaporator_length_m'], pipe['condenser_length_m']
+    state = [cap, 0]
+
+    def slope(state, fraction):
+        suction = state[0]
+        chord_sine = min(1., suction/cap)
+        half_angle = math.asin(chord_sine)
+        area = w*d-(w/(2*chord_sine))**2*(half_angle-math.sin(2*half_angle)/2)
+        resistance = ml/(rl*liquid_coefficient*(area/(w*d))**3)+vapor_resistance*(1+diameter*w/(4*area))
+        return [-resistance*power*fraction/pipe['latent_heat_J_kg'], count*area]
+
+    for lo, hi, fraction in ((0, evaporator, lambda x: x/evaporator),
+                             (evaporator, length-condenser, lambda x: 1),
+                             (length-condenser, length, lambda x: (length-x)/condenser)):
+        ode = solve_ivp(lambda x, y: slope(y, fraction(x)), (lo, hi), state, rtol=1e-10, atol=1e-13)
+        assert ode.success and ode.y[0, -1] > 0
+        state = ode.y[:, -1]
+    loaded = dict(pipe, fluid_charge_kg=vapor_fill+(rl-rv)*state[1])
+    result = run(loaded)
+    assert abs(result['power_limit_W']-power) < .02
+    assert abs(result['charge_residual_kg']) < 1e-10 and result['pool_mass_kg'] == 0
+    doubled = run(dict(loaded, latent_heat_J_kg=2*pipe['latent_heat_J_kg']))
+    assert math.isclose(doubled['power_limit_W'], 2*result['power_limit_W'], rel_tol=1e-10)
+    run(dict(pipe, fluid_charge_kg=vapor_fill/2), 'grooved_heat_pipe_charge')
+    run(dict(pipe, fluid_charge_kg=.1), 'grooved_heat_pipe_flooded')
+    run(dict(pipe, groove_depth_m=w/3), 'grooved_heat_pipe_input')
+    run(dict(pipe, evaporator_end_rise_m=-.01), 'grooved_heat_pipe_input')
+
+
+def check_grooved_heat_pipe_hardware(worker, candidate, env):
+    def run(request, error=None):
+        return run_worker(worker, candidate, env, '--heat-pipe-grooved', request, error)
+
+    pipe = _grooved_ammonia_pipe()
+    points = (0, .2, .4, .6)
+    rows = [run(dict(pipe, evaporator_end_rise_m=.0254*tilt)) for tilt in points]
+    measured = [q/36 for q in (5750, 3125, 1450, 325)]  # W·in to W
+    predicted = [row['power_limit_W'] for row in rows]
+    assert all(abs(a-b) < 1 for a, b in zip(predicted[:2], measured[:2], strict=True))
+    for tilt, model, hardware in zip(points[2:], predicted[2:], measured[2:], strict=True):
+        baseline = max(0, measured[0]+(measured[1]-measured[0])*tilt/.2)
+        assert abs(model-hardware) < min(5, .4*abs(baseline-hardware))
+    assert all(abs(row['charge_residual_kg']) < 1e-10 and row['pool_mass_kg'] > 0 for row in rows)
+    assert rows[-1]['pool_mass_kg'] > rows[0]['pool_mass_kg']
+    for steps in (32, 128):
+        refined = run(dict(pipe, evaporator_end_rise_m=.4*.0254, steps_per_section=steps))
+        assert abs(refined['power_limit_W']-predicted[2]) < .05
+    low, high = [run(dict(pipe, evaporator_end_rise_m=.4*.0254, fluid_charge_kg=f*pipe['fluid_charge_kg']))
+                 for f in (.95, 1.05)]
+    assert low['power_limit_W'] < predicted[2] < high['power_limit_W']
+    assert low['pool_mass_kg'] < rows[2]['pool_mass_kg'] < high['pool_mass_kg']
+
+    # NASA CR-156678 Fig. 3-19, independent ATS extrusion at 273 K.
+    # Represent its tapered section by a rectangle of equal opening and area.
+    ats = dict(pipe, length_m=.916, evaporator_length_m=.3048, condenser_length_m=.154,
+               vapor_core_diameter_m=.00864, groove_count=27, groove_width_m=.00067,
+               groove_depth_m=7.704e-7/.00067, fluid_charge_kg=.0112, liquid_flow_factor=1,
+               liquid_density_kg_m3=638.84222631035, vapor_density_kg_m3=3.4376659040195,
+               liquid_viscosity_Pa_s=.000170439803504, vapor_viscosity_Pa_s=9.05127935376e-6,
+               surface_tension_N_m=.0263300871601, latent_heat_J_kg=1262304.58289)
+    run(dict(ats, evaporator_end_rise_m=.006), 'grooved_heat_pipe_vapor_regime')
+    comparisons = [(run(dict(ats, evaporator_end_rise_m=h))['power_limit_W'], operating, dryout)
+                   for h, operating, dryout in ((.008, 98, 104), (.010, 67, 75), (.012, 44, 48))]
+    # Keep the known high-side discrepancy bounded while allowing a
+    # future model to land inside the observed bracket.
+    assert all(operating-5 <= power <= dryout+32 for power, operating, dryout in comparisons)
+    assert all(a[0] > b[0] for a, b in zip(comparisons, comparisons[1:]))
+    more_charge = run(dict(ats, evaporator_end_rise_m=.012, fluid_charge_kg=.013))
+    assert more_charge['power_limit_W'] > comparisons[-1][0]
+
+
 def check_vessel(worker, candidate, env):
     def run(request, error=None):
         return run_worker(worker, candidate, env, '--fluid-vessel', request, error)

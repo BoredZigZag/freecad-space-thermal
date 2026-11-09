@@ -304,6 +304,82 @@ transport prediction. These comparisons bound the applicability of
 the steady linear capillary model for the tested hardware.
 [NASA A-4047, Figure 2 on printed page 37](https://ntrs.nasa.gov/citations/19720018727)
 
+### Steady axial-groove solver
+
+`fcst-worker --heat-pipe-grooved` accepts a version 1 request for a
+straight pipe with uniformly spaced rectangular grooves. Supply
+`length_m`, `evaporator_length_m`, `condenser_length_m`,
+`evaporator_end_rise_m` (the positive end-to-end adverse elevation),
+`vapor_core_diameter_m`, `groove_count`, `groove_width_m`,
+`groove_depth_m`, `contact_angle_deg`, `gravity_m_s2` and total
+`fluid_charge_kg`. Supply saturated `liquid_density_kg_m3`,
+`vapor_density_kg_m3`, `liquid_viscosity_Pa_s`, `vapor_viscosity_Pa_s`,
+`surface_tension_N_m` and `latent_heat_J_kg` at the chosen operating
+temperature. Optional `liquid_flow_factor` scales the groove
+conductance (default 1). `steps_per_section` controls the axial RK4
+grid (16–256, default 64).
+
+The calculation shoots from the evaporator tip toward the condenser.
+At the limit, the lowest groove reaches its capillary pressure
+`2 σ cos(θ) / width`. The other grooves experience different suction
+because of their elevation in the cross-section. A circular meniscus
+reduces the liquid area in each groove, and a reduced wetting law
+drains a groove across the next 15% of critical suction after
+depinning. Groove conductance scales with the cube of its remaining
+liquid area. A circular-segment puddle contributes a parallel return
+path and reduces the vapor area. The axial pressure gradient combines
+gravity, separate laminar liquid and vapor losses, and an estimate of
+the opposing interfacial shear. Axial flow follows uniform
+evaporation and condensation and is constant in the adiabatic zone.
+The solver varies the power until the integrated liquid and vapor
+masses match the charge. This reduced closure assumes heat spreads to
+the remaining wetted grooves at the evaporator.
+[NASA CR-156678, sections 3.2 and 3.4](https://ntrs.nasa.gov/citations/19780008374)
+
+Results give `power_limit_W`, `minimum_charge_kg`,
+`charge_residual_kg`, `pool_mass_kg` and `maximum_vapor_reynolds`.
+Charge below the wetting threshold returns zero power and reports the
+charge shortfall as a positive residual. The solver rejects solutions
+with puddle depths above three quarters of the core diameter, a
+zero-gravity vapor blockage, or vapor Reynolds number above 2,300.
+The model covers steady, laminar flow at prescribed temperature. It
+does not resolve wall temperature distribution, wick screens, or
+startup and refill timing.
+
+For Figure 2 pipe 8, the comparison assumes a 0.4-inch vapor core,
+zero contact angle, 293.15 K saturated ammonia, and end-to-end
+reported elevation. The nominal-conductance fit uses only the level
+and 0.2-inch points and gives about 12.58 g charge and a 1.185 groove
+conductance factor. Those are fitted inputs. The report does not give
+the charge and the two coarse calibration points do not uniquely
+identify it. A preliminary model that used a single groove pressure
+around the circumference still predicted about 14 W at 0.4 inches
+after calibration. The azimuth-dependent model gives the following
+held-out comparison. Figures are approximate chart readings.
+
+| Adverse tilt | Hardware | Linear baseline | Grooved solver |
+|---|---:|---:|---:|
+| 0.4 in | 40.3 W | 13.9 W | 41.5 W |
+| 0.6 in | 9.0 W | 0 W | 7.0 W |
+
+At 0.4 inches, varying the fitted charge by ±5% with all other
+inputs fixed gives 37.9–45.2 W. This is a sensitivity check. It does
+not estimate the hardware measurement uncertainty.
+[NASA TM X-2557, Figure 2](https://ntrs.nasa.gov/citations/19720018727)
+
+An independent run uses the published 11.2 g charge and 273 K
+temperature of the ATS extrusion, the nominal flow factor, and a
+rectangle of equal opening and area to approximate its tapered groove.
+The model gives 134, 103, and 73 W at 8, 10, and 12 mm of tilt. The
+plotted operating-to-dryout brackets are about 98–104, 67–75, and
+44–48 W. The prediction at 6 mm falls outside the laminar domain.
+The solver reproduces the direction of the tilt and charge effects,
+but it overpredicts absolute capacity for this pipe. The automated
+comparison records this limitation alongside the plain-groove
+improvement. A zero-gravity manufactured charge checks the solver
+against a SciPy trajectory and an analytic wetting threshold.
+[NASA CR-156678, Figures 3-7 and 3-19](https://ntrs.nasa.gov/citations/19780008374)
+
 ## Published references for coupled transients
 
 The NBS cryogenic transfer-line experiment has published pressure, flow

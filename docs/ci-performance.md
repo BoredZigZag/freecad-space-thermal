@@ -655,3 +655,31 @@ needed. One sequential local MSVC pass took 1.714 s in Debug and
 project I/O. The Debug observation includes the first SciPy import,
 so the two totals measure added case cost and do not compare
 optimization levels.
+
+## WP-20 axial-groove heat pipe
+
+The [passing Foundation run 42549331633](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/42549331633)
+verified `8b0ded9`. Cold Debug and Release drivers took 410.968 s
+and 289.172 s with the configured three and two acceptance workers.
+Debug radiation took 214.719 s. Release host acceptance took 143.782 s.
+Embree finished 24 s after Debug on a 619 s job-and-gate path. Its
+package probe took 543.563 s, including 515.875 s wall and 2,026.563
+CPU seconds of compilation.
+
+Replaying the critical path with Embree compilation at its
+four-logical-CPU work bound yields 609.766 s. Eliminating all 16.250 s
+of Embree configure on top of that would yield 593.516 s, but that
+would require preserving configure and consumer validation. These
+upper-bound savings hold other stages fixed and omit contention and
+cache effects. Keep the probe, worker counts and passing timing
+baseline. The earlier warm observation cannot isolate the package
+timing warning seen on the shared runners.
+
+The groove solver precomputes its cross-section table once and
+reuses it for all trial powers. The two added acceptance cases use
+the existing thermal stage and SciPy installation. They use bounded
+scalar observations and require no dependency download or new job.
+In a sequential local pass, both cases took 2.455 s in Debug and
+0.735 s in Release, including worker launches. The first pass loads
+SciPy. These observations estimate added acceptance cost and do
+not compare compiler optimization levels.

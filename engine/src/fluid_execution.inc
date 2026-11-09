@@ -114,6 +114,31 @@ std::string fluid::inspect_heat_pipe(std::string_view input) {
   });
 }
 
+std::string fluid::inspect_grooved_heat_pipe(std::string_view input) {
+  return fluid_request(input,[](const J& r) {
+    execution_keys(r,{"schema_version","length_m","evaporator_length_m","condenser_length_m",
+      "evaporator_end_rise_m","vapor_core_diameter_m","groove_count","groove_width_m","groove_depth_m",
+      "contact_angle_deg","gravity_m_s2","fluid_charge_kg","liquid_density_kg_m3","vapor_density_kg_m3",
+      "liquid_viscosity_Pa_s","vapor_viscosity_Pa_s","surface_tension_N_m","latent_heat_J_kg"},
+      {"liquid_flow_factor","steps_per_section"});
+    const auto bounded_integer=[](double value,double minimum,double maximum) {
+      if (value<minimum || value>maximum || std::floor(value)!=value) fail("grooved_heat_pipe_input");
+      return static_cast<std::size_t>(value);
+    };
+    const GroovedHeatPipe pipe{r.at("length_m").num(),r.at("evaporator_length_m").num(),r.at("condenser_length_m").num(),
+      r.at("evaporator_end_rise_m").num(),r.at("vapor_core_diameter_m").num(),bounded_integer(r.at("groove_count").num(),1,256),
+      r.at("groove_width_m").num(),r.at("groove_depth_m").num(),r.at("contact_angle_deg").num(),r.at("gravity_m_s2").num(),
+      r.at("fluid_charge_kg").num(),r.at("liquid_density_kg_m3").num(),r.at("vapor_density_kg_m3").num(),
+      r.at("liquid_viscosity_Pa_s").num(),r.at("vapor_viscosity_Pa_s").num(),r.at("surface_tension_N_m").num(),
+      r.at("latent_heat_J_kg").num(),r.has("liquid_flow_factor")?r.at("liquid_flow_factor").num():1,
+      r.has("steps_per_section")?bounded_integer(r.at("steps_per_section").num(),16,256):64};
+    const auto result=grooved_heat_pipe_limit(pipe);
+    return J::O{{"power_limit_W",J(result.power)},{"minimum_charge_kg",J(result.minimum_charge)},
+      {"charge_residual_kg",J(result.charge_residual)},{"pool_mass_kg",J(result.pool_mass)},
+      {"maximum_vapor_reynolds",J(result.maximum_vapor_reynolds)}};
+  });
+}
+
 std::string fluid::inspect_vessel(std::string_view input) {
   return fluid_request(input,[](const J& request) {
     execution_keys(request,{"schema_version","volume_m3","initial_mass_kg","initial_internal_energy_J",

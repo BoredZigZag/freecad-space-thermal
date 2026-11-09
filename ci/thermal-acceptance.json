@@ -44,6 +44,8 @@
     "fluid-network-momentum-and-persistence",
     "fluid-network-phase-transition",
     "fluid-heat-pipe-hardware",
+    "fluid-grooved-heat-pipe-oracle",
+    "fluid-grooved-heat-pipe-hardware",
     "fluid-heat-pipe-startup-dryout",
     "assembly-balance",
     "assembly-algebraic-boundary",

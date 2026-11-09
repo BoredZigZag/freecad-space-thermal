@@ -47,6 +47,20 @@ struct CapillaryBalance {
 CapillaryBalance capillary_balance(const HeatPipe&, double heat_load);
 std::string inspect_heat_pipe(std::string_view);
 
+struct GroovedHeatPipe {
+  double length, evaporator_length, condenser_length, end_rise, core_diameter;
+  std::size_t groove_count;
+  double groove_width, groove_depth, contact_angle_deg, gravity;
+  double fluid_charge, liquid_density, vapor_density, liquid_viscosity, vapor_viscosity, surface_tension, latent_heat;
+  double liquid_flow_factor=1;
+  std::size_t steps_per_section=64;
+};
+struct GroovedHeatPipeLimit {
+  double power, minimum_charge, charge_residual, pool_mass, maximum_vapor_reynolds;
+};
+GroovedHeatPipeLimit grooved_heat_pipe_limit(const GroovedHeatPipe&);
+std::string inspect_grooved_heat_pipe(std::string_view);
+
 struct IdealGas { double gas_constant, cv; };
 struct SaturationPoint {
   double pressure, temperature, liquid_volume, vapor_volume, liquid_energy, vapor_energy;

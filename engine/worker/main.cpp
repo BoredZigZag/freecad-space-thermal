@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
        operation == "--radiation-evaluate" || operation == "--radiation-steady" || operation == "--radiation-beam" ||
        operation == "--fluid-duct" || operation == "--fluid-heated-stream" || operation == "--fluid-vessel" ||
        operation == "--fluid-vessel-network" ||
-       operation == "--heat-pipe-capillary" || operation == "--heat-pipe-transient" ||
+       operation == "--heat-pipe-capillary" || operation == "--heat-pipe-grooved" || operation == "--heat-pipe-transient" ||
        operation == "--thermal-prepare" || operation == "--thermal-steady" || operation == "--thermal-transient"))) {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1) return 2;
@@ -47,6 +47,7 @@ int main(int argc, char* argv[]) {
       operation == "--fluid-vessel" ? fcst::fluid::inspect_vessel(input) :
       operation == "--fluid-vessel-network" ? fcst::fluid::inspect_vessel_network(input) :
       operation == "--heat-pipe-capillary" ? fcst::fluid::inspect_heat_pipe(input) :
+      operation == "--heat-pipe-grooved" ? fcst::fluid::inspect_grooved_heat_pipe(input) :
       operation == "--heat-pipe-transient" ? fcst::fluid::inspect_heat_pipe_transient(input) :
       operation == "--environment-transient" ? fcst::environment::inspect(input) :
       operation == "--thermal-transient" ? fcst::thermal::inspect_transient(input) :
