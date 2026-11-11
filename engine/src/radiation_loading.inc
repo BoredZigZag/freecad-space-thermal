@@ -229,3 +229,53 @@ static std::string inspect_radiation(std::string_view input,bool steady,bool mov
 
 std::string radiation::inspect(std::string_view input,bool steady) { return inspect_radiation(input,steady,false); }
 std::string environment::inspect(std::string_view input) { return inspect_radiation(input,false,true); }
+
+std::string radiation::inspect_beam(std::string_view input) {
+  try {
+    if (input.size()>1048576) fail("input_limit");
+    const auto value=Parser{input}.parse();
+    execution_keys(value,{"schema_version","wavelengths_nm","band","ray","power_W","maximum_interactions","facets"});
+    if (execution_count(value.at("schema_version"))!=1) fail("version");
+    const auto& ray=value.at("ray");
+    execution_keys(ray,{"origin_m","direction"});
+    const Ray beam{environment_vector<3>(ray.at("origin_m")),environment_vector<3>(ray.at("direction"))};
+    auto wavelengths=execution_numbers(value.at("wavelengths_nm"));
+    std::vector<SpectralFacet> surfaces;
+    for (const auto& item:value.at("facets").arr()) {
+      execution_keys(item,{"id","node","vertices_m","front","back"});
+      SpectralFacet surface{};
+      auto& geometry=surface.geometry;
+      geometry.id=item.at("id").str();
+      if (geometry.id.empty() || geometry.id.size()>256) fail("schema");
+      geometry.surface_id=geometry.id;
+      geometry.node=execution_count(item.at("node"));
+      const auto& vertices=item.at("vertices_m").arr();
+      if (vertices.size()!=3) fail("schema");
+      for (std::size_t i=0; i<3; ++i) geometry.vertices[i]=environment_vector<3>(vertices[i]);
+      for (std::size_t side=0; side<2; ++side) {
+        for (const auto& law:item.at(side?"back":"front").arr()) {
+          if (law.has("refractive_index")) {
+            execution_keys(law,{"refractive_index"});
+            surface.sides[side].push_back({0,0,law.at("refractive_index").num()});
+          } else {
+            execution_keys(law,{"specular_reflectance","transmittance"});
+            surface.sides[side].push_back({law.at("specular_reflectance").num(),law.at("transmittance").num(),{}});
+          }
+        }
+      }
+      surfaces.push_back(std::move(surface));
+    }
+    const auto balance=trace_beam(std::move(surfaces),wavelengths,execution_count(value.at("band")),beam,
+                                  value.at("power_W").num(),execution_count(value.at("maximum_interactions")));
+    J::A absorbed;
+    for (const auto& [node,watts]:balance.absorbed)
+      absorbed.emplace_back(J::O{{"node",J(static_cast<double>(node))},{"power_W",J(watts)}});
+    return dump(J(J::O{{"status",J(balance.unresolved>0?"incomplete":"passed")},{"schema_version",J(1.0)},
+      {"execution_mode",J("fcst_native")},{"method",J("deterministic spectral beam splitting")},
+      {"source_revision",J(thermal::thermal_backend_capabilities().source_revision)},
+      {"input_sha256",J(thermal::thermal_digest(input))},{"absorbed",J(absorbed)},
+      {"escaped_W",J(balance.escaped)},{"blocked_W",J(balance.blocked)},{"unresolved_W",J(balance.unresolved)}}));
+  } catch (const thermal::Error& e) { return dump(J(J::O{{"status",J("failed")},{"code",J(e.code)}})); }
+    catch (const Error& e) { return dump(J(J::O{{"status",J("failed")},{"code",J(e.code)}})); }
+    catch (...) { return "{\"status\":\"failed\",\"code\":\"beam_schema\"}"; }
+}

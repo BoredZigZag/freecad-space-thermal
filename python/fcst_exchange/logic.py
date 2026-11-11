@@ -6,23 +6,27 @@ from fcst_contracts import BUNDLE
 
 LANGUAGE = "fcst-expr/1"
 PROCEDURE_LANGUAGE = "fcst-pure-return/1"
+LOCAL_PROCEDURE_LANGUAGE = "fcst-pure-return/2"
+PROCEDURE_LANGUAGES = {PROCEDURE_LANGUAGE, LOCAL_PROCEDURE_LANGUAGE}
 REGRESSION = "EXCHANGE-LOGIC-001"
 
 
 def translate(text, language, symbols):
     from .core import reject
-    if not isinstance(language,str) or language not in {LANGUAGE, PROCEDURE_LANGUAGE}:
+    if not isinstance(language,str) or language not in {LANGUAGE, *PROCEDURE_LANGUAGES}:
         reject("unreviewed_language")
     if not isinstance(text, str) or len(text.encode("utf-8")) > 4096:
         reject("expression_limit")
     try:
-        tree = ast.parse(text, mode="eval")
+        tree = ast.parse(text, mode="exec" if language == LOCAL_PROCEDURE_LANGUAGE else "eval")
     except (ValueError, SyntaxError, RecursionError):
         reject("expression_syntax")
     if sum(1 for _ in ast.walk(tree)) > 256:
         reject("expression_limit")
     binary = {ast.Add:"add", ast.Sub:"subtract", ast.Mult:"multiply", ast.Div:"divide"}
     functions = {"abs":1, "sqrt":1, "exp":1, "log":1, "sin":1, "cos":1, "min":2, "max":2}
+    locals_ = {}
+    referenced = set()
     def number(node):
         sign = 1
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
@@ -42,6 +46,9 @@ def translate(text, language, symbols):
             reject("expression_limit")
         if isinstance(node, ast.Constant) and type(node.value) in (int, float):
             return {"op":"literal", "quantity":{"value":number(node), "unit":"1"}}
+        if isinstance(node, ast.Name) and node.id in locals_:
+            referenced.add(node.id)
+            return locals_[node.id]
         if isinstance(node, ast.Name) and node.id in symbols:
             return {"op":"symbol", "expression_id":symbols[node.id]}
         if isinstance(node, ast.BinOp) and type(node.op) in binary:
@@ -58,4 +65,29 @@ def translate(text, language, symbols):
             if name in functions and len(node.args) == functions[name]:
                 return {"op":name, "args":[visit(arg, depth+1) for arg in node.args]}
         reject("untranslated_logic")
-    return visit(tree.body)
+    if language != LOCAL_PROCEDURE_LANGUAGE:
+        return visit(tree.body)
+
+    if not tree.body or len(tree.body) > 17 or not isinstance(tree.body[-1], ast.Return):
+        reject("untranslated_logic")
+    for statement in tree.body[:-1]:
+        if (not isinstance(statement, ast.Assign) or len(statement.targets) != 1
+                or not isinstance(statement.targets[0], ast.Name)):
+            reject("untranslated_logic")
+        name = statement.targets[0].id
+        if name in locals_ or name in symbols or name in functions or name == "quantity":
+            reject("untranslated_logic")
+        locals_[name] = visit(statement.value)
+    result = visit(tree.body[-1].value)
+    if set(locals_) != referenced:
+        reject("untranslated_logic")
+    # Bound the expanded pure expression before serialization and validation.
+    pending = [(result, 0)]
+    nodes = 0
+    while pending:
+        node, depth = pending.pop()
+        nodes += 1
+        if depth > 12 or nodes > 256:
+            reject("expression_limit")
+        pending.extend((child, depth+1) for child in node.get("args", ()))
+    return result

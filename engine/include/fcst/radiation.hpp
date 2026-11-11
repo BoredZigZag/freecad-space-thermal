@@ -34,6 +34,22 @@ struct Patch {
 };
 struct Ray { Vec3 origin, direction; };
 struct Hit { std::size_t facet; bool back; double distance; };
+struct DirectionalLaw {
+  double specular_reflectance=0, transmittance=0;
+  std::optional<double> refractive_index;
+};
+struct SpectralFacet {
+  Facet geometry;
+  // Front and back. Empty denotes a blocking side. Otherwise one law per wavelength.
+  std::array<std::vector<DirectionalLaw>,2> sides;
+};
+struct BeamBalance {
+  std::map<std::size_t,double> absorbed;
+  double escaped=0, blocked=0, unresolved=0;
+};
+BeamBalance trace_beam(std::vector<SpectralFacet>, std::span<const double> wavelengths_nm,
+                       std::size_t band, const Ray&, double power, std::size_t maximum_interactions);
+std::string inspect_beam(std::string_view);
 class IntersectionBackend {
  public:
   virtual ~IntersectionBackend()=default;

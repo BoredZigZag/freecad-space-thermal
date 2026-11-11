@@ -504,3 +504,207 @@ limit assertions. Retain the smoke-test setting for this new integration
 case. The earlier timings are from sequential local runs on the same
 prebuilt Windows Debug executable with no rebuild or download in either
 sample. The hosted case timing is collected separately.
+
+## WP-20 spectral beam prototype
+
+The latest passing [Foundation run 41550990460](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41550990460)
+reported cold download caches in both configurations. Debug verification was
+on the dependency critical path after the unit receipt, with a 629 s job and
+a 560.953 s driver using three workers. Radiation was its longest stage at
+328.609 s. The overlapping Embree job took 612 s, including a 560.422 s
+package probe. Its warning against the warm 338.813 s baseline remains open.
+Release used two workers and took 294.906 s in the driver. Differences in
+cache state, setup and workload limit direct comparison with the baseline.
+
+Rejecting a triangle immediately when its first barycentric coordinate is
+outside [0,1] should save work in the dominant Debug radiation stage. Five
+alternating local pairs per geometry used the same prebuilt MSVC 19.31 Debug
+configuration, one trace process, seed 1701 and 65,536 rays per patch. Trace
+timings exclude construction, build and download. Every raw hit row matched.
+
+| Geometry | Before median and range (s) | Early rejection median and range (s) |
+|---|---:|---:|
+| Plates | 0.419 (0.399–0.465) | 0.415 (0.385–0.460) |
+| Spheres | 2.173 (2.126–2.471) | 1.946 (1.822–2.032) |
+| Cube | 2.514 (2.437–2.595) | 2.230 (2.092–2.514) |
+
+Plates showed no clear gain and cube ranges overlapped. The sphere workload
+had a lower trace time in all five pairs. Retain the early rejection and
+keep the same frozen workload, stage scheduling, worker budgets and passing
+baseline. The microbenchmark measures local trace time.
+
+Beam acceptance runs in the existing radiation stage and emits a single
+required case verdict and scalar duration. TST-021 covers the exact
+outgoing sources and summary. Raw ray inputs and reports, native binaries,
+build trees and logs stay local.
+
+## WP-20 boiling and capillary acceptance
+
+The preceding [passing run 41960948357](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41960948357)
+verified commit `315f485`. The exact Foundation handoff recorded warm
+Debug and Release drivers at 401.078 s with three workers and 269.875 s
+with two. Debug radiation was its longest stage at 214.469 s. The older
+main observation used cold caches, so the stage delta cannot isolate
+the BVH change.
+
+Embree was the critical path. Its job took 602 s and finished 45 s
+after Debug, followed by a 20 s gate. The 557.562 s package probe
+included 529.688 s compiling with Visual Studio 2022, two build workers
+and four compiler workers on four logical CPUs. Compiler-phase CPU time
+was 2091.922 s, about 3.95 CPU seconds per wall second. The warm baseline
+records 338.813 s for the package and lacks phase resource measurements.
+The warning remains open. The existing matched three/four-worker
+experiment did not establish a hosted gain.
+
+Tested whether configuration overhead could account for the time above
+the ten-minute feedback target. Subtracting the entire 19.890 s Embree
+configure phase from this run's 624 s job-and-gate path still leaves
+about 604 s. This is a timing bound using unchanged job durations and
+dependencies. It leaves the critical-path investigation focused on
+compilation. The passing baseline and worker budgets remain in place.
+
+The flow-boiling and capillary cases use scalar references and execute in
+the existing thermal stage. Local Release acceptance recorded 0.063 s and
+0.094 s for the two cases, respectively, after the build. Both configurations
+retain the existing numerical coverage and exact-file publication checks.
+
+## WP-20 transient follow-up
+
+The latest [passing PR run 41962759575](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41962759575)
+verified `8dcf990`. Its exact handoff recorded warm Debug and Release
+drivers at 569.594 s with three workers and 284.141 s with two. Debug was
+on the critical path through the unit receipt and aggregate gate. Its
+longest stage, radiation, took 315.875 s with 313.359 CPU seconds.
+The preceding warm run recorded 214.469 s and 212.531 CPU seconds for
+that stage. Both ran 208 processes and preserved the frozen ray workloads.
+The observed difference was mostly CPU time within the stage. Hosted
+runner variation and source differences limit causal attribution.
+The overlapping Embree job took 643 s, including 570.813 s of compilation.
+
+Tested whether updating acceptance priority estimates to the latest
+warm measurements could shorten the Debug tail. Replaying each warm
+workload independently with the configured worker counts and SUNDIALS
+serialization gave the following idealized acceptance times.
+
+| Profile | Current order (s) | Latest estimates (s) |
+|---|---:|---:|
+| Debug, `315f485` | 361.891 | 356.359 |
+| Debug, `8dcf990` | 520.844 | 520.844 |
+| Release, `315f485` | 202.984 | 202.999 |
+| Release, `8dcf990` | 213.250 | 213.156 |
+
+The small gain on the earlier Debug observation disappeared on the
+longer workload. The replay preserves every case and models neither
+setup nor contention. Keep the existing order, worker counts and
+passing baseline. The transient verification cases use local scalar
+references within the existing thermal stage, and the procedure tests
+extend existing exchange cases.
+
+## WP-20 connected-vessel acceptance
+
+The [passing Foundation run 41964891138](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41964891138)
+verified `e74ec3e`. The exact handoff recorded cold Debug and Release
+drivers of 415.344 s and 264.468 s using the configured three and two
+acceptance workers. Debug radiation took 211.062 s, its longest stage.
+The run's job-and-gate path took 658 s. Embree finished 46 s after Debug
+and was the critical path. Its package probe took 577.985 s, including
+546.000 s of compilation and 2,150.688 build CPU seconds.
+
+Tested whether fuller CPU utilization during Embree compilation could
+reach the ten-minute feedback target at the same amount of compiler
+work. With four logical CPUs, the measured work has a best-case
+parallel lower bound of 537.672 s, only 8.328 s below observed wall
+time. This bound holds compiler work and other phases fixed and omits
+host contention. The earlier warm observation and the latest cold
+run cannot isolate cache or compiler effects. Retain the worker
+settings and the passing baseline while compilation remains the
+largest cost.
+
+The network oracle runs as one additional required case within thermal
+acceptance. It uses analytic saturation properties and an independent
+SciPy trajectory, with no extra dependency setup or artifact upload.
+The comparison retains the fixed radiation workloads and existing
+publication checks in both configurations.
+
+## WP-20 inertial links, property grids and project replay
+
+The [passing Foundation run 42546398031](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/42546398031)
+verified `50d837e`. Its warm Debug and Release driver times were
+409.687 s and 282.984 s with three and two acceptance workers,
+respectively. Debug radiation and Release host acceptance were their
+longest stages. Embree's package probe took 539.640 s, of which
+514.016 s and 2,030.703 CPU seconds were compilation. It finished
+24 s after Debug on the 615 s job-and-gate path.
+
+Replayed that run's critical path with Embree compile time set to
+its four-logical-CPU work bound of 507.676 s. Even that ideal
+6.340 s saving leaves a 608.660 s path. An optimistic replay removing
+all 18.469 s of Embree configure time yields 596.531 s. The second
+replay would require preserving configure and consumer validation
+through equivalent work. Neither estimate models contention, cache
+variability, or queue time. Keep the existing probe and pinned
+baseline. The shared-runner timing warning remains an investigation
+item, and the cold and warm observations do not isolate its cause.
+
+The three new cases share the existing thermal stage and SciPy
+installation. The properties and hardware comparisons use bounded
+scalar fixtures. The project check saves and reopens small temporary
+packages. No reference runtime download or additional CI job is
+needed. One sequential local MSVC pass took 1.714 s in Debug and
+0.814 s in Release for the three cases, including worker launches and
+project I/O. The Debug observation includes the first SciPy import,
+so the two totals measure added case cost and do not compare
+optimization levels.
+
+## WP-20 axial-groove heat pipe
+
+The [passing Foundation run 42549331633](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/42549331633)
+verified `8b0ded9`. Cold Debug and Release drivers took 410.968 s
+and 289.172 s with the configured three and two acceptance workers.
+Debug radiation took 214.719 s. Release host acceptance took 143.782 s.
+Embree finished 24 s after Debug on a 619 s job-and-gate path. Its
+package probe took 543.563 s, including 515.875 s wall and 2,026.563
+CPU seconds of compilation.
+
+Replaying the critical path with Embree compilation at its
+four-logical-CPU work bound yields 609.766 s. Eliminating all 16.250 s
+of Embree configure on top of that would yield 593.516 s, but that
+would require preserving configure and consumer validation. These
+upper-bound savings hold other stages fixed and omit contention and
+cache effects. Keep the probe, worker counts and passing timing
+baseline. The earlier warm observation cannot isolate the package
+timing warning seen on the shared runners.
+
+The groove solver precomputes its cross-section table once and
+reuses it for all trial powers. The two added acceptance cases use
+the existing thermal stage and SciPy installation. They use bounded
+scalar observations and require no dependency download or new job.
+In a sequential local pass, both cases took 2.455 s in Debug and
+0.735 s in Release, including worker launches. The first pass loads
+SciPy. These observations estimate added acceptance cost and do
+not compare compiler optimization levels.
+
+## WP-20 ATS taper and evaporator wetting
+
+The latest passing handoff available during this change was
+[42549331633](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/42549331633),
+with the cold driver and Embree timings recorded above. In the
+[successor run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/42552824774),
+Debug was still executing its verification driver when Embree
+finished. Replaying that ordering with the prior Embree compile
+time reduced to its CPU work bound leaves the observed Debug
+critical path unchanged. This rejects Embree compile tuning as
+a way to shorten that observed tail. Retain the existing stage
+ordering and timing baseline while the Debug stage measurements
+are pending.
+
+The wetting boundary reuses the cross-section table and locates
+the admissible suction with a binary search. Each RK4 stage uses
+one section lookup for all interpolated properties. The new ATS
+checks extend the two existing thermal cases. A sequential local
+run per configuration with three repetitions took 1.973, 1.200,
+and 1.210 s in Debug and 1.526, 0.725, and 0.720 s in Release. The
+first repetition includes SciPy initialization. The warm
+repetitions bound the cost of the expanded checks. The workload
+changed from the previous pass, and these samples do not measure
+a hosted-runner speedup.
