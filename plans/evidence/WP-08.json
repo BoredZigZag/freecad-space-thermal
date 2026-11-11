@@ -195,5 +195,35 @@
       "Canonical variable/composite bindings and composite physics"
     ],
     "privacy": "Publish independently owned synthetic fixtures and bounded verdicts only; originals decoded structures identities containers and raw research logs remain local"
+  },
+  "material_node_network": {
+    "operation": "td-prepare-drawing",
+    "scope": "Closed network with standalone RcNode v22 material-based storage, a single TDP library, and explicit source mass and volume units",
+    "source_observation": "Static 6.3 code analysis distinguishes the material-use selector, the user-override flag, and the mass/volume selector. Owned synthetic records exercise both mass and volume.",
+    "acceptance": [
+      "tools/check_td.py checks source identity, both modes, dependency ambiguity, unsupported fields and stale sources",
+      "material-node-drawing-cli-and-reopen creates an owned DWG, converts both modes through the CLI, and reopens a guarded mass edit with the original TDP bytes preserved",
+      "td-material-storage checks transient temperature and enthalpy against an analytic oracle in both Windows configurations"
+    ],
+    "qualified": false,
+    "vendor_runtime_required": false,
+    "privacy": "Owned synthetic fixtures and bounded verdicts only. Source binaries, decompiled evidence, original models, prepared inputs and raw results remain local."
+  },
+  "geometry_boundary_mesh": {
+    "operation": "td-export-geometry",
+    "scope": "Geometry-only boundary quads for RcRectangle v7 and RcFdBrick v21 with constant sizes and transforms and literal normalized subdivisions",
+    "acceptance": [
+      "tools/check_td.py checks rotated coordinates, nonuniform partitions, closed outward winding, physical size edits, and dynamic or malformed input holds",
+      "geometry-boundary-obj-and-size-edit-reopen creates owned DWGs, exports OBJ, edits sizes, and checks fresh OBJ bounds, indices and original bytes"
+    ],
+    "qualified": false,
+    "vendor_runtime_required": false,
+    "privacy": "Owned fixtures and bounded verdicts only. Restricted drawing bytes, derived geometry and format research remain local."
+  },
+  "older_container_observation": {
+    "container": "AC1027",
+    "observed_thermal_payloads": {"RcNode_v22": 86, "RcConductor_v23": 2},
+    "method": "Read-only bounded inventory using the independent DWG library on a temporary local copy",
+    "disposition": "Analysis evidence for extending container and conductor coverage. Product profile support and source release remain unverified."
   }
 }

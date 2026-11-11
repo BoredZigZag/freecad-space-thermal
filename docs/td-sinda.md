@@ -228,6 +228,61 @@ using `{entry, field, values}`, or an existing component number using
 `{entry, component, field, value}` with a zero-based component index. Counts,
 references and modes remain fixed; all unselected source bytes are preserved.
 
+## Prepare native temperature-dependent material input
+
+`fcst td-prepare-materials ROOT materials.tdp model.json bindings.json thermal-input.json`
+reads an independent TDP library and an existing canonical network. The TDP,
+model, and bindings paths are relative to `ROOT`. The command writes a new
+thermal-input v1 file for the native worker or, for case-free networks,
+`fcst spatial-solve`. The converter reads files directly and requires no
+external engine, vendor installation, or license. The
+binding JSON has four required fields.
+
+- `materials` maps exact TDP entry names to `minimum_K`, `maximum_K`, and
+  `reference_K`. The reference temperature determines the nominal values shown
+  on the canonical material. The worker receives the complete active tables.
+- `node_storage` maps existing capacitive node UUIDs to `entry` and `mass_kg`.
+  A node can supply `volume_m3` in place of `mass_kg`, using the material's
+  constant density to derive mass. The map can be empty. Bound nodes derive initial capacity from mass and specific
+  heat at their initial temperature. The worker integrates the resulting
+  temperature-dependent heat storage during a transient solve.
+- `interpolation` is `linear` or `previous`. In `previous` mode the preparation
+  records every changed knot as a discontinuity.
+- `extrapolation` is `error` or `clamp`. With `error`, each active table must span
+  exactly the declared interval. With `clamp`, endpoints extend within the
+  declared interval.
+
+Supply `case_id` for a model with cases. The profile rejects a selected case
+that overrides a bound node's initial temperature. It accepts basic
+isotropic materials with constant density and constant or one-dimensional
+temperature-dependent specific heat and conductivity. Composite, orthotropic,
+pressure-dependent, and effective-emissivity modes remain outside this profile.
+The source map binds the original TDP hash to each imported material. The
+[synthetic fixture](../tests/fixtures/thermal/td-material-input.json) includes
+a complete binding example. Full TD and source-version qualification remains open.
+
+### Prepare a DWG with material-derived nodes
+
+`fcst td-prepare-drawing ROOT network.dwg thermal-input.json` takes the same
+material and interpolation policy, supplied through `--bindings` without
+`node_storage`. It derives the node bindings from the DWG records. Supply the
+FCST `--backend` receipt and `--work` directory, all five network unit options
+used by `td-package`, plus `--mass-unit` (`kg`, `g`, or `lbm`) and
+`--volume-unit` (`m3`, `cm3`, `mm3`, `in3`, or `ft3`). The bindings file and
+output belong outside the captured source tree. The tree contains the drawing
+and one TDP library, and the policy covers exactly the names referenced by
+material-based nodes.
+
+Static analysis of the 6.3 serialization and node export logic distinguishes
+the material-use selector from the user-override flag. The mass/volume
+selector identifies whether the same numeric field is a mass or a volume.
+The reader applies this mapping to standalone capacitive `RcNode` v22
+records with constant source inputs. The owned DWG workflow exercises both
+selectors, changes a mass field, and reopens the edited drawing and unchanged
+library through the conversion CLI. Other companion layouts, dynamic node
+logic, overrides, and geometry-based assignments remain held. The prepared
+thermal input carries both source maps and the full storage and material laws.
+
 ## Geometry and remaining format evidence
 
 The complete RcRectangle v7/attribute-marker-54 and RcFdBrick v21 profiles now
@@ -250,15 +305,32 @@ the declared constant guard; every other bit/field and source file is checked.
 Zero/one compression can expand by up to 128 bits. JSON source handles accept
 safe integral numbers or decimal strings for uint64 identities; rounded numeric
 aliases, booleans and duplicate identities reject. This interface edits serialized
-parameters, not canonical dimensions, and performs no mesh regeneration.
+source slots. A fresh geometry export uses the edited dimensions.
 
-The original geometry objects currently fail the expression guard and remain
-ineligible for parameter edits. Their complete structures and exact bytes can be
-read and preserved. Parameter-unit/selector interpretation, material/optical and
-mesh assignments, expression evaluation and regeneration still need independent
-semantic mappings. Complete structural decoding explicitly reports
+The reviewed two-expression rectangle and three-expression brick layouts allow
+size edits through `serialized_parameters`. The positive X and Y sizes occupy
+the first two values. A brick adds its Z size as the third value. Constant
+expressions are required and other slots in these layouts are preserved.
+Complete structural decoding explicitly reports
 `thermal_semantics_decoded=false` and cannot promote a drawing to a native
-constant network. No units or thermal physics are guessed from display geometry.
+constant network.
+
+`fcst td-export-geometry ROOT network.dwg output.obj --backend RECEIPT --work WORK --length-unit mm`
+exports geometry-only boundary quads for the reviewed rectangle and brick
+layouts. The caller declares the drawing length unit. OBJ coordinates are in
+metres. Repeat `--handle` with decimal DWG handles to select specific objects.
+With no handles, the command requires complete supported records for every
+rectangle and brick in the drawing. It preserves source identities as OBJ object
+names. Keep derived geometry from restricted drawings local.
+
+The exporter applies the drawing origin and right-handed basis, the local
+translation and ordered rotations, and the stored normalized subdivision
+boundaries. Static 6.3 code analysis establishes the size and transform layout.
+The local rotation axes use the right-hand rule, and the translation occupies
+the translation column of the local affine transform. [ObjectARX transform methods](https://help.autodesk.com/cloudhelp/2019/ENU/OARX-RefGuide/files/OREF-__MEMBERTYPE_Methods_AcGeMatrix3d.html)
+The exported brick mesh covers its exterior. Dynamic size, transform, and
+subdivision expressions remain held. Thermal node numbering, material/optical
+assignments, thickness physics, and interior mesh regeneration remain open.
 
 Remaining independent implementation needs verified layouts/semantics for complete
 additional surface/solid/mesh classes and physical bindings, material-derived node modes, canonical variable/composite and

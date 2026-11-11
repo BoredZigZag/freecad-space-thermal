@@ -1,0 +1,13 @@
+{
+  "source_ascii": "[UNICODE]\n[START]\n[NAME]\nOWNED TABLE\n[DENSITY]\n1000\n[USEVARSPECHEAT]\n1\n[VARSPECHEAT]\n2\n200 1\n400 3\n[USEVARCONDUCT]\n1\n[VARCONDUCT]\n2\n200 10\n400 30\n[KUMULT]\n2\n[END]\n",
+  "bindings": {
+    "interpolation": "linear",
+    "extrapolation": "error",
+    "materials": {
+      "OWNED TABLE": {"minimum_K": 200, "maximum_K": 400, "reference_K": 300}
+    },
+    "node_storage": {
+      "00000000-0000-4000-8000-000000000004": {"entry": "OWNED TABLE", "mass_kg": 2}
+    }
+  }
+}

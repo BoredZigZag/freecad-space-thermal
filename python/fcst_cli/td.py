@@ -13,6 +13,33 @@ def parsers(commands):
     properties_import.add_argument('--kind',required=True,choices=['tdp','rco']);properties_import.add_argument('--temperature-min',type=float)
     properties_import.add_argument('--temperature-max',type=float);properties_import.add_argument('--name',action='append')
     properties_import.add_argument('--material-frame',help='JSON canonical frame declaring the material property axes')
+    material_input = commands.add_parser('td-prepare-materials')
+    material_input.add_argument('root')
+    material_input.add_argument('entry', help='TDP path relative to root')
+    material_input.add_argument('model', help='Canonical model JSON path relative to root')
+    material_input.add_argument('bindings', help='Material and node binding JSON path relative to root')
+    material_input.add_argument('output', type=Path, help='New native thermal input JSON file')
+    drawing_input = commands.add_parser('td-prepare-drawing')
+    drawing_input.add_argument('root')
+    drawing_input.add_argument('entry', help='DWG path relative to root')
+    drawing_input.add_argument('output', type=Path, help='New native thermal input JSON outside the source tree')
+    drawing_input.add_argument('--bindings', type=Path, required=True, help='Material policies and validity ranges')
+    drawing_input.add_argument('--backend', required=True)
+    drawing_input.add_argument('--work', required=True)
+    from fcst_exchange.td_material_input import MASS_UNITS, VOLUME_UNITS
+    drawing_input.add_argument('--mass-unit', choices=tuple(MASS_UNITS), required=True)
+    drawing_input.add_argument('--volume-unit', choices=tuple(VOLUME_UNITS), required=True)
+    for field in ('temperature', 'capacity', 'conductance', 'power', 'time'):
+        drawing_input.add_argument('--' + field + '-unit', required=True)
+    geometry = commands.add_parser('td-export-geometry')
+    geometry.add_argument('root')
+    geometry.add_argument('entry', help='DWG path relative to root')
+    geometry.add_argument('output', type=Path, help='New Wavefront OBJ outside the source tree')
+    geometry.add_argument('--backend', required=True)
+    geometry.add_argument('--work', required=True)
+    from fcst_exchange.td_geometry_mesh import LENGTH_UNITS
+    geometry.add_argument('--length-unit', choices=tuple(LENGTH_UNITS), required=True)
+    geometry.add_argument('--handle', action='append', default=[], help='Optional decimal DWG handle')
     for command in ('td-read-property-laws','td-write-property-laws'):
         laws=commands.add_parser(command);laws.add_argument('root');laws.add_argument('entry');laws.add_argument('destination')
         if command=='td-read-property-laws':laws.add_argument('--kind',required=True,choices=['tdp','rco'])
@@ -42,10 +69,68 @@ def parsers(commands):
         if name=='sinda-result':parser.add_argument('result');parser.add_argument('time',type=float)
 
 
+def _read_material_source(path):
+    from fcst_exchange.core import Limits, reject
+
+    limit = Limits().file_bytes
+    with path.open('rb') as stream:
+        content = stream.read(limit + 1)
+    if len(content) > limit:
+        reject('td_material_input_limit')
+    return content
+
+
+def _write_new_output(output, raw):
+    import os
+    from tempfile import NamedTemporaryFile
+
+    from fcst_exchange.core import reject
+    from fcst_exchange.export import rename_new
+
+    stream = NamedTemporaryFile(dir=output.parent, prefix='.fcst-material-', delete=False)
+    temporary = Path(stream.name)
+    try:
+        with stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            if os.name == 'nt':
+                rename_new(temporary, output)
+            else:
+                os.link(temporary, output)
+        except FileExistsError:
+            reject('td_output_exists')
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _write_material_input(operation, result, output):
+    from fcst_app.persistence import encode
+    from fcst_exchange.core import Limits, reject
+
+    raw = encode(result)
+    if len(raw) > Limits().file_bytes:
+        reject('td_material_input_limit')
+    _write_new_output(output, raw)
+    return {'operation': operation, 'status': 'prepared', 'material_laws': len(result['material_laws']),
+            'node_storage_bindings': len(result['node_storage']), 'vendor_runtime_required': False,
+            'qualified': False}
+
+
 def execute(args):
     if args.command=='td-probe':
         from fcst_exchange.opentd import discover_runtime
         return discover_runtime().probe()
+    if args.command == 'td-prepare-materials':
+        from fcst_contracts import loads
+        from fcst_exchange.td_material_input import prepare_material_input
+        from fcst_exchange.vendor_paths import checked_path
+
+        source, model, bindings = (_read_material_source(checked_path(args.root, name))
+                                   for name in (args.entry, args.model, args.bindings))
+        result = prepare_material_input(source, loads(model), loads(bindings))
+        return _write_material_input(args.command, result, args.output)
     if args.command in {'td-read-property-laws','td-write-property-laws'}:
         from fcst_exchange.td_property_laws import read_laws,export_laws
         from fcst_exchange.vendor_paths import checked_path
@@ -126,12 +211,34 @@ def execute(args):
             from fcst_app.persistence import recover_package
             from fcst_exchange.source_package import export_td_package
             return export_td_package(recover_package(args.project),runtime,args.destination,args.work)
+        if args.command=='td-export-geometry':
+            from fcst_exchange.core import reject
+            from fcst_exchange.independent_td import source_edit_handle
+            from fcst_exchange.td_geometry_mesh import render_geometry
+
+            if args.output.resolve().is_relative_to(Path(args.root).resolve()):
+                reject('td_geometry_output_overlap')
+            handles = [source_edit_handle(value) for value in args.handle]
+            staged = IndependentTdAdapter(runtime).preview(args.root, args.entry, args.work)
+            raw, report = render_geometry(staged, args.length_unit, handles)
+            _write_new_output(args.output, raw)
+            return {'operation': args.command, 'status': 'exported', **report}
         unit_values=[getattr(args,field+'_unit') for field in ('temperature','capacity','conductance','power','time')]
         if any(unit_values) and not all(unit_values):
             from fcst_exchange.core import reject
             reject('td_native_all_units_required')
         units=SindaUnits(*unit_values) if all(unit_values) else None
         adapter=IndependentTdAdapter(runtime,units)
+        if args.command=='td-prepare-drawing':
+            from fcst_contracts import loads
+            from fcst_exchange.core import reject
+            from fcst_exchange.td_material_input import prepare_drawing_material_input
+            if args.output.resolve().is_relative_to(Path(args.root).resolve()):
+                reject('td_material_drawing_output_overlap')
+            bindings = loads(_read_material_source(args.bindings))
+            staged = adapter.preview(args.root, args.entry, args.work)
+            result = prepare_drawing_material_input(staged, bindings, mass_unit=args.mass_unit, volume_unit=args.volume_unit)
+            return _write_material_input(args.command, result, args.output)
         staged=adapter.preview(args.root,args.entry,args.work)
         if args.command=='td-preview':return staged.report
         if args.command=='td-package':

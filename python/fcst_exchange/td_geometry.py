@@ -47,18 +47,21 @@ class RectanglePayload:
                 'scope':'Complete serialized rectangle, surface attributes and mesh controls; physical selector mappings and mesh regeneration pending'}
 
     def edited_record(self,changes):
-        return _edit_geometry(self,changes,decode_rectangle_complete,6,self.fields['parameter_expressions'])
+        return _edit_geometry(self,changes,decode_rectangle_complete,6,2,self.fields['parameter_expressions'])
 
 
-def _edit_geometry(payload,changes,decoder,count,expressions):
+def _edit_geometry(payload,changes,decoder,count,dimensions,expressions):
     from .dwg_bits import scalar_record
     from .td_filer import expression_is_constant
     if (not isinstance(changes,dict) or not changes or set(changes)!={'serialized_parameters'}
             or not isinstance(changes['serialized_parameters'],(list,tuple)) or len(changes['serialized_parameters'])!=count):reject('td_geometry_edit_shape')
     values=tuple(changes['serialized_parameters'])
     if any(type(v) not in (int,float) or not math.isfinite(v) for v in values):reject('td_geometry_edit_number')
-    if len(expressions)!=12 or any(not expression_is_constant(e) for e in expressions):reject('td_geometry_dynamic_edit')
-    selected={f'parameter_{i}':v for i,v in enumerate(values) if v!=payload.fields['serialized_parameters'][i]}
+    if len(expressions) not in (dimensions,12) or any(not expression_is_constant(e) for e in expressions):reject('td_geometry_dynamic_edit')
+    changed_indices=[i for i,v in enumerate(values) if v!=payload.fields['serialized_parameters'][i]]
+    if len(expressions)==dimensions and (any(i>=dimensions for i in changed_indices) or any(v<=0 for v in values[:dimensions])):
+        reject('td_geometry_size_edit_scope')
+    selected={f'parameter_{i}':values[i] for i in changed_indices}
     if not 1<=len(selected)<=2:reject('td_geometry_edit_field_limit')
     row=scalar_record(payload.record,payload.spans,selected);after=decoder(row,payload.standard)
     if after.fields!={**payload.fields,'serialized_parameters':values}:reject('td_geometry_edit_reopen')
@@ -127,7 +130,7 @@ class BrickPayload(RectanglePayload):
                 'scope':'Complete serialized brick, subdivision, material/face fields, mesh controls and advection; physical selector bindings and mesh regeneration pending'}
 
     def edited_record(self,changes):
-        return _edit_geometry(self,changes,decode_brick,12,self.fields['attributes']['parameter_expressions'])
+        return _edit_geometry(self,changes,decode_brick,12,3,self.fields['attributes']['parameter_expressions'])
 
 
 def decode_brick(row,standard):

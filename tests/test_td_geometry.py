@@ -8,12 +8,13 @@ from unittest.mock import patch
 from fcst_exchange import ExchangeError
 from fcst_exchange.dwg_native import NativeSnapshot,Fields,_one
 from fcst_exchange.td_geometry import decode_rectangle,decode_rectangle_complete,decode_brick,rectangle_payload,brick_payload,SENTINEL
+from fcst_exchange.td_geometry_mesh import boundary_mesh
 from fcst_exchange.td_writer import FilerWriter
 from fcst_exchange.td_decode import decode_drawing
 from fcst_exchange.td_model import convert_network
 from fcst_exchange.sinda import SindaUnits
 from td_fixture import drawing,envelope,PATCH
-from td_geometry_fixture import rectangle_fields,brick_fields
+from td_geometry_fixture import rectangle_fields,brick_fields,rectangle_boundary_fields,brick_boundary_fields
 
 
 def rectangle():
@@ -26,6 +27,65 @@ def rectangle():
 
 
 class TdGeometryTests(unittest.TestCase):
+    def test_rectangle_boundary_applies_ordered_local_rotation_and_nonuniform_subdivision(self):
+        row, common = envelope(rectangle_payload(rectangle_boundary_fields()))
+        points, faces = boundary_mesh(decode_rectangle_complete(row, Fields(common.items())), 'mm')
+        self.assertEqual(len(points), 9)
+        self.assertEqual(faces[0], (0, 1, 2, 3))
+        self.assertEqual(len(faces), 4)
+        self.assertEqual({tuple(round(c * 1000, 8) for c in point) for point in points},
+                         {(x, 25, z) for x in (0, 3, 4) for z in (37, 40, 43)})
+        self.assertEqual(tuple(round(c * 1000, 8) for c in points[faces[0][0]]), (4, 25, 37))
+        self.assertEqual(tuple(round(c * 1000, 8) for c in points[faces[0][1]]), (3, 25, 37))
+
+    def test_brick_boundary_is_closed_outward_and_accepts_only_known_size_edits(self):
+        fields = brick_boundary_fields()
+        row, common = envelope(brick_payload(fields))
+        standard = Fields(common.items())
+        payload = decode_brick(row, standard)
+        vertices, faces = boundary_mesh(payload, 'm')
+        self.assertEqual((len(vertices), len(faces)), (26, 24))
+        from collections import Counter
+        edges = Counter(tuple(sorted((a, b))) for face in faces for a, b in zip(face, (*face[1:], face[0])))
+        self.assertTrue(all(count == 2 for count in edges.values()))
+        signed_volume = 0
+        from fcst_contracts.spatial import determinant
+        for a, b, c, d in faces:
+            signed_volume += (determinant((vertices[a], vertices[b], vertices[c]))
+                              + determinant((vertices[a], vertices[c], vertices[d]))) / 6
+        self.assertAlmostEqual(signed_volume, 4 * 6 * 8)
+        values = list(fields['serialized_parameters'])
+        values[2] = 10
+        edited, receipt = payload.edited_record({'serialized_parameters': values})
+        self.assertEqual(receipt['changed_fields'], ['parameter_2'])
+        resized, _ = boundary_mesh(decode_brick(edited, standard), 'm')
+        self.assertEqual(max(point[2] for point in resized), 50)
+        for index, value in ((0, 0), (3, 1)):
+            invalid = list(fields['serialized_parameters'])
+            invalid[index] = value
+            with self.assertRaisesRegex(ExchangeError, 'size_edit_scope'):
+                payload.edited_record({'serialized_parameters': invalid})
+
+    def test_geometry_boundary_rejects_dynamic_layouts_bad_basis_and_budget(self):
+        fields = rectangle_boundary_fields()
+        variants = (
+            (lambda f: f['parameter_expressions'][0].update(text='VARIABLE'), 'dynamic_size'),
+            (lambda f: f['mesh_controls']['expressions'][0].update(text='VARIABLE'), 'dynamic_transform'),
+            (lambda f: f['mesh_controls'].update(selectors=(3, 0, 0)), 'rotation_axis'),
+            (lambda f: f.update(axes=((1, 0, 0), (0, -1, 0), (0, 0, 1))), 'geometry_basis'),
+            (lambda f: f['attributes']['subdivision'][0].update(boundaries=(0, 0, 1)), 'subdivision_unmapped'),
+            (lambda f: f['attributes']['subdivision'][0].update(mode=1), 'subdivision_unmapped'),
+        )
+        for change, code in variants:
+            invalid = deepcopy(fields)
+            change(invalid)
+            row, common = envelope(rectangle_payload(invalid))
+            with self.assertRaisesRegex(ExchangeError, code):
+                boundary_mesh(decode_rectangle_complete(row, Fields(common.items())), 'm')
+        row, common = envelope(rectangle_payload(fields))
+        with self.assertRaisesRegex(ExchangeError, 'mesh_limit'):
+            boundary_mesh(decode_rectangle_complete(row, Fields(common.items())), 'm', face_limit=3)
+
     def test_complete_rectangle_and_brick_preserve_all_attribute_mesh_and_advection_fields(self):
         for build,decode,fields in ((rectangle_payload,decode_rectangle_complete,rectangle_fields()),(brick_payload,decode_brick,brick_fields())):
             before=deepcopy(fields);row,common=envelope(build(fields));actual=decode(row,Fields(common.items()))

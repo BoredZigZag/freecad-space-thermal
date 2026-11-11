@@ -708,3 +708,54 @@ first repetition includes SciPy initialization. The warm
 repetitions bound the cost of the expanded checks. The workload
 changed from the previous pass, and these samples do not measure
 a hosted-runner speedup.
+
+## WP-08 TD material binding
+
+The cold [PR #41 baseline run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43036017267)
+took 492 seconds from the first job start through the Foundation gate. Unit
+tests took 88 seconds and the dependent Windows Debug job took 378 seconds,
+including a 326.797-second verification driver with three workers. Embree
+finished 38 seconds before Debug, so eliminating its tail in this observed job
+schedule saves zero seconds. Debug radiation acceptance was the largest stage
+at 167.5 seconds. The Release driver took 290.204 seconds with two workers and
+host acceptance was its largest stage at 139.656 seconds. TD exchange took
+7.000 seconds in Debug and 6.922 seconds in Release. The artifact flagged the
+Debug spatial and Release host stages against the warm baseline. Cache state and
+workload differ, so those timings do not isolate a regression in this change.
+
+The new analytic case reuses the existing thermal stage. The transient worker
+already validates and prepares its input, so a separate preparation launch
+should add latency without changing its numerical result. Five alternating local
+pairs used the same built MSVC worker per configuration, input and criteria,
+with a warm-up and no build or download in the timing. Preparation plus solve
+versus solve alone measured 901.33 ms (814.46–1010.48) versus 460.33 ms
+(409.03–522.24) in Debug and 129.08 ms (123.14–165.23) versus 68.59 ms
+(64.74–69.93) in Release. Every transient model hash and sample matched.
+The new case uses one worker launch. The configured baseline, radiation
+ensemble and scaling workload are retained.
+
+The DWG material-node extension adds its fresh-process source checks to the
+existing independent backend job. In the same baseline run that job finished
+257 seconds before Debug. Shortening it alone would leave the observed gate
+time unchanged. The added case reuses the backend already built by that job
+and shares its fixture and library across conversion, edit and reopen. Five
+alternating local pairs of fresh CLI conversions, after warm-up, used the
+same Release codec and equivalent original and edited owned drawings. The
+original conversion took 0.839 s (0.792–0.920) and the edited conversion took
+0.824 s (0.784–0.850). Each invocation verified both storage bindings. These
+samples measure conversion including process startup and exclude build, edit
+and download time. The ranges overlap and establish no throughput change.
+
+Concurrent local preset startup exposed a shared editable-install failure in
+Debug. The retry began after Release had completed packaging, and both preset
+packaging stages then passed. Hosted matrix jobs each have their own checkout.
+
+The boundary mesh extension adds its source-edit and fresh-export checks to the
+same independent backend job. Debug radiation and Release host acceptance remain
+the largest stages in the latest passing hosted handoff. The new mesh builder
+reuses each transformed vertex across the adjacent quads. In seven alternating
+local pairs after warm-up, the same 1,536-quad owned brick took 21.583 ms
+(20.652–24.619) when recomputing a point on every face and 7.534 ms
+(7.305–7.695) when reusing the transformed points. Every vertex and face matched.
+The timing excludes DWG inspection, build and process startup. It establishes
+the local cost of the mesh loop. The hosted timing baseline remains in place.

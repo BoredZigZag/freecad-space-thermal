@@ -12,6 +12,7 @@ from fcst_contracts import ContractError,loads,read
 from fcst_app.persistence import encode
 from .core import ExchangeError,reject,target_id
 from .sinda import SindaUnits
+from .td_filer import expression_is_constant
 from .td_node import _one
 from .td_decode import decode_drawing
 from .td_writer import node_payload,conductor_payload,load_payload,template_fields
@@ -80,6 +81,10 @@ def _profile_equal(actual,expected):
 
 
 def convert_network(snapshot,units,source_revision,*,closure_holds=()):
+    return _convert_network(snapshot,units,source_revision,closure_holds)
+
+
+def _convert_network(snapshot,units,source_revision,closure_holds=(),*,material_nodes=None):
     diagnostics=[{'code':code} for code in closure_holds];identities=[];entities=[];entries=[]
     if not isinstance(units,SindaUnits):
         return Conversion(None,(),tuple(diagnostics+[{'code':'td_native_explicit_units_required'}]))
@@ -120,11 +125,30 @@ def convert_network(snapshot,units,source_revision,*,closure_holds=()):
                 key=(f['submodel'].casefold(),f['identifier'])
                 if key in node_keys:reject('td_native_node_identity_collision')
                 node_keys.add(key);classification={0:'capacitive',1:'algebraic',2:'prescribed'}[f['node_type']]
-                expected=node_payload(f['submodel'],f['identifier'],f['initial_temperature'],f['mass_value'],classification,f['comment'])
-                _profile_equal(f,template_fields(expected,handles,handle=h))
+                material=None
+                capacity=units.quantity(f['mass_value'],'capacity')
+                if f['use_material']:
+                    if material_nodes is None:
+                        reject('td_native_nonconstant_or_unmapped_fields')
+                    if (f['use_material']!=1 or classification!='capacitive' or not f['material']
+                            or f['mass_volume_type'] not in (0,1) or f['mass_value']<=0
+                            or not expression_is_constant(f['mass_expression'])):
+                        reject('td_native_material_node_mode')
+                    material=(f['material'],f['mass_volume_type'])
+                    # Only the private thermal-input path can create this intermediate model.
+                    # Its material binder replaces the required positive capacity before output.
+                    capacity={'value':1,'unit':'J/K'}
+                expected=node_payload(f['submodel'],f['identifier'],f['initial_temperature'],f['mass_value'],
+                                      classification,f['comment'],material=material)
+                fields=template_fields(expected,handles,handle=h)
+                if material is not None:
+                    fields['mass_expression']=f['mass_expression']
+                _profile_equal(f,fields)
+                if material is not None:
+                    material_nodes[node_ids[h]]=(f['material'],f['mass_volume_type'],f['mass_value'])
                 values={'submodel_id':groups[f['submodel']],'classification':classification,
                         'temperature':units.quantity(f['initial_temperature'],'temperature'),
-                        'capacity':units.quantity(f['mass_value'],'capacity')}
+                        'capacity':capacity}
                 kind='node'
             elif 'from' in f:
                 a,b=(_connection(f[k],nodes) for k in ('from','to'))
@@ -149,7 +173,9 @@ def convert_network(snapshot,units,source_revision,*,closure_holds=()):
            'revision':0,'entities':entities,'source_maps':[{'id':target_id((PROFILE,'map',source_revision)),
            'version':'1.0.0','source_revision':source_revision,'source_tool':'Thermal Desktop DWG',
            'source_version':'RcNode22-RcConductor22-RcHeatLoad17; product release unknown','entries':entries}],
-           'mappings':[],'attachments':[],'assumptions':['Explicit source units; closed constant-network serialization profiles'],
+           'mappings':[],'attachments':[],'assumptions':[
+               'Explicit source units; closed network with material-based node storage' if material_nodes
+               else 'Explicit source units; closed constant-network serialization profiles'],
            'limitations':['Full TD/source-version, owned-engine and paired ESATAN qualification pending'],
            'audit':{'timestamp':'source-import'},'gui':{'selection':[]}}
     if not diagnostics:

@@ -97,6 +97,18 @@ sensitive patterns/budgets and rejects binary disguises. Preserve GPL attributio
 and scan exact build configuration, patch pre/post hashes and provenance alongside
 the source. WP-09 independent ESATAN plans/fixtures/evidence use the same TST-021
 rule; documentation does not qualify an unimplemented converter.
+The WP-08 native material binding runs `tools/check_td.py` for source, binding,
+and output-publication regressions and `td-material-storage` in `tools/check_thermal.py`
+for an analytic temperature and enthalpy comparison in both Windows configurations.
+The independent DWG gate creates an owned material-node drawing, checks both
+mass and volume conversion, and reopens a guarded mass edit through the CLI.
+It also checks geometry-only OBJ conversion of rotated rectangle and brick
+fixtures before and after source-size edits. Restricted OBJ meshes, source
+drawings and raw format research remain local.
+TST-021 scans exact adapter and CLI code, synthetic fixture bytes, bounded verdicts,
+scalar timings, outgoing history, approved metadata and any final GitHub prose.
+TDP originals, bindings, prepared models and raw worker results remain local.
+
 WP-09 now applies TST-021 to exact owned codecs, CLI, acquisition/profile locks,
 synthetic D-deck/TMD/XML fixtures, bounded `esatan.json` summaries and final GitHub
 prose. Both Windows drivers execute the frozen unattended cases and clear the
@@ -626,8 +638,18 @@ The declared closed constant-network profile now supports canonical import, port
 `.fcst` storage and canonical scalar export/reopen. Constant original property
 documents and owned property libraries have independent conversion paths; static
 SINDA arrays/intrinsics have bounded readers. Complete rectangle/brick wire
-profiles have owned readers/writers and guarded constant-parameter source edits;
-physical geometry/mesh binding and regeneration remain unimplemented.
+profiles have owned readers/writers and guarded constant-size source edits.
+`td-export-geometry` maps verified sizes, frames, local transforms and literal
+subdivisions to geometry-only OBJ boundary quads. Thermal mesh assignments,
+node identities and interior mesh regeneration remain open.
+Basic isotropic TDP temperature tables now bind to native thermal inputs with
+explicit intervals, interpolation, extrapolation and optional node masses. The
+binding reads the active specific-heat and conductivity laws and exercises
+material-based storage against an analytic transient oracle.
+`td-prepare-drawing` derives those bindings from closed RcNode v22 networks and
+a single TDP companion, using the verified mass/volume selector and explicit
+units. Geometry-based assignments, dynamic modes and other companion layouts
+remain open.
 Unrepresented modes and additional source versions need verified format evidence,
 while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.
 

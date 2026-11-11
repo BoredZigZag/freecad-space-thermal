@@ -203,6 +203,23 @@ def check(worker, native_tests, assembly_tests, steady_tests, transient_tests):
         assert result['backend']['execution_mode']=='fcst_native' and result['backend']['external_reference'] is False
         assert result['profile']['linear_solves']>0 and result['profile']['assembly_seconds']>0
         native_profile.update(result['profile'])
+    def td_material_storage():
+        from math import sqrt
+        from fcst_exchange.td_material_input import prepare_material_input
+
+        td = json.loads((fixture.parent / 'td-material-input.json').read_bytes())
+        request = transient_input('enthalpy')
+        model = request['thermal_input']['model']
+        request['thermal_input'] = prepare_material_input(td['source_ascii'].encode('ascii'), model, td['bindings'])
+        result = transient(request)
+        assert result['status'] == 'passed' and result['valid'] is True
+        assert result['backend']['execution_mode'] == 'fcst_native'
+        sample = result['samples'][-1]
+        # For a 2 kg node, dH = (4 + .02 * (T - 300)) dT and 5 W supplies 10 J.
+        expected_delta = 20 / (4 + sqrt(16.4))
+        assert abs(sample['temperature_K'][0] - (300 + expected_delta)) < 1e-5
+        assert abs(sample['storage_change_J'][0] - 10) < 1e-7
+        assert abs(sample['run_energy']['defect_J']) < 1e-7
     def transient_checkpoint():
         value=transient_input(end=2);value['transient']['output_times']=[0,1,2]
         full=transient(value);assert full['status']=='passed'
@@ -336,6 +353,7 @@ def check(worker, native_tests, assembly_tests, steady_tests, transient_tests):
            'fluid-heat-pipe-startup-dryout':lambda:check_heat_pipe_transient(worker,build_info['source_revision'],env),
            'steady-cli-linear':steady_linear,'steady-cli-singular':steady_singular,'steady-cli-rejections':steady_rejections,
            'transient-cli-analytic':transient_analytic,'transient-cli-checkpoint':transient_checkpoint,
+           'td-material-storage':td_material_storage,
            'transient-cli-events':transient_events,'transient-cli-failures':transient_failures,'transient-cli-capabilities':transient_capabilities,
            'source-sinda-network':lambda:source_comparison('sinda'),'source-esatan-network':lambda:source_comparison('esatan'),
            'source-oracle-rejections':source_oracle_rejections,

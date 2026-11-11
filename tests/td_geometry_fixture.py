@@ -50,3 +50,21 @@ def brick_fields():
     attrs['index_lists']=((1,2),(3,4,5));attrs['face_names']=tuple((f'OWNED face {i}',) for i in range(6))
     return {'serialized_parameters':(0,1,0,2,0,3,0,0,0,0,0,0),'origin':(1,2,3),'axes':((1,0,0),(0,1,0),(0,0,1)),
             'attributes':attrs}
+
+
+def rectangle_boundary_fields():
+    fields = rectangle_fields()
+    fields.update(serialized_parameters=(4, 6, 0, 0, 0, 0), origin=(10, 20, 30),
+                  axes=((0, 1, 0), (-1, 0, 0), (0, 0, 1)),
+                  parameter_expressions=tuple(expression() for _ in range(2)))
+    fields['mesh_controls'].update(values=(5, 6, 7, 90, 90, 0), selectors=(2, 0, 1))
+    fields['attributes']['subdivision'][0]['boundaries'] = (0, .25, 1)
+    return fields
+
+
+def brick_boundary_fields():
+    fields = brick_fields()
+    fields.update(serialized_parameters=(4, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0), origin=(20, 30, 40))
+    fields['attributes']['parameter_expressions'] = tuple(expression() for _ in range(3))
+    fields['attributes']['mesh_controls'].update(values=(0, 0, 0, 0, 0, 0))
+    return fields

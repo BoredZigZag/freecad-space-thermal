@@ -277,10 +277,41 @@ raise SystemExit(main())
         if entity['kind']=='load':entity['power']['value']=3
     offset_export=offset_adapter.export_native(offset_staged,offset_model,attempt/'offset-export',attempt/'offset-edit')
     offset_reopen=offset_adapter.preview(attempt/'offset-export','network.dwg',attempt/'offset-reopen')
+    material_data=json.loads((ROOT/'tests/fixtures/thermal/td-material-input.json').read_bytes())
+    material_policy={key:material_data['bindings'][key] for key in ('materials','interpolation','extrapolation')}
+    material_bindings=attempt/'material-bindings.json'
+    material_bindings.write_bytes(encode(material_policy))
+    material_records=[node_payload('MAIN',1,300,2000,'capacitive','mass',material=('OWNED TABLE',1)),
+                      node_payload('MAIN',2,300,3000,'capacitive','volume',material=('OWNED TABLE',0)),
+                      load_payload(5,1),load_payload(5,2)]
+    material_created,_=runtime.run('create-network',network_packet(material_records),attempt/'material-create')
+    material_source=attempt/'material-source';material_source.mkdir()
+    material_drawing=material_created['derived.dwg'];material_library=material_data['source_ascii'].encode('ascii')
+    (material_source/'network.dwg').write_bytes(material_drawing)
+    (material_source/'materials.tdp').write_bytes(material_library)
+    material_staged=native_adapter.preview(material_source,'network.dwg',attempt/'material-preview')
+    material_handles=verify_network(material_staged.snapshot,material_records)
+    def prepare_material_cli(source,label):
+        output=attempt/(label+'.json')
+        if not invoke(['td-prepare-drawing',source,'network.dwg',output,'--backend',receipt_path,
+                       '--work',attempt/(label+'-work'),'--bindings',material_bindings,'--mass-unit','g',
+                       '--volume-unit','cm3','--temperature-unit','K','--capacity-unit','J/K',
+                       '--conductance-unit','W/K','--power-unit','W','--time-unit','s']):
+            raise ValueError('backend_material_drawing_cli_failed')
+        return json.loads(output.read_bytes())
+    material_before=prepare_material_cli(material_source,'material-input')
+    material_edited=attempt/'material-edited'
+    material_export=native_adapter.export_source(material_staged,material_edited,
+        [{'handle':material_handles[0],'changes':{'mass_value':4000}}],work=attempt/'material-edit')
+    material_after=prepare_material_cli(material_edited,'material-reopened-input')
+    def storage_by_label(value):
+        nodes={e['id']:e for e in value['model']['entities'] if e['kind']=='node'}
+        return {nodes[b['node_id']]['label']:(b['mass']['value'],nodes[b['node_id']]['capacity']['value'])
+                for b in value['node_storage']}
     # Complete owned surface/solid streams are exercised in a real new container
     # and edited through the vendor-denied CLI, not just a Python envelope.
     sys.path.insert(0,str(ROOT/'tests'))
-    from td_geometry_fixture import rectangle_fields,brick_fields
+    from td_geometry_fixture import rectangle_fields,brick_fields,rectangle_boundary_fields,brick_boundary_fields
     from fcst_exchange.td_geometry import rectangle_payload,brick_payload
     rectangle=rectangle_fields();rectangle['attributes']['references_a']=((1,),(0,))
     brick=brick_fields();brick['attributes']['references_a']=((1,),(0,))
@@ -311,6 +342,40 @@ raise SystemExit(main())
             geometry_equal=geometry_equal and after_geometry[handle].record['bits']-payload.record['bits']==128
         geometry_equal=geometry_equal and after_geometry[handle].fields==expected
     geometry_equal=geometry_equal and (geometry_source/'network.dwg').read_bytes()==geometry_raw
+
+    boundary_records=[rectangle_payload(rectangle_boundary_fields()),brick_payload(brick_boundary_fields())]
+    boundary_created,_=runtime.run('create-network',network_packet(boundary_records),attempt/'boundary-create')
+    boundary_source=attempt/'boundary-source';boundary_source.mkdir();boundary_raw=boundary_created['derived.dwg']
+    (boundary_source/'network.dwg').write_bytes(boundary_raw)
+    boundary_staged=adapter.preview(boundary_source,'network.dwg',attempt/'boundary-preview')
+    boundary_handles=verify_network(boundary_staged.snapshot,boundary_records)
+    def boundary_export(source,label):
+        output=attempt/(label+'.obj')
+        if not invoke(['td-export-geometry',source,'network.dwg',output,'--backend',receipt_path,
+                       '--work',attempt/(label+'-work'),'--length-unit','mm']):
+            raise ValueError('backend_boundary_geometry_cli_failed')
+        return output.read_text(encoding='ascii')
+    def boundary_summary(obj):
+        objects=[];points=[];total_vertices=0
+        for line in obj.splitlines():
+            fields=line.split()
+            if fields[0]=='o':
+                points=[];objects.append([points,0,total_vertices])
+            elif fields[0]=='v':
+                points.append(tuple(round(float(value)*1000,8) for value in fields[1:]))
+                total_vertices+=1
+            elif fields[0]=='f':
+                indices=[int(value) for value in fields[1:]]
+                if len(set(indices))!=4 or any(not objects[-1][2]<i<=total_vertices for i in indices):
+                    raise ValueError('backend_boundary_geometry_obj_indices')
+                objects[-1][1]+=1
+        return [(len(points),count,tuple((min(axis),max(axis)) for axis in zip(*points))) for points,count,_ in objects]
+    boundary_before=boundary_summary(boundary_export(boundary_source,'boundary-before'))
+    boundary_edits=[{'handle':boundary_handles[0],'changes':{'serialized_parameters':[8,6,0,0,0,0]}},
+                    {'handle':boundary_handles[1],'changes':{'serialized_parameters':[4,6,10,0,0,0,0,0,0,0,0,0]}}]
+    boundary_edited=attempt/'boundary-edited'
+    boundary_receipt=adapter.export_source(boundary_staged,boundary_edited,boundary_edits,work=attempt/'boundary-edit')
+    boundary_after=boundary_summary(boundary_export(boundary_edited,'boundary-after'))
     checks={'owned-fixture-read':first.report['objects']>0 and first.report['read_warning_bits']==0,
             'fresh-native-reopen':verdict['structural_roundtrip_verified'],
             'class-identity-and-version-preservation':first.native['classes']==second.native['classes'],
@@ -328,6 +393,12 @@ raise SystemExit(main())
             'original-property-document-cli-import':original_property_cli,
             'offset-unit-native-edit-roundtrip':offset_export['canonical_roundtrip_verified'] and offset_reopen.require_native()['entities']==offset_model['entities'],
             'native-property-source-cli-edit':property_source_edit,
+            'material-node-drawing-cli-and-reopen':storage_by_label(material_before)=={'mass':(2,4),'volume':(3,6)}
+                and storage_by_label(material_after)=={'mass':(4,8),'volume':(3,6)}
+                and material_before['material_laws']==material_after['material_laws']
+                and material_export['edited_roundtrip_verified'] and not material_staged.conversion.report['native_ready']
+                and (material_edited/'materials.tdp').read_bytes()==material_library
+                and (material_source/'network.dwg').read_bytes()==material_drawing,
             'variable-property-laws-cli-roundtrip':law_cli,
             'composite-property-source-preservation':composite_equal,
             'orthotropic-property-library-cli-roundtrip':ortho_cli,
@@ -335,7 +406,12 @@ raise SystemExit(main())
     checks.update({'source-free-complete-surface-solid-roundtrip':len(geometry_handles)==3,
                    'surface-solid-compressed-parameter-edits':geometry_cli and geometry_equal,
                    'structural-geometry-keeps-native-semantics-held':not geometry_staged.conversion.report['native_ready']
-                       and not geometry_reopened.conversion.report['native_ready']})
+                       and not geometry_reopened.conversion.report['native_ready'],
+                   'geometry-boundary-obj-and-size-edit-reopen':
+                       boundary_before==[(9,4,((0,4),(25,25),(37,43))),(26,24,((20,24),(30,36),(40,48)))]
+                       and boundary_after==[(9,4,((-4,4),(25,25),(37,43))),(26,24,((20,24),(30,36),(40,50)))]
+                       and boundary_receipt['edited_roundtrip_verified']
+                       and (boundary_source/'network.dwg').read_bytes()==boundary_raw})
     records=[{'id':key,'status':'passed' if value else 'failed'} for key,value in checks.items()]
     report={'schema_version':1,'candidate':revision(),'profile':profile['runtime'],
             'gate':evaluate(profile['required_cases'],records),'cases':records,
