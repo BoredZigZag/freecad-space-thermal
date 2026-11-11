@@ -456,8 +456,13 @@ native source-free generation, compressed parameter edits and fresh reopen. Scan
 the exact codecs, bridge, synthetic fixtures and `td.json`/`dwg-backend.json`, plus
 staged bytes, outgoing history/identity and final publication text. Original
 geometry, decoded fields, source handles, generated containers and raw research/
-build/CLI diagnostics remain local. Structural decoding cannot qualify physical
-geometry or mesh regeneration; original dynamic geometry edits remain held.
+build/CLI diagnostics remain local. The static conduction slice adds an owned
+DWG/TDP material mesh reopen in `tools/build_independent_dwg.py`, binding and
+rejection cases in `tools/check_td.py`, and native flux and capacity checks in
+`tools/check_discretization.py` for both Windows configurations. Scan the exact
+bridge, fixture, pins, bounded DWG/TD/spatial verdicts, scalar timings, outgoing
+history, approved identities and final GitHub prose. Original DWG/TDP bytes,
+derived meshes, source identifiers and raw results remain local.
 
 FEM reuse work applies TST-021 to exact outgoing decision/assessment text, upstream attribution/license manifests, synthetic fixtures, bounded host/mesh/comparison reports and final issue/PR prose. Run `python -S tools/check_security.py` and `python tools/publication_preflight.py --staged --revision HEAD` before commit/push; scan each final generated report or post with `--file` before upload. Generated FreeCAD documents, raw solver decks, screenshots, mesh/result containers and logs stay local unless separately sanitized and cleared. Use synthetic inputs for public tests, preserve authorized originals unchanged, and do not weaken privacy policy to admit upstream examples or generated diagnostics.
 
@@ -640,16 +645,19 @@ documents and owned property libraries have independent conversion paths; static
 SINDA arrays/intrinsics have bounded readers. Complete rectangle/brick wire
 profiles have owned readers/writers and guarded constant-size source edits.
 `td-export-geometry` maps verified sizes, frames, local transforms and literal
-subdivisions to geometry-only OBJ boundary quads. Thermal mesh assignments,
-node identities and interior mesh regeneration remain open.
+subdivisions to OBJ boundary quads. `td-prepare-spatial` reconstructs quad4
+single-layer rectangles and hex8 homogeneous bricks with their constant
+isotropic TDP assignments, shell thickness and volume-weighted nodal capacity.
+The vendor-free input uses generated FCST nodes and disconnected bodies.
+Source numbering, multilayer, variable or anisotropic geometry materials,
+and contact, radiation and case coupling remain open.
 Basic isotropic TDP temperature tables now bind to native thermal inputs with
 explicit intervals, interpolation, extrapolation and optional node masses. The
 binding reads the active specific-heat and conductivity laws and exercises
 material-based storage against an analytic transient oracle.
 `td-prepare-drawing` derives those bindings from closed RcNode v22 networks and
 a single TDP companion, using the verified mass/volume selector and explicit
-units. Geometry-based assignments, dynamic modes and other companion layouts
-remain open.
+units. Dynamic modes and other companion layouts remain open.
 Unrepresented modes and additional source versions need verified format evidence,
 while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.
 

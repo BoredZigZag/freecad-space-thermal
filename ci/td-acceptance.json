@@ -1,6 +1,6 @@
 {
   "work_package": "WP-08",
-  "scope": "Independent TD network and property conversion; complete rectangle/brick serialization and guarded constant-parameter edits; physical geometry and full-model qualification pending",
+  "scope": "Independent TD network/property conversion and static rectangle/brick conduction meshes; full-model qualification pending",
   "required_cases": [
     "td-report-schema",
     "test_independent_dwg.IndependentDwgTests.test_changes_to_classes_handles_references_materials_headers_or_payloads_fail",
@@ -139,7 +139,10 @@
     "test_td_property_model.TdPropertyModelTests.test_native_property_source_export_preserves_unselected_entries_comments_and_original_bytes",
     "test_td_property_model.TdPropertyModelTests.test_optics_require_equivalent_bands_and_physical_energy_bounds",
     "test_td_property_model.TdPropertyModelTests.test_original_property_import_has_explicit_selection_validity_and_source_identity",
-    "test_td_property_model.TdPropertyModelTests.test_source_free_property_library_roundtrips_every_quantity_label_and_id_without_processes"
+    "test_td_property_model.TdPropertyModelTests.test_source_free_property_library_roundtrips_every_quantity_label_and_id_without_processes",
+    "test_td_spatial.TdSpatialTests.test_spatial_mesh_resolves_materials_capacity_and_source_identity",
+    "test_td_spatial.TdSpatialTests.test_spatial_rejects_layered_dynamic_missing_and_active_material_modes",
+    "test_td_spatial.TdSpatialTests.test_spatial_selection_requires_a_unique_valid_handle_and_current_sources"
   ],
   "qualification_holds": [
     "owned_engine_WP11_WP12_comparisons_pending",

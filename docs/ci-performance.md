@@ -759,3 +759,20 @@ local pairs after warm-up, the same 1,536-quad owned brick took 21.583 ms
 (7.305–7.695) when reusing the transformed points. Every vertex and face matched.
 The timing excludes DWG inspection, build and process startup. It establishes
 the local cost of the mesh loop. The hosted timing baseline remains in place.
+
+The static conduction mesh adds one DWG CLI invocation on the existing
+edited-and-reopened fixture and one FCST worker invocation per Windows preset.
+The last passing hosted handoff, run 43050724552, measured 559.141 s for the
+Debug driver. Radiation was its longest stage at 306.780 s, with spatial
+discretization at 234.560 s. The independent DWG job completed in 191 s and
+ran in parallel with the unit tests and Windows jobs. The hypothesis for this
+slice is that sharing the DWG creation and reopen and keeping the native
+physics assertion inside the existing spatial stage limits added critical-path
+time. Existing solver ensembles and scheduling stay in place.
+
+The common assembler also computes mapping provenance once per cell. Five
+alternating warm pairs on the same 216-cell owned brick measured 202.33 ms
+(194.09–229.04) before and 191.30 ms (184.40–259.98) after. Each pair produced
+identical bytes. The ranges overlap and do not establish a runtime improvement.
+The timing covers Python assembly and validation, excluding DWG inspection,
+process startup and solving. The hosted timing baseline remains in place.

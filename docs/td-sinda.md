@@ -329,8 +329,33 @@ boundaries. Static 6.3 code analysis establishes the size and transform layout.
 The local rotation axes use the right-hand rule, and the translation occupies
 the translation column of the local affine transform. [ObjectARX transform methods](https://help.autodesk.com/cloudhelp/2019/ENU/OARX-RefGuide/files/OREF-__MEMBERTYPE_Methods_AcGeMatrix3d.html)
 The exported brick mesh covers its exterior. Dynamic size, transform, and
-subdivision expressions remain held. Thermal node numbering, material/optical
-assignments, thickness physics, and interior mesh regeneration remain open.
+subdivision expressions remain held.
+
+### Prepare a native conduction mesh
+
+```text
+fcst td-prepare-spatial ROOT network.dwg thermal.json --backend RECEIPT --work WORK --properties materials.tdp --length-unit mm --temperature 300 --temperature-min 250 --temperature-max 450
+fcst spatial-solve thermal.json --worker WORKER --mode transient --end 60 --output result.json
+```
+
+The converter uses the DWG subdivision and transform to build quad4 cells
+for single-layer rectangles and interior hex8 cells for homogeneous bricks.
+It reads the rectangle's top material and thickness and the brick's assigned
+material. `--properties` names the TDP companion inside the captured source
+tree. Material names match case-insensitively and density, specific heat and
+conductivity must be present. The length unit applies to geometry and
+thickness. Initial temperature and the material validity interval are in
+kelvin. The output records the source revisions and maps each DWG handle to
+its generated submodel.
+
+The mesh uses FCST-generated nodes with volume-weighted thermal capacity.
+Bodies are independent and have insulated boundaries. The profile accepts
+constant isotropic materials and literal subdivisions. Active layering,
+material laws, advection and dynamic geometry require additional mappings.
+Source node numbering, contacts, loads, radiation and case settings are
+outside this conduction profile. Use repeated `--handle` arguments to select
+bodies when the complete selection exceeds the 1 MiB spatial input limit.
+The owned DWG reader and the FCST worker require no vendor runtime or license.
 
 Remaining independent implementation needs verified layouts/semantics for complete
 additional surface/solid/mesh classes and physical bindings, material-derived node modes, canonical variable/composite and

@@ -5,12 +5,14 @@ These generators cover Cartesian primitives. CAD tessellation belongs to the
 qualified host mesher adapter; generated points never inherit CAD face identity.
 """
 from copy import deepcopy
+from dataclasses import dataclass
 from hashlib import sha256
 import math
 import struct
 import uuid
 
 from fcst_contracts import canonical, loads, normalize, read, validate
+from .persistence import encode
 
 NAMESPACE = uuid.UUID('59071510-6575-494d-b698-3c7dd7dc28de')
 
@@ -19,7 +21,7 @@ def read_input(value):
     """Validate the packaged closed v2 schema and canonical model without executing code."""
     from importlib.resources import files
     schema=loads(files('fcst_contracts').joinpath('thermal-input-v2.json').read_bytes())
-    value=loads(__import__('json').dumps(value,allow_nan=False))
+    value=loads(encode(value))
     validate(schema,value)
     value=normalize(value)
     value['model']=read('model',value['model'])
@@ -115,54 +117,105 @@ def _count(n):
     return n
 
 
+@dataclass(frozen=True)
+class MeshRegion:
+    """A disconnected structured mesh region with one material."""
+
+    prefix: str
+    topology: str
+    positions: list
+    connectivity: list
+    volumes: list
+    nodal_volumes: list
+    thickness: float
+    material: dict
+
+    def identifier(self, name):
+        return identity(self.prefix + name)
+
+
+def _quantity(value, unit):
+    return dict(value=value, unit=unit)
+
+
+def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix='',
+                 source_maps=(), assumptions=(), limitations=()):
+    """Prepare disconnected regions as a single mesh with explicit material assignments.
+
+    The native reader independently recomputes geometry, mappings and capacity.
+    Point positions are global metres. Prescribed indices address the flattened points.
+    """
+    q = _quantity
+    frame, mesh = (identity(prefix + n) for n in ('frame', 'mesh'))
+    mesh_entities = [
+        dict(id=frame, kind='frame', origin=[q(0, 'm')]*3, rotation=rotation or [[1,0,0],[0,1,0],[0,0,1]]),
+        dict(id=mesh, kind='mesh', frame_id=frame, role='conduction', artifact=dict(path='meshes/conduction.json', sha256='0'*64, byte_length=0)),
+    ]
+    entities, points, cells, mappings, materials = [], [], [], [], {}
+    types = dict(tri3='triangle', quad4='quadrilateral', tet4='tetrahedron', hex8='hexahedron')
+    prescribed = prescribed or {}
+    for region in regions:
+        positions, connectivity = region.positions, region.connectivity
+        if (region.topology not in types or len(points) + len(positions) > 16384
+                or len(cells) + len(connectivity) > 32768):
+            raise ValueError('unsupported_element')
+        if len(region.volumes) != len(connectivity) or len(region.nodal_volumes) != len(positions):
+            raise ValueError('spatial_shape')
+        submodel = region.identifier('submodel')
+        entities.append(dict(id=submodel, kind='submodel'))
+        material = region.material
+        material_id = material['id']
+        if material_id not in materials:
+            materials[material_id] = material
+            entities.append(material)
+        elif materials[material_id] != material:
+            raise ValueError('spatial_material_identity')
+        rho = material['density']['value']
+        cp = material['specific_heat']['value']
+        point_ids = [region.identifier(f'point-{i}') for i in range(len(positions))]
+        node_ids = [region.identifier(f'node-{i}') for i in range(len(positions))]
+        start = len(points)
+        for i, (p, v) in enumerate(zip(positions, region.nodal_volumes)):
+            index = start + i
+            t = prescribed.get(index, temperature(index, p) if callable(temperature) else temperature)
+            entities.append(dict(id=node_ids[i], kind='node', submodel_id=submodel,
+                classification='prescribed' if index in prescribed else 'capacitive', temperature=q(t,'K'),
+                capacity=q(0 if index in prescribed else _number(v)*rho*cp,'J/K')))
+            points.append(dict(id=point_ids[i], node_id=node_ids[i], position=list(p)))
+        for i, (indices, volume) in enumerate(zip(connectivity, region.volumes)):
+            element = region.identifier(f'element-{i}')
+            entities.append(dict(id=element, kind='element', mesh_id=mesh, material_id=material_id, frame_id=frame,
+                                 volume=_number(volume), topology=types[region.topology]))
+            cells.append(dict(element_id=element, topology=region.topology,
+                              point_ids=[point_ids[j] for j in indices], thickness_m=region.thickness))
+            provenance = sha256(canonical(list(indices))).hexdigest()
+            area = (volume/region.thickness if region.thickness else volume**(2/3)) / len(indices)
+            for j in indices:
+                mappings.append(dict(id=region.identifier(f'map-{i}-{j}'), from_id=element, to_id=node_ids[j],
+                                     weight=1/len(indices), area=q(area,'m2'), provenance=provenance))
+    entities[1:1] = mesh_entities
+    model = read('model', dict(contract_version='1.0.0', minimum_reader='1.0.0',
+        project_id=identity(prefix + 'project'), revision=0, entities=entities,
+        assumptions=['Fixed geometry; reference density; row-sum storage', *assumptions],
+        limitations=['First-order spatial profile', *limitations], source_maps=list(source_maps),
+        mappings=mappings, attachments=[], audit={'timestamp':'2026-01-01'}, gui={'selection':[]}))
+    return seal(dict(contract_version='2.0.0', model=model, material_laws=[], node_storage=[],
+        spatial=dict(length_unit='m', mesh_revision='0'*64, points=points, cells=cells, surfaces=[], contacts=[])))
+
+
 def from_mesh(positions, connectivity, *, topology, volumes, nodal_volumes, thickness=0,
               density=1, specific_heat=1, conductivity=1, temperature=300,
               prescribed=None, tensor=None, rotation=None):
-    """Prepare a uniform-material primitive with explicit analytic cell/nodal volumes.
-
-    The native reader independently recomputes geometry, mappings and capacity.
-    Positions are global metres; tensor components are in the supplied local basis.
-    """
-    if topology not in ('tri3', 'quad4', 'tet4', 'hex8') or len(positions) > 16384 or len(connectivity) > 32768:
-        raise ValueError('unsupported_element')
-    if len(volumes) != len(connectivity) or len(nodal_volumes) != len(positions):
-        raise ValueError('spatial_shape')
+    """Prepare a uniform-material primitive with explicit analytic cell/nodal volumes."""
+    q = _quantity
     rho, cp, k = (_number(x) for x in (density, specific_heat, conductivity))
-    q = lambda v, u: dict(value=v, unit=u)
-    frame, mesh, material, submodel = (identity(n) for n in ('frame', 'mesh', 'material', 'submodel'))
-    entities = [dict(id=submodel, kind='submodel'),
-        dict(id=frame, kind='frame', origin=[q(0, 'm')]*3, rotation=rotation or [[1,0,0],[0,1,0],[0,0,1]]),
-        dict(id=mesh, kind='mesh', frame_id=frame, role='conduction', artifact=dict(path='meshes/conduction.json', sha256='0'*64, byte_length=0)),
-        dict(id=material, kind='material', density=q(rho,'kg/m3'), specific_heat=q(cp,'J/(kg*K)'), conductivity=q(k,'W/(m*K)'),
-             valid_temperature=[q(1,'K'),q(5000,'K')])]
+    material = dict(id=identity('material'), kind='material', density=q(rho,'kg/m3'),
+                    specific_heat=q(cp,'J/(kg*K)'), conductivity=q(k,'W/(m*K)'),
+                    valid_temperature=[q(1,'K'),q(5000,'K')])
     if tensor is not None:
-        entities[-1].update(conductivity_tensor=deepcopy(tensor), frame_id=frame)
-    point_ids = [identity(f'point-{i}') for i in range(len(positions))]
-    node_ids = [identity(f'node-{i}') for i in range(len(positions))]
-    prescribed = prescribed or {}
-    points = []
-    for i, (p, v) in enumerate(zip(positions, nodal_volumes)):
-        t = prescribed.get(i, temperature(i, p) if callable(temperature) else temperature)
-        entities.append(dict(id=node_ids[i], kind='node', submodel_id=submodel,
-            classification='prescribed' if i in prescribed else 'capacitive', temperature=q(t,'K'),
-            capacity=q(0 if i in prescribed else _number(v)*rho*cp,'J/K')))
-        points.append(dict(id=point_ids[i], node_id=node_ids[i], position=list(p)))
-    cells, mappings = [], []
-    types = dict(tri3='triangle', quad4='quadrilateral', tet4='tetrahedron', hex8='hexahedron')
-    for i, (indices, volume) in enumerate(zip(connectivity, volumes)):
-        element = identity(f'element-{i}')
-        entities.append(dict(id=element, kind='element', mesh_id=mesh, material_id=material, frame_id=frame,
-                             volume=_number(volume), topology=types[topology]))
-        cells.append(dict(element_id=element, topology=topology, point_ids=[point_ids[j] for j in indices], thickness_m=thickness))
-        for j in indices:
-            mappings.append(dict(id=identity(f'map-{i}-{j}'),from_id=element,to_id=node_ids[j],weight=1/len(indices),
-                                 area=q(volume/thickness/len(indices) if thickness else volume**(2/3)/len(indices),'m2'),
-                                 provenance=sha256(canonical(list(indices))).hexdigest()))
-    model = read('model', dict(contract_version='1.0.0', minimum_reader='1.0.0', project_id=identity('project'), revision=0,
-        entities=entities, assumptions=['Fixed geometry; reference density; row-sum storage'], limitations=['First-order spatial profile'],
-        source_maps=[], mappings=mappings, attachments=[], audit={'timestamp':'2026-01-01'}, gui={'selection':[]}))
-    return seal(dict(contract_version='2.0.0', model=model, material_laws=[], node_storage=[],
-        spatial=dict(length_unit='m', mesh_revision='0'*64, points=points, cells=cells, surfaces=[], contacts=[])))
+        material.update(conductivity_tensor=deepcopy(tensor), frame_id=identity('frame'))
+    return from_regions([MeshRegion('', topology, positions, connectivity, volumes, nodal_volumes, thickness, material)],
+                        temperature=temperature, prescribed=prescribed, rotation=rotation)
 
 
 def plate(nx=1, ny=1, *, length=1, width=1, thickness=0.1, topology='tri3', **material):

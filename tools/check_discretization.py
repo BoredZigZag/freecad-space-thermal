@@ -90,6 +90,24 @@ def check(worker, report, native_build):
                 for a,b in zip(cell['heat_flux_W_per_m2'],expected):near(a,b,criteria['patch_absolute'])
             near(sum(out['conductive_in_W']),0,criteria['energy_absolute_W'])
             near(sum(out['capacity_J_per_K']),.1 if topology in ('tri3','quad4') else 1)
+    def td_mesh():
+        from fcst_app.discretization import read_input
+        from fcst_exchange.td_spatial import prepare_spatial
+        sys.path.insert(0,str(ROOT/'tests'))
+        from td_geometry_fixture import spatial_preview
+
+        with tempfile.TemporaryDirectory() as directory:
+            value,_=prepare_spatial(spatial_preview(Path(directory)),'fixture.tdp','mm',
+                                    temperature=300,temperature_range=(250,450))
+        value=read_input(value)
+        result=field(value)
+        topology={c['element_id']:c['topology'] for c in value['spatial']['cells']}
+        expected={'quad4':[-8,0,-16],'hex8':[-14,-21,-28]}
+        for cell in result['cells']:
+            for actual,target in zip(cell['heat_flux_W_per_m2'],expected[topology[cell['element_id']]]):
+                near(actual,target,criteria['patch_absolute'])
+        near(sum(result['conductive_in_W']),0,criteria['energy_absolute_W'])
+        near(sum(result['capacity_J_per_K']),.0001248,1e-12)
     def tensor():
         v=brick(tensor=[[2,0,0],[0,3,0],[0,0,4]],rotation=[[0,-1,0],[1,0,0],[0,0,1]])
         out=field(v)
@@ -273,7 +291,8 @@ def check(worker, report, native_build):
         out=field(v,lambda p:400);near(sum(out['capacity_J_per_K']),.35);near(sum(out['storage_change_J']),35)
     cases=dict(zip(policy['required_cases'],[fd,patches,tensor,jacobian,enthalpy,surface,convection,contacts,reduced,steady_refine,
         spatial_refine,time_refine,reordering,invalid_mesh,invalid_mappings,invalid_materials,invalid_contacts,stale,offline]))
-    cases.update({'temperature-tensor-law':tensor_law,'spatial-transient-heating':spatial_heating,'mixed-material-storage':mixed_storage})
+    cases.update({'temperature-tensor-law':tensor_law,'spatial-transient-heating':spatial_heating,
+                  'mixed-material-storage':mixed_storage,'td-material-mesh':td_mesh})
     for name,fn in cases.items():
         started=time.monotonic()
         try:fn();status='passed'

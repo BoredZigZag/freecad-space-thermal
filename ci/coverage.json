@@ -393,7 +393,10 @@
     "test_thermal_references.ThermalReferenceTests.test_independent_analytic_oracles_cover_conservation_enthalpy_and_fast_mode",
     "test_thermal_references.ThermalReferenceTests.test_raw_runs_require_exact_grids_modes_dimensions_versions_and_finite_values",
     "test_validation_boundary.ValidationBoundaryTests.test_closed_boundary_and_privileged_trigger_rejection",
-    "test_validation_boundary.ValidationBoundaryTests.test_guard_bypass_policy_activation_and_write_permissions_rejected"
+    "test_validation_boundary.ValidationBoundaryTests.test_guard_bypass_policy_activation_and_write_permissions_rejected",
+    "test_td_spatial.TdSpatialTests.test_spatial_mesh_resolves_materials_capacity_and_source_identity",
+    "test_td_spatial.TdSpatialTests.test_spatial_rejects_layered_dynamic_missing_and_active_material_modes",
+    "test_td_spatial.TdSpatialTests.test_spatial_selection_requires_a_unique_valid_handle_and_current_sources"
   ],
   "full_prerequisites": [
     "freecad-exact-build-smoke",
@@ -743,7 +746,10 @@
     "test_td_property_model.TdPropertyModelTests.test_native_property_source_export_preserves_unselected_entries_comments_and_original_bytes",
     "test_td_property_model.TdPropertyModelTests.test_optics_require_equivalent_bands_and_physical_energy_bounds",
     "test_td_property_model.TdPropertyModelTests.test_original_property_import_has_explicit_selection_validity_and_source_identity",
-    "test_td_property_model.TdPropertyModelTests.test_source_free_property_library_roundtrips_every_quantity_label_and_id_without_processes"
+    "test_td_property_model.TdPropertyModelTests.test_source_free_property_library_roundtrips_every_quantity_label_and_id_without_processes",
+    "test_td_spatial.TdSpatialTests.test_spatial_mesh_resolves_materials_capacity_and_source_identity",
+    "test_td_spatial.TdSpatialTests.test_spatial_rejects_layered_dynamic_missing_and_active_material_modes",
+    "test_td_spatial.TdSpatialTests.test_spatial_selection_requires_a_unique_valid_handle_and_current_sources"
   ],
   "esatan_cases": [
     "esatan-report-schema",

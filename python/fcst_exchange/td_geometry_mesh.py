@@ -42,8 +42,8 @@ def _frame(origin, axes, transform, scale):
     return origin, rotated
 
 
-def boundary_mesh(payload, length_unit, *, face_limit=Limits().records):
-    """Return SI vertices and outward quads using stored literal partitions."""
+def primitive_grid(payload, length_unit):
+    """Return SI local partitions and the world frame for a constant primitive."""
     if not isinstance(payload, RectanglePayload):
         reject('td_geometry_complete_profile_required')
     if not isinstance(length_unit, str) or length_unit not in LENGTH_UNITS:
@@ -69,6 +69,23 @@ def boundary_mesh(payload, length_unit, *, face_limit=Limits().records):
         coordinates.append(tuple(cut * size for cut in cuts))
     if not solid:
         coordinates.append((0.0,))
+    transform = attributes['mesh_controls'] if solid else fields['mesh_controls']
+    origin, axes = _frame(fields['origin'], fields['axes'], transform, scale)
+    return coordinates, origin, axes
+
+
+def world_point(origin, axes, coordinates):
+    position = tuple(offset + sum(axis[i] * distance for axis, distance in zip(axes, coordinates))
+                     for i, offset in enumerate(origin))
+    if not all(math.isfinite(value) for value in position):
+        reject('td_geometry_coordinate_range')
+    return position
+
+
+def boundary_mesh(payload, length_unit, *, face_limit=Limits().records):
+    """Return SI vertices and outward quads using stored literal partitions."""
+    coordinates, origin, axes = primitive_grid(payload, length_unit)
+    solid = isinstance(payload, BrickPayload)
     counts = tuple(len(axis) - 1 for axis in coordinates)
     if solid:
         face_count = 2 * sum(counts[i] * counts[(i + 1) % 3] for i in range(3))
@@ -77,18 +94,12 @@ def boundary_mesh(payload, length_unit, *, face_limit=Limits().records):
     if face_count > face_limit:
         reject('td_geometry_mesh_limit')
 
-    transform = attributes['mesh_controls'] if solid else fields['mesh_controls']
-    origin, axes = _frame(fields['origin'], fields['axes'], transform, scale)
     vertices, faces, lookup = [], [], {}
 
     def vertex(index):
         if index not in lookup:
-            position = tuple(origin[i] + sum(axis[i] * cuts[j] for axis, cuts, j in zip(axes, coordinates, index))
-                             for i in range(3))
-            if not all(math.isfinite(value) for value in position):
-                reject('td_geometry_coordinate_range')
             lookup[index] = len(vertices)
-            vertices.append(position)
+            vertices.append(world_point(origin, axes, tuple(cuts[j] for cuts, j in zip(coordinates, index))))
         return lookup[index]
 
     for fixed in (range(3) if solid else (2,)):
@@ -109,8 +120,8 @@ def boundary_mesh(payload, length_unit, *, face_limit=Limits().records):
     return vertices, faces
 
 
-def render_geometry(staged, length_unit, handles=()):
-    """Build a bounded OBJ with drawing handles and no thermal assignments."""
+def selected_geometry(staged, handles):
+    """Resolve an explicit or complete primitive selection against the DWG."""
     from .independent_td import DwgPreview
     from .td_decode import decode_drawing
 
@@ -127,10 +138,15 @@ def render_geometry(staged, length_unit, handles=()):
         selected = {row['handle'] for row in staged.snapshot.native['objects'] if row['type'] in geometry_classes}
     if not selected or not selected <= geometry.keys():
         reject('td_geometry_selection')
+    return [(handle, geometry[handle]) for handle in sorted(selected)]
+
+
+def render_geometry(staged, length_unit, handles=()):
+    """Build a bounded OBJ with drawing handles and no thermal assignments."""
     lines = ['# FCST TD geometry-only export. Coordinates in metres.']
     vertices = faces = 0
-    for handle in sorted(selected):
-        payload = geometry[handle]
+    geometry = selected_geometry(staged, handles)
+    for handle, payload in geometry:
         points, quads = boundary_mesh(payload, length_unit, face_limit=Limits().records - faces)
         kind = 'brick' if isinstance(payload, BrickPayload) else 'rectangle'
         lines.append(f'o td_{kind}_{handle}')
@@ -140,5 +156,5 @@ def render_geometry(staged, length_unit, handles=()):
         faces += len(quads)
     staged.original.check_current()
     raw = ('\n'.join(lines) + '\n').encode('ascii')
-    return raw, {'objects': len(selected), 'vertices': vertices, 'quads': faces, 'length_unit': 'm',
+    return raw, {'objects': len(geometry), 'vertices': vertices, 'quads': faces, 'length_unit': 'm',
                  'scope': 'geometry-only', 'vendor_runtime_required': False, 'qualified': False}

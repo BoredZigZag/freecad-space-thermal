@@ -68,3 +68,44 @@ def brick_boundary_fields():
     fields['attributes']['parameter_expressions'] = tuple(expression() for _ in range(3))
     fields['attributes']['mesh_controls'].update(values=(0, 0, 0, 0, 0, 0))
     return fields
+
+
+def spatial_fields():
+    rectangle, brick = rectangle_boundary_fields(), brick_boundary_fields()
+    surface = rectangle['attributes']
+    surface.update(primary_selector=1, property_names=('OWNED sheet', 'Default'),
+                   property_scalars=(2, 19), property_label='Default', property_value=0,
+                   selectors_a=(0,) * 6, selectors_b=(0, 0), selectors_f=(0,) * 9, selectors_i=(0, 0),
+                   values_g=(1,) * 4, name_lists=((), ()), name_maps=((), ()))
+    surface['expressions_a'][0]['text'] = ''
+    brick['attributes'].update(selector_a=0, selector_b=1, selector_c=0, selector_d=0,
+                               scalars_a=(1,) * 4, names_a=('OWNED submodel', 'owned solid', 'OWNED optical'),
+                               advection={'selectors': (0, 0, 0), 'values': (0, 0, 0),
+                                          'expressions': tuple(expression() for _ in range(3))})
+    return rectangle, brick
+
+
+def spatial_properties():
+    from fcst_exchange.td_property_laws import write_laws
+
+    materials = [
+        {'name': 'OWNED SHEET', 'scalars': {'CONDUCT': 4, 'DENSITY': 20, 'SPECHEAT': 30},
+         'aggregate': {'scalars': {'WEIGHTTYPE': 1},
+                       'components': [{'material': 'OWNED inactive', 'scalars': {'WEIGHT': 0}}]}},
+        {'name': 'OWNED solid', 'scalars': {'CONDUCT': 7, 'DENSITY': 10, 'SPECHEAT': 50, 'EFFECTIVEEMISS': .4}},
+    ]
+    return write_laws({'profile': 'td-property-laws/1', 'kind': 'tdp',
+                       'entries': [{**entry, 'tables': {}, 'vectors': {}} for entry in materials]})
+
+
+def spatial_preview(root, fields=None, properties=None):
+    from fcst_exchange.independent_td import DwgPreview
+    from fcst_exchange.source_tree import capture_project
+    from fcst_exchange.td_geometry import rectangle_payload, brick_payload
+    from td_fixture import drawing
+
+    rectangle, brick = fields or spatial_fields()
+    (root / 'fixture.dwg').write_bytes(b'AC1032-owned')
+    (root / 'fixture.tdp').write_bytes(spatial_properties() if properties is None else properties)
+    return DwgPreview(capture_project(root, 'fixture.dwg'),
+                      drawing([rectangle_payload(rectangle), brick_payload(brick)]))

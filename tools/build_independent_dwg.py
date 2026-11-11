@@ -311,7 +311,7 @@ raise SystemExit(main())
     # Complete owned surface/solid streams are exercised in a real new container
     # and edited through the vendor-denied CLI, not just a Python envelope.
     sys.path.insert(0,str(ROOT/'tests'))
-    from td_geometry_fixture import rectangle_fields,brick_fields,rectangle_boundary_fields,brick_boundary_fields
+    from td_geometry_fixture import rectangle_fields,brick_fields,spatial_fields,spatial_properties
     from fcst_exchange.td_geometry import rectangle_payload,brick_payload
     rectangle=rectangle_fields();rectangle['attributes']['references_a']=((1,),(0,))
     brick=brick_fields();brick['attributes']['references_a']=((1,),(0,))
@@ -343,10 +343,13 @@ raise SystemExit(main())
         geometry_equal=geometry_equal and after_geometry[handle].fields==expected
     geometry_equal=geometry_equal and (geometry_source/'network.dwg').read_bytes()==geometry_raw
 
-    boundary_records=[rectangle_payload(rectangle_boundary_fields()),brick_payload(brick_boundary_fields())]
+    spatial_rectangle,spatial_brick=spatial_fields()
+    boundary_records=[rectangle_payload(spatial_rectangle),brick_payload(spatial_brick)]
     boundary_created,_=runtime.run('create-network',network_packet(boundary_records),attempt/'boundary-create')
     boundary_source=attempt/'boundary-source';boundary_source.mkdir();boundary_raw=boundary_created['derived.dwg']
     (boundary_source/'network.dwg').write_bytes(boundary_raw)
+    spatial_tdp=spatial_properties()
+    (boundary_source/'fixture.tdp').write_bytes(spatial_tdp)
     boundary_staged=adapter.preview(boundary_source,'network.dwg',attempt/'boundary-preview')
     boundary_handles=verify_network(boundary_staged.snapshot,boundary_records)
     def boundary_export(source,label):
@@ -376,6 +379,17 @@ raise SystemExit(main())
     boundary_edited=attempt/'boundary-edited'
     boundary_receipt=adapter.export_source(boundary_staged,boundary_edited,boundary_edits,work=attempt/'boundary-edit')
     boundary_after=boundary_summary(boundary_export(boundary_edited,'boundary-after'))
+    from fcst_app.discretization import read_input
+    from fcst_contracts import loads
+    spatial_output=attempt/'spatial.json'
+    if not invoke(['td-prepare-spatial',boundary_edited,'network.dwg',spatial_output,'--backend',receipt_path,
+                   '--work',attempt/'spatial-cli','--properties','fixture.tdp','--length-unit','mm',
+                   '--temperature','300','--temperature-min','250','--temperature-max','450']):
+        raise ValueError('backend_spatial_cli_failed')
+    spatial=read_input(loads(spatial_output.read_bytes()))
+    materials={e['id']:e['label'] for e in spatial['model']['entities'] if e['kind']=='material'}
+    assigned=[(e['topology'],materials[e['material_id']]) for e in spatial['model']['entities'] if e['kind']=='element']
+    storage=sum(e['capacity']['value'] for e in spatial['model']['entities'] if e['kind']=='node')
     checks={'owned-fixture-read':first.report['objects']>0 and first.report['read_warning_bits']==0,
             'fresh-native-reopen':verdict['structural_roundtrip_verified'],
             'class-identity-and-version-preservation':first.native['classes']==second.native['classes'],
@@ -411,6 +425,11 @@ raise SystemExit(main())
                        boundary_before==[(9,4,((0,4),(25,25),(37,43))),(26,24,((20,24),(30,36),(40,48)))]
                        and boundary_after==[(9,4,((-4,4),(25,25),(37,43))),(26,24,((20,24),(30,36),(40,50)))]
                        and boundary_receipt['edited_roundtrip_verified']
+                       and (boundary_source/'network.dwg').read_bytes()==boundary_raw,
+                   'dwg-spatial-material-mesh-reopen':
+                       assigned==[('quadrilateral','OWNED SHEET')]*4+[('hexahedron','OWNED solid')]*8
+                       and len(spatial['spatial']['points'])==36 and abs(storage-0.0001776)<1e-12
+                       and (boundary_source/'fixture.tdp').read_bytes()==(boundary_edited/'fixture.tdp').read_bytes()==spatial_tdp
                        and (boundary_source/'network.dwg').read_bytes()==boundary_raw})
     records=[{'id':key,'status':'passed' if value else 'failed'} for key,value in checks.items()]
     report={'schema_version':1,'candidate':revision(),'profile':profile['runtime'],

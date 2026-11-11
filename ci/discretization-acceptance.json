@@ -29,7 +29,8 @@
     "offline-native",
     "temperature-tensor-law",
     "spatial-transient-heating",
-    "mixed-material-storage"
+    "mixed-material-storage",
+    "td-material-mesh"
   ],
   "criteria": {
     "patch_absolute": 1e-09,

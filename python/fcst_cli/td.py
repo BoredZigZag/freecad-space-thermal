@@ -31,15 +31,20 @@ def parsers(commands):
     drawing_input.add_argument('--volume-unit', choices=tuple(VOLUME_UNITS), required=True)
     for field in ('temperature', 'capacity', 'conductance', 'power', 'time'):
         drawing_input.add_argument('--' + field + '-unit', required=True)
-    geometry = commands.add_parser('td-export-geometry')
-    geometry.add_argument('root')
-    geometry.add_argument('entry', help='DWG path relative to root')
-    geometry.add_argument('output', type=Path, help='New Wavefront OBJ outside the source tree')
-    geometry.add_argument('--backend', required=True)
-    geometry.add_argument('--work', required=True)
     from fcst_exchange.td_geometry_mesh import LENGTH_UNITS
-    geometry.add_argument('--length-unit', choices=tuple(LENGTH_UNITS), required=True)
-    geometry.add_argument('--handle', action='append', default=[], help='Optional decimal DWG handle')
+    for name, output in (('td-export-geometry', 'Wavefront OBJ'), ('td-prepare-spatial', 'thermal input JSON')):
+        geometry = commands.add_parser(name)
+        geometry.add_argument('root')
+        geometry.add_argument('entry', help='DWG path relative to root')
+        geometry.add_argument('output', type=Path, help=f'New {output} outside the source tree')
+        geometry.add_argument('--backend', required=True)
+        geometry.add_argument('--work', required=True)
+        geometry.add_argument('--length-unit', choices=tuple(LENGTH_UNITS), required=True)
+        geometry.add_argument('--handle', action='append', default=[], help='Optional decimal DWG handle')
+    geometry.add_argument('--properties', required=True, help='TDP companion path relative to root')
+    geometry.add_argument('--temperature', type=float, required=True, help='Initial temperature in kelvin')
+    geometry.add_argument('--temperature-min', type=float, required=True, help='Material validity minimum in kelvin')
+    geometry.add_argument('--temperature-max', type=float, required=True, help='Material validity maximum in kelvin')
     for command in ('td-read-property-laws','td-write-property-laws'):
         laws=commands.add_parser(command);laws.add_argument('root');laws.add_argument('entry');laws.add_argument('destination')
         if command=='td-read-property-laws':laws.add_argument('--kind',required=True,choices=['tdp','rco'])
@@ -211,18 +216,29 @@ def execute(args):
             from fcst_app.persistence import recover_package
             from fcst_exchange.source_package import export_td_package
             return export_td_package(recover_package(args.project),runtime,args.destination,args.work)
-        if args.command=='td-export-geometry':
-            from fcst_exchange.core import reject
+        if args.command in {'td-export-geometry', 'td-prepare-spatial'}:
+            from fcst_exchange.core import Limits, reject
             from fcst_exchange.independent_td import source_edit_handle
-            from fcst_exchange.td_geometry_mesh import render_geometry
 
             if args.output.resolve().is_relative_to(Path(args.root).resolve()):
                 reject('td_geometry_output_overlap')
             handles = [source_edit_handle(value) for value in args.handle]
             staged = IndependentTdAdapter(runtime).preview(args.root, args.entry, args.work)
-            raw, report = render_geometry(staged, args.length_unit, handles)
+            if args.command == 'td-export-geometry':
+                from fcst_exchange.td_geometry_mesh import render_geometry
+                raw, report = render_geometry(staged, args.length_unit, handles)
+                status = 'exported'
+            else:
+                from fcst_app.persistence import encode
+                from fcst_exchange.td_spatial import prepare_spatial
+                result, report = prepare_spatial(staged, args.properties, args.length_unit, handles=handles,
+                    temperature=args.temperature, temperature_range=(args.temperature_min, args.temperature_max))
+                raw = encode(result)
+                if len(raw) > Limits().file_bytes:
+                    reject('td_spatial_input_limit')
+                status = 'prepared'
             _write_new_output(args.output, raw)
-            return {'operation': args.command, 'status': 'exported', **report}
+            return {'operation': args.command, 'status': status, **report}
         unit_values=[getattr(args,field+'_unit') for field in ('temperature','capacity','conductance','power','time')]
         if any(unit_values) and not all(unit_values):
             from fcst_exchange.core import reject
