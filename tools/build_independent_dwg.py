@@ -381,6 +381,14 @@ raise SystemExit(main())
     boundary_after=boundary_summary(boundary_export(boundary_edited,'boundary-after'))
     from fcst_app.discretization import read_input
     from fcst_contracts import loads
+    project_output=attempt/'project-inventory.json'
+    if not invoke(['td-inspect-project',boundary_edited,'network.dwg',project_output,
+                   '--backend',receipt_path,'--work',attempt/'project-inventory-cli']):
+        raise ValueError('backend_project_inventory_cli_failed')
+    project=loads(project_output.read_bytes())
+    project_bytes=project_output.read_bytes()
+    project_existing_rejected=not invoke(['td-inspect-project',boundary_edited,'network.dwg',project_output,
+                                          '--backend',receipt_path,'--work',attempt/'project-inventory-existing'])
     spatial_output=attempt/'spatial.json'
     if not invoke(['td-prepare-spatial',boundary_edited,'network.dwg',spatial_output,'--backend',receipt_path,
                    '--work',attempt/'spatial-cli','--properties','fixture.tdp','--length-unit','mm',
@@ -435,6 +443,15 @@ raise SystemExit(main())
             'orthotropic-property-library-cli-roundtrip':ortho_cli,
             'orthotropic-original-source-cli-edit':ortho_source}
     checks.update({'source-free-complete-surface-solid-roundtrip':len(geometry_handles)==3,
+                   'td-project-inventory-cli':project['profile']=='td-independent-project-inventory/1'
+                       and bool(project['dictionary_graph']['root'])
+                       and not project['dictionary_graph']['diagnostics']
+                       and sorted(r['class'] for r in project['thermal_objects'] if r['status']=='payload-decoded')
+                           ==['RcFdBrick','RcRectangle']
+                       and {r['role'] for r in project['companion_inventory']['files']}
+                           =={'entry-drawing','thermophysical-library'}
+                       and not project['full_model_dependency_closure'] and not project['native_ready']
+                       and project_existing_rejected and project_output.read_bytes()==project_bytes,
                    'surface-solid-compressed-parameter-edits':geometry_cli and geometry_equal,
                    'structural-geometry-keeps-native-semantics-held':not geometry_staged.conversion.report['native_ready']
                        and not geometry_reopened.conversion.report['native_ready'],

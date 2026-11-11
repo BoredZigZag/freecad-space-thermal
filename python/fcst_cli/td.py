@@ -45,6 +45,12 @@ def parsers(commands):
     geometry.add_argument('--temperature', type=float, required=True, help='Initial temperature in kelvin')
     geometry.add_argument('--temperature-min', type=float, required=True, help='Material validity minimum in kelvin')
     geometry.add_argument('--temperature-max', type=float, required=True, help='Material validity maximum in kelvin')
+    inventory = commands.add_parser('td-inspect-project')
+    inventory.add_argument('root')
+    inventory.add_argument('entry', help='DWG path relative to root')
+    inventory.add_argument('output', type=Path, help='New local project inventory outside the source tree')
+    inventory.add_argument('--backend', required=True)
+    inventory.add_argument('--work', required=True)
     for name in ('td-prepare-transient', 'sinda-prepare-transient'):
         transient = commands.add_parser(name)
         transient.add_argument('root')
@@ -250,6 +256,26 @@ def execute(args):
         from fcst_exchange.dwg_native import NativeRuntime
         from fcst_exchange.independent_td import IndependentTdAdapter
         runtime=NativeRuntime.from_receipt(args.backend)
+        if args.command == 'td-inspect-project':
+            from fcst_app.persistence import encode
+            from fcst_exchange.core import Limits, reject
+            from fcst_exchange.td_project_inventory import inspect_project
+
+            if args.output.resolve().is_relative_to(Path(args.root).resolve()):
+                reject('td_project_output_overlap')
+            if args.output.exists() or args.output.is_symlink():
+                reject('td_output_exists')
+            staged = IndependentTdAdapter(runtime).preview(args.root, args.entry, args.work)
+            inventory = inspect_project(staged)
+            raw = encode(inventory)
+            if len(raw) > Limits().total_bytes:
+                reject('td_project_inventory_limit')
+            _write_new_output(args.output, raw)
+            return {'operation': args.command, 'status': 'inspected',
+                    'configuration_records': len(inventory['configuration']),
+                    'dictionary_entries': len(inventory['dictionary_graph']['entries']),
+                    'status_counts': inventory['status_counts'],
+                    'vendor_runtime_required': False, 'native_ready': False, 'qualified': False}
         if args.command=='td-write-model':
             from fcst_app.persistence import recover_package
             from fcst_exchange.td_writer import export_model

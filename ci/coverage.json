@@ -400,7 +400,11 @@
     "test_td_sinda_time.TdSindaTimeTests.test_sinda_transient_rejects_missing_tables_mismatched_storage_and_source_logic",
     "test_td_sinda_time.TdSindaTimeTests.test_sinda_tvs_and_per_resolve_owned_arrays_and_preserve_original",
     "test_td_sinda_time.TdSindaTimeTests.test_td_time_table_uses_multiplier_and_period_in_declared_source_units",
-    "test_td_sinda_time.TdSindaTimeTests.test_td_transient_rejects_unordered_time_and_unknown_steady_mode"
+    "test_td_sinda_time.TdSindaTimeTests.test_td_transient_rejects_unordered_time_and_unknown_steady_mode",
+    "test_td_project_inventory.TdProjectInventoryTests.test_declared_companions_stay_inside_the_captured_tree",
+    "test_td_project_inventory.TdProjectInventoryTests.test_future_payload_and_damaged_dictionary_links_fail_closed",
+    "test_td_project_inventory.TdProjectInventoryTests.test_project_inventory_binds_radiation_orbit_and_active_companions",
+    "test_td_project_inventory.TdProjectInventoryTests.test_symbol_manager_requires_exact_payload_and_preview_reuses_thermal_decode"
   ],
   "full_prerequisites": [
     "freecad-exact-build-smoke",
@@ -757,7 +761,11 @@
     "test_td_sinda_time.TdSindaTimeTests.test_sinda_transient_rejects_missing_tables_mismatched_storage_and_source_logic",
     "test_td_sinda_time.TdSindaTimeTests.test_sinda_tvs_and_per_resolve_owned_arrays_and_preserve_original",
     "test_td_sinda_time.TdSindaTimeTests.test_td_time_table_uses_multiplier_and_period_in_declared_source_units",
-    "test_td_sinda_time.TdSindaTimeTests.test_td_transient_rejects_unordered_time_and_unknown_steady_mode"
+    "test_td_sinda_time.TdSindaTimeTests.test_td_transient_rejects_unordered_time_and_unknown_steady_mode",
+    "test_td_project_inventory.TdProjectInventoryTests.test_declared_companions_stay_inside_the_captured_tree",
+    "test_td_project_inventory.TdProjectInventoryTests.test_future_payload_and_damaged_dictionary_links_fail_closed",
+    "test_td_project_inventory.TdProjectInventoryTests.test_project_inventory_binds_radiation_orbit_and_active_companions",
+    "test_td_project_inventory.TdProjectInventoryTests.test_symbol_manager_requires_exact_payload_and_preview_reuses_thermal_decode"
   ],
   "esatan_cases": [
     "esatan-report-schema",

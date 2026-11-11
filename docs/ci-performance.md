@@ -794,3 +794,21 @@ The accumulated results matched in each pair. These timings cover lookup
 and interpolation. The local Release source-to-worker oracle with ten
 invocations took 0.944 s in one smoke run, including process startup.
 The hosted timing baseline remains tied to the passing run.
+
+## WP-08 TD project inventory
+
+Passing Foundation run 43118283732 put the 409.094 s Debug driver on the
+critical path after unit tests. Its largest overlapping stages were radiation
+at 211.953 s and reference comparison at 173.438 s. The independent DWG job
+ran in parallel and completed in 218 s. The new CLI check shares the DWG
+job's existing edited geometry and property library, with the malformed
+project-record cases in the existing unit and TD drivers.
+
+The preview previously decoded the same drawing for the report, conversion
+and property catalog. The candidate shares that inventory across all three.
+Five alternating warm pairs with explicit units used the same captured
+drawing and Python runtime. The previous preview took 3.613 s
+(3.475–3.820) and the shared decode took 2.462 s (2.231–2.536). The preview
+reports matched in every pair. These timings cover preview report generation
+from the in-memory DWG snapshot. They exclude backend startup, DWG decoding
+into the snapshot and CI job setup. The hosted baseline remains in place.

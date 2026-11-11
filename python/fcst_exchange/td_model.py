@@ -84,11 +84,12 @@ def convert_network(snapshot,units,source_revision,*,closure_holds=()):
     return _convert_network(snapshot,units,source_revision,closure_holds)
 
 
-def _convert_network(snapshot,units,source_revision,closure_holds=(),*,material_nodes=None,time_loads=None):
+def _convert_network(snapshot,units,source_revision,closure_holds=(),*,material_nodes=None,time_loads=None,inventory=None):
     diagnostics=[{'code':code} for code in closure_holds];identities=[];entities=[];entries=[]
     if not isinstance(units,SindaUnits):
         return Conversion(None,(),tuple(diagnostics+[{'code':'td_native_explicit_units_required'}]))
-    inventory=decode_drawing(snapshot);payloads=sorted((p for p in inventory.payloads if p.report['payload_decoded']),key=lambda p:p.record['handle'])
+    inventory=inventory if inventory is not None else decode_drawing(snapshot)
+    payloads=sorted((p for p in inventory.payloads if p.report['payload_decoded']),key=lambda p:p.record['handle'])
     decoded={p.record['handle'] for p in payloads};all_handles={r['handle'] for r in snapshot.native['objects']}
     classes={c['number']:c for c in snapshot.native['classes']}
     standards={_one(row,'handle')[2]:row for row in _one(snapshot.standard,'OBJECTS')}

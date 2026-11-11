@@ -470,6 +470,12 @@ checkpoint and energy checks in `tools/check_thermal.py` in Debug and Release.
 Scan exact bridge and engine sources, pins, bounded verdicts, scalar timings,
 staged bytes, outgoing history and approved identities. Original drawings and
 decks, decoded tables, prepared requests and worker results remain local.
+The TD project inventory adds synthetic dictionary, case/radiation, orbit and
+file-reference tests to `tools/check_td.py` and a fresh `td-inspect-project`
+invocation to `tools/build_independent_dwg.py`. TST-021 scans exact staged
+sources, the owned fixture, pins, outgoing history, approved identity, bounded
+verdicts, scalar timings and final GitHub prose. Captured drawings, companion
+files, detailed project inventories and raw CLI diagnostics stay local.
 
 FEM reuse work applies TST-021 to exact outgoing decision/assessment text, upstream attribution/license manifests, synthetic fixtures, bounded host/mesh/comparison reports and final issue/PR prose. Run `python -S tools/check_security.py` and `python tools/publication_preflight.py --staged --revision HEAD` before commit/push; scan each final generated report or post with `--file` before upload. Generated FreeCAD documents, raw solver decks, screenshots, mesh/result containers and logs stay local unless separately sanitized and cleared. Use synthetic inputs for public tests, preserve authorized originals unchanged, and do not weaken privacy policy to admit upstream examples or generated diagnostics.
 
@@ -671,6 +677,12 @@ worker. The supported transient path covers linear interpolation, clamping
 and zero-phase cycles with explicit reset handling. Temperature-dependent
 sources, nonzero phase, procedural logic, source-run settings and other
 unmapped modes remain held.
+`td-inspect-project` inventories the DWG named dictionary, versioned project
+records, captured companions and declared property-library overrides. The
+bounded case reader exposes steady/transient selectors and radiation jobs,
+including named links to decoded orbit records. Active logic and remaining
+case settings, include and restart dependency closure, orbit/environment
+physics bindings and full-drawing native reconstruction remain open.
 Unrepresented modes and additional source versions need verified format evidence,
 while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.
 

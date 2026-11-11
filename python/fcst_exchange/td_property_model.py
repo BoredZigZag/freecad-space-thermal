@@ -108,7 +108,7 @@ def optics_entity(entry,*,identifier=None):
             'solar_absorptivity':v['ALPHA'],'ir_emissivity':v['EMISS'],'specular_fraction':v['SOLSPEC'],'transmissivity':v['SOLTRANS']}
 
 
-def dependency_catalog(snapshot,files):
+def dependency_catalog(snapshot,files,*,inventory=None):
     """Resolve property-name references of decoded objects without guessing others."""
     from .td_decode import decode_drawing
     catalogs={};diagnostics=[];references=[]
@@ -118,7 +118,7 @@ def dependency_catalog(snapshot,files):
         try:doc=parse_properties(raw,kind)
         except ValueError:diagnostics.append({'code':'td_property_dependency_unreadable'});continue
         for entry in doc.entries:catalogs.setdefault((kind,entry.name.casefold()),[]).append((name,entry))
-    for payload in decode_drawing(snapshot).payloads:
+    for payload in (inventory if inventory is not None else decode_drawing(snapshot)).payloads:
         f=payload.fields
         active=f.get('use_material',False) or ('law_selectors' in f and f['law_selectors'][0]!=0 and bool(f['material']))
         if not active:continue

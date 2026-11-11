@@ -28,6 +28,37 @@ unimplemented. An absent or mismatched profile fails before source mutation.
 
 ## Independent DWG profiles and exports
 
+### Inspect the complete drawing and its project files
+
+```powershell
+fcst td-inspect-project source main.dwg .local/project-inventory.json --backend .local/dwg-backend/install/backend.json --work .local/project-inventory-work
+```
+
+The command captures the drawing tree and walks the DWG named-object
+dictionary, including nested entries and their resolved handles. It inventories
+the versioned TD records, retains opaque classes in the report, and lists
+captured companions by file role. Case property overrides resolve against the
+captured tree relative to the drawing. Unsafe, missing and wrong-role inputs
+stay explicit. The report carries source handles as strings to preserve their
+full width.
+
+The supported case-manager layout inventories the first v73 case through its
+steady/transient selectors, v36 radiation tasks, property overrides and the
+prefix of its source sections. Radiation tasks identify named orbit links and
+object references. The reader checks the full v35 orbit payload and the stored
+orbit-unit selectors. It also covers the v7 symbol manager, the empty v4 logic
+manager, submodel comments, analysis controls, graphics settings and empty
+viewport data. Source values and expressions remain inert.
+
+The report leaves model readiness held. Remaining work includes subsequent
+case records and the case trailer, authoritative includes and restart files,
+active manager and logic records, environment-to-physics mapping, and native
+reconstruction and solver verification for the complete drawing. Keep the
+inventory and working directory local because they can contain source names,
+paths, settings and expressions.
+
+### Preview, edit and export a drawing
+
 `python tools/build_independent_dwg.py` builds the locked separate GPL backend
 and runs the frozen unattended native checks, including the actual vendor-free CLI,
 new-model generation, compressed scalar edits and fresh-process reopen. Select
