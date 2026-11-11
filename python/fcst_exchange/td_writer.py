@@ -126,16 +126,19 @@ def conductor_payload(submodel,identifier,value,from_index,to_index,label=''):
     b.bl(1);b.bl(0);return f.result(2)
 
 
-def load_payload(value,node_index,label=''):
+def load_payload(value,node_index,label='',*,time_table=(),multiplier=1,steady_mode=0):
     f=FilerWriter();b=f.data;b.bl(17);f.text(label or 'FCST load');f.text(label);b.bd(value)
-    for _ in range(4):b.bl(0)
-    b.bl(0);b.bl(1);f.expression(16);b.bd(1);f.expression();b.bl(0);b.bd(1);f.expression()
+    if len(time_table)>10000:reject('td_filer_array_limit')
+    for selector in (0,0,0,int(bool(time_table))):b.bl(selector)
+    b.bl(len(time_table))
+    for time,power in time_table:b.bd(time);b.bd(power)
+    b.bl(1);f.expression(16);b.bd(multiplier);f.expression();b.bl(0);b.bd(1);f.expression()
     for _ in range(3):b.bl(0)
     b.bl(0);f.text('')
     for value in (0,-1,-1,-1):b.bl(value)
     b.bd(1);f.expression();b.bl(0);b.bl(0);b.bl(0);f.text('')
     for value in (0,-1,-1):b.bl(value)
-    b.bl(1);f.expression();f.connection(node_index);b.bl(0)
+    b.bl(1);f.expression();f.connection(node_index);b.bl(steady_mode)
     for dimension in (2,27,2,4,27,4,27):f.multi_expression(dimension)
     b.bl(0);return f.result(3)
 

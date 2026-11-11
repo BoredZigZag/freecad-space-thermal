@@ -427,7 +427,7 @@ and size/depth/entity budget overruns fail closed. Default limits reuse WP-07's
 Noncomment data after `END OF DATA`, ambiguous terminators inside INSERT files
 and data headers without an explicit submodel also reject native reconstruction.
 
-Active property-array consumers, runtime controls/cases, dynamic registers, unreviewed procedures,
+Other property-array consumers, runtime controls/cases, dynamic registers, unreviewed procedures,
 advanced radiation/fluid constructs and unknown syntax remain inert, with explicit
 source locations and fidelity limits. This profile does not claim complete SINDA
 language execution. Unsupported required semantics block native readiness and
@@ -437,6 +437,32 @@ The parser maps its reviewed subset into the frozen canonical model, with stable
 submodel/node/conductor/load identities and dimension/temperature checks. Per-record
 and per-operation reports use the shared fidelity schema. Static parsing cannot
 qualify source execution, editing, the native solver or an entire compatibility profile.
+
+### Prepare time-dependent point loads
+
+`fcst sinda-prepare-transient ROOT network.sin request.json --temperature-unit K --capacity-unit J/K --conductance-unit W/K --power-unit W --time-unit s --end 120`
+binds the documented `TVS node, time-array, power-array, factor` and
+`PER node, time-array, power-array, factor, phase, period` source declarations.
+The paired arrays must have real storage, equal lengths, and the same submodel.
+References can be local or submodel-qualified. Factors and periods can use the
+supported immutable registers. This profile supports one source declaration per
+node and zero phase displacement for `PER`.
+
+`fcst td-prepare-transient ROOT network.dwg request.json --backend RECEIPT --work WORK --temperature-unit K --capacity-unit J/K --conductance-unit W/K --power-unit W --time-unit s --end 120`
+reads a closed DWG point network with literal, single-node RcHeatLoad v17 time
+tables. The active time mode selects the table, the stored multiplier scales
+its power, and the final time defines its cycle period. TD steady-only
+selection stays out of the transient request.
+
+Both commands accept `--samples` and write a bounded JSON request outside the
+source tree. The run starts at zero and `--end` is in seconds. Pass the request
+to `fcst-worker --thermal-transient` on standard input. The worker interpolates
+linearly, clamps nonperiodic loads outside their tables, and clips steps at
+table knots. At cycle resets it integrates the left limit and reports the
+right-hand power at the reset time. Dropping the time tables prevents execution.
+Source procedures, temperature-dependent sources and unsupported control or
+geometry modes remain held. This covers native power-law execution for the
+declared subset. SINDA timestep parity and full TD/SINDA qualification remain open.
 
 ## Source export and portable packages
 

@@ -220,6 +220,67 @@ def check(worker, native_tests, assembly_tests, steady_tests, transient_tests):
         assert abs(sample['temperature_K'][0] - (300 + expected_delta)) < 1e-5
         assert abs(sample['storage_change_J'][0] - 10) < 1e-7
         assert abs(sample['run_energy']['defect_J']) < 1e-7
+    def td_sinda_time_power():
+        import tempfile
+        sys.path.insert(0,str(ROOT/'tests'))
+        from td_sinda_time_fixture import SINDA, UNITS, td_preview
+        from fcst_exchange.sinda import SindaAdapter
+        from fcst_exchange.time_loads import prepare_drawing_transient
+
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'owned.sin').write_bytes(SINDA)
+            sinda=SindaAdapter(UNITS).prepare_transient(root,'owned.sin',end=2.5,samples=6)
+            drawing_root=root/'drawing'
+            drawing_root.mkdir()
+            td=prepare_drawing_transient(td_preview(drawing_root),end=2.5,samples=6)
+        for request in (sinda,td):
+            request['transient'].update(absolute_temperature_tolerance=1e-5,
+                                        relative_temperature_tolerance=0)
+        def check_power(request, expected):
+            result=transient(request)
+            assert result['status']=='passed' and result['backend']['execution_mode']=='fcst_native', result
+            samples=result['samples']
+            assert [s['time_s'] for s in samples]==request['transient']['output_times']
+            nodes=[e for e in request['thermal_input']['model']['entities'] if e['kind']=='node']
+            for node,(watts,joules) in zip(nodes,expected,strict=True):
+                i=result['node_ids'].index(node['id'])
+                assert all(abs(s['load_in_W'][i]-p)<1e-10 for s,p in zip(samples,watts,strict=True))
+                final=samples[-1]
+                assert abs(final['run_energy']['external_energy_J'][i]-joules)<.025
+                assert abs(final['temperature_K'][i]-(300+joules/node['capacity']['value']))<.01
+            assert abs(samples[-1]['run_energy']['defect_J'])<1e-7
+            return result
+        check_power(sinda,[([0,2,4,2,0,0],4),([2,6,2,6,2,6],11)])
+        result=check_power(td,[([2,6,2,6,2,6],11)])
+        # Both source periods differ from the table endpoint. The short one
+        # cuts the final segment and the long one holds its final value.
+        for period,end,times,watts,joules in (
+            (.75,1.5,[0,.25,.5,.75,1,1.25,1.5],[2,4,6,2,4,6,2],6.75),
+            (1.5,2.5,[0,.5,1,1.5,2,2.5],[2,6,4,2,6,4],11),
+        ):
+            changed=deepcopy(td)
+            changed['time_loads'][0]['period_s']=period
+            changed['transient'].update(end=end,output_times=times)
+            check_power(changed,[(watts,joules)])
+        hidden=deepcopy(sinda)
+        hidden['transient']['output_times']=[0,2.5]
+        check_power(hidden,[([0,0],4),([2,6],11)])
+        incomplete=deepcopy(td)
+        del incomplete['time_loads']
+        assert transient(incomplete)['code']=='callback_missing'
+        bad=deepcopy(td)
+        bad['time_loads'][0]['points'][1][0]=0
+        assert transient(bad)['code']=='time_load_axis'
+        repeated=deepcopy(td)
+        repeated['time_loads']*=2
+        assert transient(repeated)['code']=='time_load_reference'
+        continuation=deepcopy(td)
+        continuation['transient'].update(end=3,output_times=[0,2.5,3])
+        continuation['checkpoint']=result['checkpoint']
+        assert transient(continuation)['status']=='passed'
+        continuation['time_loads'][0]['points'][0][1]+=1
+        assert transient(continuation)['code']=='checkpoint'
     def transient_checkpoint():
         value=transient_input(end=2);value['transient']['output_times']=[0,1,2]
         full=transient(value);assert full['status']=='passed'
@@ -353,7 +414,7 @@ def check(worker, native_tests, assembly_tests, steady_tests, transient_tests):
            'fluid-heat-pipe-startup-dryout':lambda:check_heat_pipe_transient(worker,build_info['source_revision'],env),
            'steady-cli-linear':steady_linear,'steady-cli-singular':steady_singular,'steady-cli-rejections':steady_rejections,
            'transient-cli-analytic':transient_analytic,'transient-cli-checkpoint':transient_checkpoint,
-           'td-material-storage':td_material_storage,
+           'td-material-storage':td_material_storage,'td-sinda-time-power':td_sinda_time_power,
            'transient-cli-events':transient_events,'transient-cli-failures':transient_failures,'transient-cli-capabilities':transient_capabilities,
            'source-sinda-network':lambda:source_comparison('sinda'),'source-esatan-network':lambda:source_comparison('esatan'),
            'source-oracle-rejections':source_oracle_rejections,

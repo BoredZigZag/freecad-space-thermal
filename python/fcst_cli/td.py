@@ -45,6 +45,18 @@ def parsers(commands):
     geometry.add_argument('--temperature', type=float, required=True, help='Initial temperature in kelvin')
     geometry.add_argument('--temperature-min', type=float, required=True, help='Material validity minimum in kelvin')
     geometry.add_argument('--temperature-max', type=float, required=True, help='Material validity maximum in kelvin')
+    for name in ('td-prepare-transient', 'sinda-prepare-transient'):
+        transient = commands.add_parser(name)
+        transient.add_argument('root')
+        transient.add_argument('entry', help='Source path relative to root')
+        transient.add_argument('output', type=Path, help='New native worker request outside the source tree')
+        transient.add_argument('--end', type=float, required=True, help='Run horizon in seconds from zero')
+        transient.add_argument('--samples', type=int, default=11)
+        if name.startswith('td-'):
+            transient.add_argument('--backend', required=True)
+            transient.add_argument('--work', required=True)
+        for field in ('temperature', 'capacity', 'conductance', 'power', 'time'):
+            transient.add_argument('--' + field + '-unit', required=True)
     for command in ('td-read-property-laws','td-write-property-laws'):
         laws=commands.add_parser(command);laws.add_argument('root');laws.add_argument('entry');laws.add_argument('destination')
         if command=='td-read-property-laws':laws.add_argument('--kind',required=True,choices=['tdp','rco'])
@@ -123,7 +135,37 @@ def _write_material_input(operation, result, output):
             'qualified': False}
 
 
+def _write_transient_request(args, request):
+    from fcst_app.persistence import encode
+    from fcst_exchange.core import Limits, reject
+
+    raw = encode(request)
+    if len(raw) > Limits().file_bytes:
+        reject('time_load_input_limit')
+    _write_new_output(args.output, raw)
+    return {'operation': args.command, 'status': 'prepared', 'time_loads': len(request['time_loads']),
+            'vendor_runtime_required': False, 'qualified': False}
+
+
 def execute(args):
+    if args.command in {'td-prepare-transient', 'sinda-prepare-transient'}:
+        from fcst_exchange.core import reject
+
+        if args.output.resolve().is_relative_to(Path(args.root).resolve()):
+            reject('time_load_output_overlap')
+        units = SindaUnits(*(getattr(args, name + '_unit')
+                             for name in ('temperature', 'capacity', 'conductance', 'power', 'time')))
+        if args.command == 'td-prepare-transient':
+            from fcst_exchange.dwg_native import NativeRuntime
+            from fcst_exchange.independent_td import IndependentTdAdapter
+            from fcst_exchange.time_loads import prepare_drawing_transient
+
+            adapter = IndependentTdAdapter(NativeRuntime.from_receipt(args.backend), units)
+            staged = adapter.preview(args.root, args.entry, args.work)
+            request = prepare_drawing_transient(staged, end=args.end, samples=args.samples)
+        else:
+            request = SindaAdapter(units).prepare_transient(args.root, args.entry, end=args.end, samples=args.samples)
+        return _write_transient_request(args, request)
     if args.command=='td-probe':
         from fcst_exchange.opentd import discover_runtime
         return discover_runtime().probe()

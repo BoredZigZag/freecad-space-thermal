@@ -463,6 +463,13 @@ rejection cases in `tools/check_td.py`, and native flux and capacity checks in
 bridge, fixture, pins, bounded DWG/TD/spatial verdicts, scalar timings, outgoing
 history, approved identities and final GitHub prose. Original DWG/TDP bytes,
 derived meshes, source identifiers and raw results remain local.
+Dynamic power acceptance adds owned RcHeatLoad v17, SINDA TVS and zero-phase
+PER fixtures. Run `tools/check_td.py`, vendor-free fresh CLI preparation in
+`tools/build_independent_dwg.py`, and the native interpolation, cycle reset,
+checkpoint and energy checks in `tools/check_thermal.py` in Debug and Release.
+Scan exact bridge and engine sources, pins, bounded verdicts, scalar timings,
+staged bytes, outgoing history and approved identities. Original drawings and
+decks, decoded tables, prepared requests and worker results remain local.
 
 FEM reuse work applies TST-021 to exact outgoing decision/assessment text, upstream attribution/license manifests, synthetic fixtures, bounded host/mesh/comparison reports and final issue/PR prose. Run `python -S tools/check_security.py` and `python tools/publication_preflight.py --staged --revision HEAD` before commit/push; scan each final generated report or post with `--file` before upload. Generated FreeCAD documents, raw solver decks, screenshots, mesh/result containers and logs stay local unless separately sanitized and cleared. Use synthetic inputs for public tests, preserve authorized originals unchanged, and do not weaken privacy policy to admit upstream examples or generated diagnostics.
 
@@ -658,6 +665,12 @@ material-based storage against an analytic transient oracle.
 `td-prepare-drawing` derives those bindings from closed RcNode v22 networks and
 a single TDP companion, using the verified mass/volume selector and explicit
 units. Dynamic modes and other companion layouts remain open.
+`td-prepare-transient` and `sinda-prepare-transient` bind reviewed literal
+single-node time-power tables and SINDA TVS/PER declarations to the owned
+worker. The supported transient path covers linear interpolation, clamping
+and zero-phase cycles with explicit reset handling. Temperature-dependent
+sources, nonzero phase, procedural logic, source-run settings and other
+unmapped modes remain held.
 Unrepresented modes and additional source versions need verified format evidence,
 while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.
 

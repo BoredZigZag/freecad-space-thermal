@@ -21,6 +21,10 @@ def input_hashes(root):
              'python/fcst_cli/__main__.py',
              'python/fcst_exchange/td_material_input.py', 'python/fcst_exchange/td_property_laws.py',
              'python/fcst_exchange/td_properties.py',
+             'python/fcst_exchange/sinda.py', 'python/fcst_exchange/sinda_arrays.py',
+             'python/fcst_exchange/td_load.py', 'python/fcst_exchange/td_model.py',
+             'python/fcst_exchange/td_writer.py', 'python/fcst_exchange/time_loads.py',
+             'tests/td_fixture.py', 'tests/td_sinda_time_fixture.py',
              'python/fcst_tools/thermal.py', 'ci/thermal-acceptance.json',
              'python/fcst_tools/thermal_qualification.py','tools/compare_thermal_reference.py','ci/thermal-qualification-v1.json',
              'spec/schemas/thermal-input-v1.schema.json']

@@ -776,3 +776,21 @@ alternating warm pairs on the same 216-cell owned brick measured 202.33 ms
 identical bytes. The ranges overlap and do not establish a runtime improvement.
 The timing covers Python assembly and validation, excluding DWG inspection,
 process startup and solving. The hosted timing baseline remains in place.
+
+## WP-08 time-dependent power
+
+The latest passing Foundation handoff, run 43050724552, put the 559.141 s
+Debug driver on the critical path after unit tests. Radiation took 306.780 s
+and thermal preparation took 245.340 s, with overlapping stages. The time
+power checks run in that existing thermal stage and the independent DWG job.
+The hypothesis is that preparing the table once and reusing it across
+residual, Jacobian and energy evaluations avoids multiplying work in the
+thermal stage. The verifier retains the existing cases and solver settings.
+
+In seven alternating warm pairs, a local MSVC Release microbenchmark sampled
+the same 1,440-point owned curve 200,000 times. A linear scan took 65.41 ms
+(60.36–84.53) and the native binary lookup took 12.88 ms (12.11–14.61).
+The accumulated results matched in each pair. These timings cover lookup
+and interpolation. The local Release source-to-worker oracle with ten
+invocations took 0.944 s in one smoke run, including process startup.
+The hosted timing baseline remains tied to the passing run.

@@ -396,7 +396,11 @@
     "test_validation_boundary.ValidationBoundaryTests.test_guard_bypass_policy_activation_and_write_permissions_rejected",
     "test_td_spatial.TdSpatialTests.test_spatial_mesh_resolves_materials_capacity_and_source_identity",
     "test_td_spatial.TdSpatialTests.test_spatial_rejects_layered_dynamic_missing_and_active_material_modes",
-    "test_td_spatial.TdSpatialTests.test_spatial_selection_requires_a_unique_valid_handle_and_current_sources"
+    "test_td_spatial.TdSpatialTests.test_spatial_selection_requires_a_unique_valid_handle_and_current_sources",
+    "test_td_sinda_time.TdSindaTimeTests.test_sinda_transient_rejects_missing_tables_mismatched_storage_and_source_logic",
+    "test_td_sinda_time.TdSindaTimeTests.test_sinda_tvs_and_per_resolve_owned_arrays_and_preserve_original",
+    "test_td_sinda_time.TdSindaTimeTests.test_td_time_table_uses_multiplier_and_period_in_declared_source_units",
+    "test_td_sinda_time.TdSindaTimeTests.test_td_transient_rejects_unordered_time_and_unknown_steady_mode"
   ],
   "full_prerequisites": [
     "freecad-exact-build-smoke",
@@ -749,7 +753,11 @@
     "test_td_property_model.TdPropertyModelTests.test_source_free_property_library_roundtrips_every_quantity_label_and_id_without_processes",
     "test_td_spatial.TdSpatialTests.test_spatial_mesh_resolves_materials_capacity_and_source_identity",
     "test_td_spatial.TdSpatialTests.test_spatial_rejects_layered_dynamic_missing_and_active_material_modes",
-    "test_td_spatial.TdSpatialTests.test_spatial_selection_requires_a_unique_valid_handle_and_current_sources"
+    "test_td_spatial.TdSpatialTests.test_spatial_selection_requires_a_unique_valid_handle_and_current_sources",
+    "test_td_sinda_time.TdSindaTimeTests.test_sinda_transient_rejects_missing_tables_mismatched_storage_and_source_logic",
+    "test_td_sinda_time.TdSindaTimeTests.test_sinda_tvs_and_per_resolve_owned_arrays_and_preserve_original",
+    "test_td_sinda_time.TdSindaTimeTests.test_td_time_table_uses_multiplier_and_period_in_declared_source_units",
+    "test_td_sinda_time.TdSindaTimeTests.test_td_transient_rejects_unordered_time_and_unknown_steady_mode"
   ],
   "esatan_cases": [
     "esatan-report-schema",

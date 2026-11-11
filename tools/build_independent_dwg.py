@@ -390,6 +390,23 @@ raise SystemExit(main())
     materials={e['id']:e['label'] for e in spatial['model']['entities'] if e['kind']=='material'}
     assigned=[(e['topology'],materials[e['material_id']]) for e in spatial['model']['entities'] if e['kind']=='element']
     storage=sum(e['capacity']['value'] for e in spatial['model']['entities'] if e['kind']=='node')
+    from td_sinda_time_fixture import SINDA,td_records
+    timed_source=attempt/'time-source';timed_source.mkdir()
+    timed_created,_=runtime.run('create-network',network_packet(td_records()),attempt/'time-create')
+    timed_raw=timed_created['derived.dwg']
+    (timed_source/'network.dwg').write_bytes(timed_raw)
+    units=['--temperature-unit','K','--capacity-unit','J/K','--conductance-unit','W/K','--power-unit','W','--time-unit','s']
+    timed_request=attempt/'time-dwg.json'
+    if not invoke(['td-prepare-transient',timed_source,'network.dwg',timed_request,'--backend',receipt_path,
+                   '--work',attempt/'time-cli','--end','2.5','--samples','6',*units]):
+        raise ValueError('backend_td_time_load_cli_failed')
+    sinda_source=attempt/'time-sinda-source';sinda_source.mkdir()
+    (sinda_source/'network.sin').write_bytes(SINDA)
+    sinda_request=attempt/'time-sinda.json'
+    if not invoke(['sinda-prepare-transient',sinda_source,'network.sin',sinda_request,'--end','2.5','--samples','6',*units]):
+        raise ValueError('backend_sinda_time_load_cli_failed')
+    td_tables=loads(timed_request.read_bytes())['time_loads']
+    sinda_tables=loads(sinda_request.read_bytes())['time_loads']
     checks={'owned-fixture-read':first.report['objects']>0 and first.report['read_warning_bits']==0,
             'fresh-native-reopen':verdict['structural_roundtrip_verified'],
             'class-identity-and-version-preservation':first.native['classes']==second.native['classes'],
@@ -430,7 +447,13 @@ raise SystemExit(main())
                        assigned==[('quadrilateral','OWNED SHEET')]*4+[('hexahedron','OWNED solid')]*8
                        and len(spatial['spatial']['points'])==36 and abs(storage-0.0001776)<1e-12
                        and (boundary_source/'fixture.tdp').read_bytes()==(boundary_edited/'fixture.tdp').read_bytes()==spatial_tdp
-                       and (boundary_source/'network.dwg').read_bytes()==boundary_raw})
+                       and (boundary_source/'network.dwg').read_bytes()==boundary_raw,
+                   'td-sinda-time-load-cli':
+                       len(td_tables)==1 and td_tables[0]['period_s']==1 and td_tables[0]['points']==[[0,2],[.5,6],[1,4]]
+                       and {table.get('period_s'):table['points'] for table in sinda_tables}
+                           =={None:[[0,0],[1,4],[2,0]],1:[[0,2],[.5,6],[1,4]]}
+                       and (timed_source/'network.dwg').read_bytes()==timed_raw
+                       and (sinda_source/'network.sin').read_bytes()==SINDA})
     records=[{'id':key,'status':'passed' if value else 'failed'} for key,value in checks.items()]
     report={'schema_version':1,'candidate':revision(),'profile':profile['runtime'],
             'gate':evaluate(profile['required_cases'],records),'cases':records,
