@@ -133,7 +133,7 @@ def parse(path,raw,limits=Limits(),initial=("","MAIN")):
                     if section in {'NODE DATA','CONDUCTOR DATA','SOURCE DATA','ARRAY DATA'} and header[2] is None:code='sinda_submodel_required'
                 elif include:
                     kind="INCLUDE";value={"path":next(x for x in include.groups() if x is not None).replace('\\','/'),"section":section,"submodel":submodel}
-                elif text.upper().startswith('INSERT '):
+                elif re.match(r'INSERT(?:\s|$)', text, re.I):
                     kind="INCLUDE";code="malformed_insert"
                 elif re.fullmatch(r'END\s+OF\s+DATA',text,re.I):kind="END";value={};ended=True
                 else:

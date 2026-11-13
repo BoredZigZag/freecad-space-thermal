@@ -103,13 +103,18 @@ def orbit_filer(version=35):
     return f
 
 
-def case_filer(orbit_name='TEST ORBIT'):
+def case_filer(orbit_name='TEST ORBIT', *, run_directory=0, constraint_count=0, solver_version=6):
     f = FilerWriter()
     b = f.data
 
     def zeros(layout):
         for kind in layout:
-            {'i': b.bl, 'd': b.bd, 't': f.text}[kind]('' if kind == 't' else 0)
+            if kind == 'e':
+                f.expression()
+            elif kind == 'f':
+                b.put(0, 1)
+            else:
+                {'i': b.bl, 'd': b.bd, 't': f.text}[kind]('' if kind == 't' else 0)
 
     for value in (11, 0, 0, 1, 73):
         b.bl(value)
@@ -151,18 +156,75 @@ def case_filer(orbit_name='TEST ORBIT'):
     b.bl(1)
     f.text('Libraries\\OPTICAL.RCO')
     f.text('libraries/material.tdp')
-    zeros('i' * 8)
+    zeros('i' * 4)
+    b.bl(1)  # Active restart.
+    b.bl(2)
+    b.bl(1)
+    f.text('OWNED')
+    b.bl(1)
+    f.text('CALL SYNTHETIC_THERMAL')
+    zeros('t' * 8)
+    b.bl(1)
+    f.text('OWNED_FLUID')
+    b.bl(1)
+    f.text('CALL SYNTHETIC_FLUID')
+    zeros('t' * 7)
     f.text('synthetic operations')
     zeros('t' * 11)
+    b.bl(solver_version)
+    zeros('dt' + 'd' * 10 + 'i' * 8 + 'ddddii' + 'e' * 21 + 'ie')
+    zeros('ii')
+    b.bl(5)
+    zeros('ttttttiiiiiiiiitttiiiiiii')
+    b.bl(15)
+    zeros('ddidddddddddiddiiddddddiidddddiddiidddtieeeedeeeeddeiefeeeeeeeeeeeeeeeeeeeeeeeeeeeeededededetttfff')
+    zeros('iiiit')
+    b.bl(1)
+    b.bl(2)
+    f.text('OWNED_REGISTER')
+    zeros('ttiii')
+    zeros('i')
+    b.bl(constraint_count)
+    if constraint_count:
+        return f
+    zeros('iiiiittiiiiit')
+    b.bl(run_directory)
+    f.text('run' if run_directory else '')
+    f.text('Results\\initial.sav')
+    zeros('i' * 8 + 'tt' + 'iitdddeee' + 'i' * 14)
+    b.bl(9)
+    b.bl(4)
+    zeros('i' * 6 + 'de' * 4 + 'iiii' + 'de' * 5 + 'iii' + 'de' * 4 + 'ie')
+    b.bl(1)
+    zeros('i' * 16 + 'tttttitdede')
+    b.bl(5)
+    f.text('owned output')
+    b.bl(1)
+    b.bl(1)
+    b.bd(8.5)
+    zeros('tieieiiiiii')
+    b.bl(1)
+    b.bl(1)
+    b.bl(3)
+    zeros('tiffdi' + 'f' * 155)
+    zeros('tit' + 'i' * 8)
+    b.bl(1)
+    b.bl(2)
+    f.text('Decks\\start.inc')
+    f.text('decks/start.inc')
+    zeros('i' + 'iiti' + 'iiiti' + 'i' * 7 + 'tttiiittii' + 'i')
+    f.text('Results\\previous.sav')
+    b.bl(4)
+    b.bl(3)
     b.bl(99)  # Deliberately opaque remainder of the case.
     return f
 
 
-def project_snapshot(orbit_name='TEST ORBIT', orbit_version=35):
+def project_snapshot(orbit_name='TEST ORBIT', orbit_version=35, **case_options):
     base = drawing([node_payload('OWNED', 1, 290, 10, 'capacitive')])
     native = {**base.native, 'objects': list(base.native['objects']), 'classes': list(base.native['classes'])}
     standards = list(_one(base.standard, 'OBJECTS'))
-    for specification in ((case_filer(orbit_name), 505, 'CaseSetManager', 'RCCASESET', MANAGER),
+    for specification in ((case_filer(orbit_name, **case_options), 505, 'CaseSetManager', 'RCCASESET', MANAGER),
                           (orbit_filer(orbit_version), 506, 'RcOrbit', 'RCORBIT', ORBIT)):
         row, common, identity = object_record(*specification)
         native['classes'].append(identity)
@@ -192,13 +254,17 @@ class TdProjectInventoryTests(unittest.TestCase):
             settings = case['settings']['cases'][0]
             self.assertEqual((settings['steady'], settings['transient']), (1, 1))
             self.assertEqual(settings['source_sections']['operations'], 'synthetic operations')
+            self.assertEqual(settings['thermal_logic'][0]['sections'][0], 'CALL SYNTHETIC_THERMAL')
+            self.assertEqual(settings['fluid_logic'][0]['submodel'], 'OWNED_FLUID')
+            self.assertEqual(settings['register_variables'][0][0], 'OWNED_REGISTER')
+            self.assertEqual(settings['cyclic_settings']['tables'], ((8.5,),))
             task, = settings['radiation_tasks']
             self.assertEqual(task['orbit_binding'], {'status': 'resolved', 'targets': [str(ORBIT)]})
             self.assertEqual(task['parameter_sets'][0]['wide_values'], ('4660', '0'))
             self.assertEqual(orbit['settings']['inclination'], 37.5)
             self.assertEqual(orbit['settings']['times'], (120,))
             self.assertEqual(orbit['settings']['sun_vectors'], ((0, 1, 0),))
-            self.assertEqual(report['companion_inventory']['resolution_counts'], {'resolved': 2})
+            self.assertEqual(report['companion_inventory']['resolution_counts'], {'resolved': 2, 'missing': 3})
             self.assertFalse(report['full_model_dependency_closure'])
             self.assertFalse(report['native_ready'])
             (root / ENTRY).write_bytes(b'AC1032 stale fixture')
@@ -235,6 +301,51 @@ class TdProjectInventoryTests(unittest.TestCase):
                       ('../shared.tdp', 'C:\\shared.tdp', 'owned.rco', 'missing.tdp')]
         self.assertEqual(companion_inventory(files, ENTRY, references)['resolution_counts'],
                          {'external-or-unsafe': 2, 'wrong-file-role': 1, 'missing': 1})
+
+    def test_case_insert_graph_and_restart_are_bound_to_captured_members(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = {
+                ENTRY: b'AC1032 owned fixture',
+                'model/results/PREVIOUS.sav': b'owned opaque results',
+                'model/decks/start.inc': b"HEADER NODE DATA, OWNED\nINSERT 'next deck.sin'\n",
+                'model/decks/next deck.sin': b"HEADER SOURCE DATA, OWNED\nINSERT start.inc\nINSERT ../outside.inc\n"
+                                            b"INSERT missing.inc\nINSERT\t'unterminated\n",
+                'model/outside.inc': b'CALL MUST_STAY_INERT\n',
+            }
+            for name, raw in files.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(raw)
+            original = capture_project(root, ENTRY)
+            with patch('subprocess.Popen', side_effect=AssertionError('source must remain inert')):
+                report = inspect_project(DwgPreview(original, project_snapshot()))
+            companions = report['companion_inventory']
+            self.assertEqual(companions['resolution_counts'], {'resolved': 3, 'missing': 2})
+            self.assertEqual([r.get('member') for r in companions['declared_inputs'][2:]],
+                             ['model/results/PREVIOUS.sav', 'model/decks/start.inc', 'model/decks/start.inc'])
+            graph = companions['sinda_includes']
+            self.assertEqual(graph['roots'], ['model/decks/start.inc'])
+            self.assertEqual([edge['status'] for edge in graph['edges']],
+                             ['resolved', 'resolved', 'external-or-unsafe', 'missing'])
+            self.assertEqual([d['code'] for d in graph['diagnostics']],
+                             ['malformed_insert', 'td_project_include_cycle_or_depth'])
+            self.assertEqual(capture_project(root, ENTRY), original)
+            self.assertFalse(report['full_model_dependency_closure'])
+
+            alternate = inspect_project(DwgPreview(original, project_snapshot(run_directory=1)))
+            self.assertEqual(alternate['companion_inventory']['resolution_counts'],
+                             {'missing': 2, 'run-directory-unmapped': 3})
+            self.assertEqual(alternate['companion_inventory']['sinda_includes']['edges'], [])
+            partial = inspect_project(DwgPreview(original, project_snapshot(constraint_count=1)))
+            case = partial['configuration'][0]
+            self.assertEqual(case['limitations'], ['td_case_solver_constraints_unmapped'])
+            self.assertEqual(len(partial['companion_inventory']['declared_inputs']), 2)
+            future = inspect_project(DwgPreview(original, project_snapshot(solver_version=7)))
+            case = future['configuration'][0]
+            self.assertEqual(case['limitations'], ['td_case_nested_version_unmapped'])
+            self.assertEqual(case['settings']['cases'][0]['source_sections']['operations'], 'synthetic operations')
+            self.assertEqual(len(future['companion_inventory']['declared_inputs']), 2)
 
     def test_symbol_manager_requires_exact_payload_and_preview_reuses_thermal_decode(self):
         f = FilerWriter()

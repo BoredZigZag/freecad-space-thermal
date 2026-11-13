@@ -43,16 +43,25 @@ stay explicit. The report carries source handles as strings to preserve their
 full width.
 
 The supported case-manager layout inventories the first v73 case through its
-steady/transient selectors, v36 radiation tasks, property overrides and the
-prefix of its source sections. Radiation tasks identify named orbit links and
+steady/transient selectors, v36 radiation tasks, property overrides, thermal
+and fluid submodel source blocks, solver controls, restart path and stored
+SINDA INSERT list. Radiation tasks identify named orbit links and
 object references. The reader checks the full v35 orbit payload and the stored
 orbit-unit selectors. It also covers the v7 symbol manager, the empty v4 logic
 manager, submodel comments, analysis controls, graphics settings and empty
 viewport data. Source values and expressions remain inert.
 
+For the default run directory, the inventory resolves direct INSERT paths and
+the active restart SAVE file relative to the drawing. It inventories nested
+INSERT edges relative to their containing files in the captured tree and reports
+cycles, unsafe paths, malformed directives and missing members. Repeated
+references remain visible and each captured include is parsed once. Custom run
+directories and CSR restart layouts remain unresolved. The SAVE payload is
+retained as an opaque companion.
+
 The report leaves model readiness held. Remaining work includes subsequent
-case records and the case trailer, authoritative includes and restart files,
-active manager and logic records, environment-to-physics mapping, and native
+case records and the case trailer, complete case dependency closure, active
+manager and logic records, environment-to-physics mapping, and native
 reconstruction and solver verification for the complete drawing. Keep the
 inventory and working directory local because they can contain source names,
 paths, settings and expressions.

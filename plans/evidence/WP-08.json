@@ -220,6 +220,15 @@
     "vendor_runtime_required": false,
     "privacy": "Owned fixtures and bounded verdicts only. Restricted drawing bytes, derived geometry and format research remain local."
   },
+  "case_source_dependencies": {
+    "operation": "td-inspect-project",
+    "scope": "First v73 case source blocks and controls, stored SINDA INSERT paths with bounded captured-tree traversal, and active restart SAVE binding",
+    "acceptance": "tools/check_td.py checks inert submodel source, duplicate roots, nested INSERTs, unsafe and missing targets, cycles, malformed directives, future control versions, and restart resolution",
+    "remaining": "Subsequent cases, complete case records, custom run directories, CSR restart data, source execution and full-model dependency closure",
+    "vendor_runtime_required": false,
+    "qualified": false,
+    "privacy": "Owned fixtures and bounded verdicts only. Captured cases, companion files and detailed inventory remain local."
+  },
   "older_container_observation": {
     "container": "AC1027",
     "observed_thermal_payloads": {"RcNode_v22": 86, "RcConductor_v23": 2},

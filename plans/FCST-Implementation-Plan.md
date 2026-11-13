@@ -441,6 +441,11 @@ original projects/decks/property databases/results, private runner profiles,
 compiled sidecars/vendor DLLs and raw logs stay local. Required staged-byte and
 outgoing-history scans may run separately; neither scope may be skipped. Q1 holds
 are recorded explicitly and are not replaced with parser or external-run success.
+The case dependency extension runs the owned v73 case, nested INSERT graph,
+restart binding and inert source-block checks through `tools/check_td.py`.
+TST-021 clears the exact adapter and fixture sources, source locks, bounded
+verdicts and timing evidence, outgoing history, identities and final PR prose.
+Captured SAVE files, includes, decoded case records and raw diagnostics stay local.
 The independent property-law slice adds owned synthetic orthotropic, variable
 table/grid, two-band optical and composite-definition fixtures. TST-021 acceptance
 includes their unattended unit cases, fresh-process vendor-free CLI roundtrips,
@@ -680,8 +685,10 @@ unmapped modes remain held.
 `td-inspect-project` inventories the DWG named dictionary, versioned project
 records, captured companions and declared property-library overrides. The
 bounded case reader exposes steady/transient selectors and radiation jobs,
-including named links to decoded orbit records. Active logic and remaining
-case settings, include and restart dependency closure, orbit/environment
+including named links to decoded orbit records. It inventories inert submodel
+source blocks, solver controls, stored INSERT roots and an active restart SAVE
+path for the first v73 case. The captured tree supports bounded nested INSERT
+discovery. Remaining case settings, runtime dependency closure, orbit/environment
 physics bindings and full-drawing native reconstruction remain open.
 Unrepresented modes and additional source versions need verified format evidence,
 while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.

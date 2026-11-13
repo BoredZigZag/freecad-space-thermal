@@ -812,3 +812,27 @@ drawing and Python runtime. The previous preview took 3.613 s
 reports matched in every pair. These timings cover preview report generation
 from the in-memory DWG snapshot. They exclude backend startup, DWG decoding
 into the snapshot and CI job setup. The hosted baseline remains in place.
+
+## WP-08 case source dependencies
+
+The cold [passing Foundation handoff](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43122681090)
+put the 564.641 s Debug driver on the critical path after the 92 s unit job.
+The Debug driver used three acceptance workers and Release used two. Release
+took 247.406 s. The independent DWG job finished 501 s before Debug. Debug
+radiation took 307.109 s, including 123.525 s to build the three independent
+million-facet fixtures. The timing report flagged Debug host acceptance and the
+new spatial stage against the warm baseline. Their observed times include a
+different workload and cache state.
+
+The hypothesis was that a 20% reduction in the largest radiation build cost
+would shorten the gate. Replaying the reported stage order and durations with
+three workers and serializing the two shared numerical stages left the modeled
+Debug acceptance span at 517.109 s after removing 24.705 s from radiation. The
+thermal-reference and numerical stages still determined the tail. An idealized
+longest-first dispatch of the same recorded workloads modeled 492.656 s before
+the same reduction and 482.919 s afterward. These single-run simulations assume
+fixed stage durations and exclude runner setup and contention.
+
+The case dependency regression runs in the existing unit and TD drivers. The
+inventory parses each captured include at most once, including duplicate roots
+and cyclic references. Verification retains every existing required case.

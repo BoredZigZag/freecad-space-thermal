@@ -40,6 +40,14 @@ def _pairs(filer):
     return tuple((filer.text(), filer.text()) for _ in range(filer.count()))
 
 
+def _read_fields(filer, layout):
+    # Preserve the wire order of settings whose physical meaning is unverified.
+    b = filer.data
+    readers = {'i': b.bl, 'd': b.bd, 't': filer.text, 's': filer.texts, 'l': filer.integers,
+               'v': filer.doubles, 'e': filer.expression, 'f': lambda: bool(b.take(1))}
+    return tuple(readers[kind]() for kind in layout)
+
+
 def _radiation_parameter_set(filer):
     filer.version(5)
     b = filer.data
@@ -55,11 +63,7 @@ def _radiation_task(filer):
     filer.version(36)
     b = filer.data
     def read(layout):
-        # Unnamed settings retain their wire order. Only identified fields get
-        # semantic names, and even those remain source values in this inventory.
-        readers = {'i': b.bl, 'd': b.bd, 't': filer.text, 's': filer.texts,
-                   'l': filer.integers, 'v': filer.doubles, 'e': filer.expression}
-        return tuple(readers[kind]() for kind in layout)
+        return _read_fields(filer, layout)
 
     settings = {'payload_version': 36, 'analysis_group': filer.text(), 'orbit': filer.text(),
                 'calculation_type': b.bl(), 'method': b.bl(),
@@ -86,6 +90,93 @@ def _case_manager_trailer(filer):
     fields['batch_control'] = {'mode': b.bl(), 'text': tuple(filer.text() for _ in range(6)),
                                'flags': tuple(bool(b.take(1)) for _ in range(6))}
     return fields
+
+
+def _case_cyclic_settings(filer):
+    # Case payload v73 embeds the older cyclic settings alongside its current
+    # controls. Their wire shape is needed to reach the current INSERT list.
+    filer.version(9)
+    filer.version(4)
+    controls = _read_fields(filer, 'i' * 6 + 'de' * 4 + 'vvii' + 'de' * 5 + 'vii' + 'de' * 4 + 'ie')
+    filer.version(1)
+    selectors = _read_fields(filer, 'i' * 16)
+    values = _read_fields(filer, 'tttttitdede')
+    filer.version(5)
+    label = filer.text()
+    tables = tuple(filer.doubles() for _ in range(filer.count()))
+    output_settings = _read_fields(filer, 'tieieiiiiii')
+    filer.version(1)
+    output_rows = []
+    for _ in range(filer.count()):
+        filer.version(3)
+        output_rows.append(_read_fields(filer, 'tiffdi' + 'f' * 155))
+    return {'controls': controls, 'selectors': selectors, 'values': values, 'label': label,
+            'tables': tables, 'output_settings': output_settings, 'output_rows': output_rows}
+
+
+def _case_source_sections(filer, case):
+    for role, width in (('thermal', 9), ('fluid', 8)):
+        count = filer.count()
+        case[f'{role}_logic_count'] = count
+        blocks = []
+        for _ in range(count):
+            submodel = filer.text()
+            filer.version(1)
+            blocks.append({'submodel': submodel, 'sections': _read_fields(filer, 't' * width)})
+        case[f'{role}_logic'] = blocks
+    case['source_sections'] = {key: filer.text() for key in ('operations', 'subroutine', 'other')}
+    case['solver_procedures'] = _read_fields(filer, 't' * 5)
+    case['reliability_settings'] = _read_fields(filer, 't' * 4)
+
+
+def _case_controls(filer, case):
+    b = filer.data
+    filer.version(6)
+    case['solver_controls'] = _read_fields(filer, 'dt' + 'd' * 10 + 'i' * 8 + 'ddddii' + 'e' * 21 + 'ie')
+    case['symbol_overrides'] = {'names': filer.texts(), 'values': filer.texts()}
+    filer.version(5)
+    case['sinda_options'] = _read_fields(filer, 't' * 6 + 'i' * 9 + 'ttt')
+    case['sinda_option_selectors'] = _read_fields(filer, 'i' * 7)
+    filer.version(15)
+    case['sinda_controls'] = _read_fields(filer, 'ddidddddddddiddiiddddddiidddddiddiidddti'
+                                         'eeeedeeeeddeief' + 'e' * 29 + 'dedededetttfff')
+    case['symbol_comments'] = filer.texts()
+    case['dynamic_sinda'] = {'selectors': _read_fields(filer, 'iii'), 'text': filer.text()}
+
+    for key, version, layout in (('register_variables', 2, 'tttiii'), ('solver_design', 2, 'ttttiiiee')):
+        rows = case[key] = []
+        for _ in range(filer.count()):
+            filer.version(version)
+            rows.append(_read_fields(filer, layout))
+    case['solver_constraint_count'] = filer.count()
+    if case['solver_constraint_count']:
+        return 'td_case_solver_constraints_unmapped'
+
+    case['analysis_selector'] = b.bl()
+    case['build_selector'] = b.bl()
+    case['run_selector'] = b.bl()
+    case['postprocess_selectors'] = _read_fields(filer, 'ii')
+    case['conductance_capacity_output'] = filer.text()
+    case['output_submodel'] = {'name': filer.text(), 'selector': b.bl()}
+    case['excluded_thermal_submodels'] = filer.texts()
+    case['excluded_fluid_submodels'] = filer.texts()
+    case['generate_conductance_capacity'] = b.bl()
+    case['generate_log'] = b.bl()
+    case['log_output'] = filer.text()
+    case['run_directory'] = {'selector': b.bl(), 'path': filer.text()}
+    case['initial_temperature_file'] = filer.text()
+    case['additional_solver_settings'] = _read_fields(filer, 'is' + 'i' * 6 + 'tt' + 'iitdddeee' + 'i' * 14)
+    case['cyclic_settings'] = _case_cyclic_settings(filer)
+    case['legacy_output_settings'] = _read_fields(filer, 'tit' + 'i' * 8)
+    filer.version(1)
+    case['insert_files'] = filer.texts()
+    case['additional_source_settings'] = _read_fields(filer, 'i')
+    case['lump_initialization'] = {'selectors': _read_fields(filer, 'ii'), 'path': filer.text(),
+                                   'lumps': filer.texts()}
+    case['additional_output_settings'] = _read_fields(filer, 'iiits' + 'i' * 7 + 'tttiiittss')
+    case['restart'].update({'file_selector': b.bl(), 'path': filer.text(),
+                            'case_time_pointer': b.bl(), 'record_number': b.bl()})
+    return 'td_case_settings_unmapped'
 
 
 def _cases(filer):
@@ -119,14 +210,28 @@ def _cases(filer):
     for key in ('optical_aliases', 'optical_properties', 'thermophysical_aliases', 'thermophysical_properties'):
         case[key] = filer.texts()
     case['restart'] = {'selector': b.bl(), 'time_pointer': b.bl()}
-    case['thermal_logic_count'] = filer.count()
-    if not case['thermal_logic_count']:
-        case['fluid_logic_count'] = filer.count()
-        if not case['fluid_logic_count']:
-            case['source_sections'] = {key: filer.text() for key in ('operations', 'subroutine', 'other')}
-            case['solver_procedures'] = tuple(filer.text() for _ in range(5))
-            case['reliability_settings'] = tuple(filer.text() for _ in range(4))
-    return fields, references, 'td_case_settings_unmapped'
+    _case_source_sections(filer, case)
+    streams = (filer.data, filer.strings, filer.handles)
+    positions = tuple(stream.position for stream in streams)
+    controls = {'restart': dict(case['restart'])}
+    try:
+        limitation = _case_controls(filer, controls)
+    except ExchangeError as error:
+        if error.code != 'td_filer_version':
+            raise
+        for stream, position in zip(streams, positions):
+            stream.position = position
+        return fields, references, 'td_case_nested_version_unmapped'
+    case.update(controls)
+    if case['restart']['selector'] == 1 and 'path' in case['restart']:
+        references.append({'case_index': 0, 'role': 'sinda-restart', 'path': case['restart']['path'],
+                           'run_directory_selector': case['run_directory']['selector']})
+    for path in case.get('insert_files', ()):
+        references.append({'case_index': 0, 'role': 'sinda-include', 'path': path,
+                           'run_directory_selector': case['run_directory']['selector']})
+    if case['restart']['selector'] not in (0, 1):
+        return fields, references, 'td_case_restart_mode_unmapped'
+    return fields, references, limitation
 
 
 def _symbols(filer):

@@ -8,6 +8,7 @@ from fcst_contracts import ContractError, dependency_order
 
 from .core import ExchangeError, Limits, reject
 from .dwg_native import Fields, _one
+from .sinda import parse as parse_sinda
 from .vendor_paths import path_name
 
 
@@ -91,26 +92,84 @@ def companion_inventory(files, entry, references):
     """Resolve declared paths only against the captured, validated file tree."""
     roles = {'.dwg': 'drawing', '.tdp': 'thermophysical-library', '.rco': 'optical-library',
              '.inp': 'sinda-deck', '.for': 'sinda-source', '.out': 'solver-output',
-             '.hrl': 'heating-lookup', '.hra': 'heating-array', '.k': 'radiation-data', '.k_in': 'radiation-input'}
+             '.hrl': 'heating-lookup', '.hra': 'heating-array', '.k': 'radiation-data', '.k_in': 'radiation-input',
+             '.inc': 'sinda-include', '.sav': 'sinda-restart'}
+    captured = dict(files)
     members = {name.casefold(): name for name, _ in files}
     inventory = [{'path': name, 'role': 'entry-drawing' if name == entry else
                   roles.get(PurePosixPath(name).suffix.casefold(), 'unclassified'),
                   'bytes': len(raw), 'sha256': sha256(raw).hexdigest()} for name, raw in files]
-    bindings = []
-    for reference in references:
-        name = reference['path']
+    def resolve(reference, base):
         try:
-            relative = path_name(name.replace('\\', '/'))
+            relative = path_name(reference['path'].replace('\\', '/'))
         except ExchangeError:
-            bindings.append({**reference, 'status': 'external-or-unsafe'})
-            continue
-        candidate = str(PurePosixPath(entry).parent / relative)
+            return {**reference, 'status': 'external-or-unsafe'}
+        if base is None:
+            return {**reference, 'status': 'run-directory-unmapped'}
+        candidate = str(base / relative)
         target = members.get(candidate.casefold())
         if target is None:
-            bindings.append({**reference, 'status': 'missing'})
-        elif roles.get(PurePosixPath(target).suffix.casefold()) != reference['role']:
-            bindings.append({**reference, 'status': 'wrong-file-role', 'member': target})
-        else:
-            bindings.append({**reference, 'status': 'resolved', 'member': target})
+            return {**reference, 'status': 'missing'}
+        # SINDA INSERT accepts arbitrary filenames. Inspect their contents with
+        # the bounded lexical reader and retain unsupported source as inert data.
+        if reference['role'] != 'sinda-include' and roles.get(PurePosixPath(target).suffix.casefold()) != reference['role']:
+            return {**reference, 'status': 'wrong-file-role', 'member': target}
+        return {**reference, 'status': 'resolved', 'member': target}
+
+    drawing_directory = PurePosixPath(entry).parent
+    bindings = [resolve(ref, drawing_directory if not ref.get('run_directory_selector') else None) for ref in references]
+    include_roots = {r['member'] for r in bindings if r['role'] == 'sinda-include' and r['status'] == 'resolved'}
+    includes = _include_inventory(captured, include_roots, resolve)
     return {'files': inventory, 'declared_inputs': bindings,
-            'resolution_counts': dict(Counter(r['status'] for r in bindings))}
+            'resolution_counts': dict(Counter(r['status'] for r in bindings)), 'sinda_includes': includes}
+
+
+def _include_inventory(captured, roots, resolve):
+    limits = Limits()
+    graph, edges, diagnostics = {}, [], []
+    pending, visited = deque(sorted(roots)), set(roots)
+    total_bytes = total_records = 0
+    while pending:
+        if len(visited) > limits.files:
+            reject('td_project_include_file_limit')
+        name = pending.popleft()
+        raw = captured[name]
+        total_bytes += len(raw)
+        if total_bytes > limits.total_bytes:
+            reject('td_project_include_byte_limit')
+        children = graph[name] = set()
+        try:
+            records = parse_sinda(name, raw, limits)
+        except ExchangeError as error:
+            diagnostics.append({'member': name, 'code': error.code})
+            continue
+        total_records += len(records)
+        if total_records > limits.records:
+            reject('td_project_include_record_limit')
+        for record in records:
+            if record.kind != 'INCLUDE':
+                # An undecodable line or content after END can hide a directive.
+                if record.code in {'unsupported_encoding', 'sinda_data_after_end'}:
+                    diagnostics.append({'member': name, 'line': record.line, 'code': record.code})
+                continue
+            if record.code:
+                diagnostics.append({'member': name, 'line': record.line, 'code': record.code})
+                continue
+            edge = resolve({'source': name, 'line': record.line, 'path': record.value['path'], 'role': 'sinda-include'},
+                           PurePosixPath(name).parent)
+            edges.append(edge)
+            if edge['status'] == 'resolved':
+                target = edge['member']
+                children.add(target)
+                if target not in visited:
+                    visited.add(target)
+                    pending.append(target)
+    try:
+        depths = {}
+        for name in dependency_order(graph, 'depth'):
+            depths[name] = 1 + max((depths[child] for child in graph[name]), default=0)
+        if max(depths.values(), default=0) > limits.include_depth:
+            diagnostics.append({'code': 'td_project_include_depth'})
+    except ContractError:
+        diagnostics.append({'code': 'td_project_include_cycle_or_depth'})
+    return {'roots': sorted(roots), 'edges': edges, 'diagnostics': diagnostics}
