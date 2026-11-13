@@ -60,7 +60,7 @@ class NativeDwgTests(unittest.TestCase):
         self.assertFalse(compare(a,snap(b))['structural_roundtrip_verified'])
 
     def test_protocol_inventory_limits_and_private_errors_fail_closed(self):
-        for field,value in [('patch_sha256','b'*64),('version','AC1027'),('read_errors',True)]:
+        for field,value in [('patch_sha256','b'*64),('version','AC1024'),('read_errors',True)]:
             b=packet();b[field]=value
             with self.assertRaises(ExchangeError):snap(b)
         for field in ('classes','objects'):
@@ -72,6 +72,45 @@ class NativeDwgTests(unittest.TestCase):
             with self.assertRaises(ExchangeError) as error:snapshot(raw,standard(),PATCH)
             self.assertNotIn('private-marker',str(error.exception))
         self.assertNotIn('owned',json.dumps(snap().report))
+
+    def test_ac1027_snapshot_requires_consistent_signatures_and_blocks_writes(self):
+        data = packet()
+        data['version'] = 'AC1027'
+        older = snap(data, standard().replace(b'AC1032', b'AC1027'))
+        self.assertEqual(older.report['version'], 'AC1027')
+        self.assertFalse(compare(snap(), older)['structural_roundtrip_verified'])
+        with self.assertRaisesRegex(ExchangeError, 'native_dwg_version'):
+            snap(data)
+        runtime = NativeRuntime(Path('unused.exe'), 'c' * 64, PATCH)
+        with patch('fcst_exchange.dwg_native.ToolRunner') as runner:
+            for operation in ('rewrite', 'rewrite-edited'):
+                with self.assertRaisesRegex(ExchangeError, 'container_profile'):
+                    runtime.run(operation, b'AC1027-owned', Path('unused'))
+            runner.assert_not_called()
+        from fcst_exchange.sinda import SindaUnits
+        from fcst_exchange.td_model import convert_network
+        units = SindaUnits('K', 'J/K', 'W/K', 'W', 's')
+        conversion = convert_network(older, units, 'a' * 64)
+        self.assertIsNone(conversion.model)
+        self.assertEqual(conversion.diagnostics, ({'code': 'td_native_container_version_unmapped'},))
+        from td_fixture import drawing
+        from fcst_exchange.td_writer import node_payload
+        node = drawing([node_payload('OWNED', 1, 300, 1, 'capacitive')])
+        node.native['version'] = 'AC1027'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'
+            source.mkdir()
+            (source / 'main.dwg').write_bytes(b'AC1027-owned')
+            adapter = IndependentTdAdapter(runtime)
+            with patch.object(NativeRuntime, 'run', return_value=(node, None, {})) as run:
+                preview = adapter.preview(source, 'main.dwg', root / 'preview')
+                self.assertFalse(preview.report['operations']['guarded-source-field-export'])
+                with self.assertRaisesRegex(ExchangeError, 'container_profile'):
+                    adapter.export_source(preview, root / 'export', [{'handle': 101, 'changes': {'mass_value': 2}}],
+                                          work=root / 'edit')
+                run.assert_called_once()
+                self.assertFalse((root / 'export').exists())
 
     def test_container_preview_copies_entire_source_tree_and_blocks_thermal_edits(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -268,6 +268,20 @@
     "container": "AC1027",
     "observed_thermal_payloads": {"RcNode_v22": 86, "RcConductor_v23": 2},
     "method": "Read-only bounded inventory using the independent DWG library on a temporary local copy",
-    "disposition": "Analysis evidence for extending container and conductor coverage. Product profile support and source release remain unverified."
+    "disposition": "Historical analysis evidence. The source-inventory follow-up implements bounded AC1027 inspection and covers conductor v23. Product release remains unverified."
+  },
+  "source_inventory_follow_up": {
+    "inventory": "inventory/td-geometry-sources.md",
+    "acceptance": "tools/check_td.py and tools/build_independent_dwg.py",
+    "ac1027_scope": "Vendor-free inspection, supported geometry export and byte-exact project copying",
+    "ac1032_scope": "Expression v6, conductor v23 and v24, rectangle marker 55, FD brick v23, and linear solid node v6 and attribute v14",
+    "local_geometry_checks": {
+      "ac1032_drawings": 25,
+      "additional_linear_solid_boundaries": 8948,
+      "additional_static_primitive_boundaries": 87,
+      "ac1027_example_element_boundaries": 106
+    },
+    "holds": ["Marker-56 surfaces and meshes", "TD Direct/Designer synchronization and mesh regeneration", "Geometry-attached thermal physics and source solver parity"],
+    "qualified": false
   }
 }

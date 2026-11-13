@@ -93,7 +93,8 @@ def companion_inventory(files, entry, references):
     roles = {'.dwg': 'drawing', '.tdp': 'thermophysical-library', '.rco': 'optical-library',
              '.inp': 'sinda-deck', '.for': 'sinda-source', '.out': 'solver-output',
              '.hrl': 'heating-lookup', '.hra': 'heating-array', '.k': 'radiation-data', '.k_in': 'radiation-input',
-             '.inc': 'sinda-include', '.sav': 'sinda-restart'}
+             '.inc': 'sinda-include', '.sav': 'sinda-restart',
+             '.scdoc': 'spaceclaim-document', '.dsco': 'td-designer-document', '.scp': 'cosolver-settings'}
     captured = dict(files)
     members = {name.casefold(): name for name, _ in files}
     inventory = [{'path': name, 'role': 'entry-drawing' if name == entry else

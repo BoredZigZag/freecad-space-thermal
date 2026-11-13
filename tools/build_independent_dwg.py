@@ -85,6 +85,10 @@ def main():
     attempt=work/('test-'+revision()[:12]+'-'+os.urandom(5).hex());attempt.mkdir()
     records=[]
     fixture,_=runtime.run('fixture',None,attempt/'fixture')
+    older_fixture,_=runtime.run('fixture-ac1027',None,attempt/'fixture-ac1027')
+    older_raw=older_fixture['source.dwg']
+    older=IndependentTdAdapter(runtime).preview(attempt/'fixture-ac1027','source.dwg',attempt/'inspect-ac1027')
+    older_copy=IndependentTdAdapter(runtime).export_source(older,attempt/'export-ac1027')
     first,derived,_=runtime.run('rewrite',fixture['source.dwg'],attempt/'rewrite')
     second,_,_=runtime.run('inspect',derived,attempt/'reopen')
     verdict=compare(first,second)
@@ -425,6 +429,10 @@ raise SystemExit(main())
     td_tables=loads(timed_request.read_bytes())['time_loads']
     sinda_tables=loads(sinda_request.read_bytes())['time_loads']
     checks={'owned-fixture-read':first.report['objects']>0 and first.report['read_warning_bits']==0,
+            'ac1027-inspection-and-source-copy':older_raw.startswith(b'AC1027') and older.snapshot.report['version']=='AC1027'
+                and any(row['kind']=='LINE' for row in older.snapshot.native['objects'])
+                and older_copy['exact_source_bytes_preserved'] and not older_copy['native_ready']
+                and (attempt/'export-ac1027/source.dwg').read_bytes()==older_raw,
             'fresh-native-reopen':verdict['structural_roundtrip_verified'],
             'class-identity-and-version-preservation':first.native['classes']==second.native['classes'],
             'vendor-free-runtime':first.report['vendor_runtime_required'] is False and cli_pass,

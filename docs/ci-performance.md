@@ -889,3 +889,32 @@ Evaluating coordinates per face took a median 106.12 ms (103.55–148.21).
 Evaluating each lattice position once took 87.38 ms (77.32–139.71) with identical
 ordered face coordinates. The ranges overlap and the benchmark excludes DWG
 inspection, process startup and CI scheduling.
+
+## WP-08 source inventory follow-up
+
+Foundation run 43489369332 used cold download caches. The Debug driver took
+561.312 s with three acceptance workers and Release took 295.375 s with two.
+The job critical path went through unit tests, the 621 s Debug job and the
+Foundation gate. Debug radiation took 305.938 s and host acceptance took
+186.094 s. TD exchange took 12.625 s in Debug and 12.344 s in Release.
+Host and Embree exceeded the warm-baseline warning thresholds. These timings
+mix cache states and do not establish a source-induced regression.
+[Passing Foundation run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43489369332)
+
+A fixed-duration Debug replay tested whether cutting the three million-facet
+builds by 20% could shorten the acceptance span. Keeping the shared numerical
+checkpoint and thermal reference stages serialized, the 24.725 s hypothetical
+reduction left the modeled span at 513.172 s. Longest-first ordering of these
+same durations also modeled 513.172 s. The serialized reference comparison and
+numerical checkpoint determined the tail. The replay excludes runner setup and
+variable contention. The passing timing baseline stays in place.
+
+Decoding all drawing payloads for an explicit OBJ selection would increase
+the cost of newly supported large meshes. Five alternating warm pairs each
+exported the same 32 linear solids from an already inspected drawing. Whole
+drawing decoding took a median 5.420 s (5.200–5.798 s). Decoding selected
+elements and their referenced nodes took 0.080 s (0.074–0.084 s), with identical
+OBJ bytes and verdicts. This measures local Python export and excludes native
+inspection, runner setup and CI scheduling. The existing unit and TD stages
+exercise the selection and wire checks. The AC1027 smoke reuses the DWG job's
+existing compiled backend.

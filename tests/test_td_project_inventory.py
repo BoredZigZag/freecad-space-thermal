@@ -296,11 +296,15 @@ class TdProjectInventoryTests(unittest.TestCase):
             dictionary_graph(snapshot, objects, standards)
 
     def test_declared_companions_stay_inside_the_captured_tree(self):
-        files = ((ENTRY, b'DWG'), ('model/owned.rco', b'optics'), ('shared.tdp', b'materials'))
+        files = ((ENTRY, b'DWG'), ('model/owned.rco', b'optics'), ('shared.tdp', b'materials'),
+                 ('model/owned.SCDOC', b'CAD'), ('model/owned.dsco', b'CAD'), ('model/owned.scp', b'coupling'))
         references = [{'path': name, 'role': 'thermophysical-library'} for name in
                       ('../shared.tdp', 'C:\\shared.tdp', 'owned.rco', 'missing.tdp')]
-        self.assertEqual(companion_inventory(files, ENTRY, references)['resolution_counts'],
+        inventory = companion_inventory(files, ENTRY, references)
+        self.assertEqual(inventory['resolution_counts'],
                          {'external-or-unsafe': 2, 'wrong-file-role': 1, 'missing': 1})
+        self.assertEqual([row['role'] for row in inventory['files'][-3:]],
+                         ['spaceclaim-document', 'td-designer-document', 'cosolver-settings'])
 
     def test_case_insert_graph_and_restart_are_bound_to_captured_members(self):
         with TemporaryDirectory() as temporary:

@@ -36,7 +36,7 @@ GEOMETRY_CLASSES={'RcRectangle':'RCRECTANGLE','RcFdBrick':'RCTD_FDBRICK','RcDisk
                   'RcLinearTri2':'RCLINEARTRI2','RcLinearQuad2':'RCLINEARQUAD2','RcMeshFD':'RCPOLYGON',
                   'RcQuadraticTri':'RCQUADRATICTRI','RcQuadraticQuad':'RCQUADRATICQUAD',
                   **{name:name.upper() for name in CONIC_CLASSES}}
-GEOMETRY_DXF_ALIASES = {'RcParabolicTrough': {'RCPARABTROUGH'}, 'RcMeshFD': {'TD_MESH'}}
+GEOMETRY_DXF_ALIASES = {'RcParabolicTrough': {'RCPARABTROUGH'}, 'RcMeshFD': {'TD_MESH', 'RCMESHFD'}}
 UNMAPPED_GEOMETRY_CLASSES = {
     'RcPolygon', 'TdMesher', 'TdMesherVa',
     'RcLinearTri', 'RcLinearQuad', 'RcLinearTet', 'RcLinearBrick', 'RcLinearWedge',
@@ -60,12 +60,13 @@ class ThermalInventory:
                 'limitations':['full_model_dependency_and_semantic_closure_unqualified']}
 
 
-def decode_drawing(snapshot):
+def decode_drawing(snapshot, *, handles=None):
     classes={c['number']:c for c in snapshot.native['classes']};names={k:c['cppname'] for k,c in classes.items()}
     standards={_one(row,'handle')[2]:row for row in _one(snapshot.standard,'OBJECTS')}
     payloads=[];records=[]
     for row in snapshot.native['objects']:
-        if row['type']<500:continue
+        if row['type'] < 500 or (handles is not None and row['handle'] not in handles):
+            continue
         name = names[row['type']]
         decoder = DECODERS.get(name)
         code = 'td_geometry_profile_unmapped' if name in UNMAPPED_GEOMETRY_CLASSES else 'td_class_profile_unmapped'

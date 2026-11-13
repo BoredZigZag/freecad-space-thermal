@@ -88,6 +88,8 @@ def _convert_network(snapshot,units,source_revision,closure_holds=(),*,material_
     diagnostics=[{'code':code} for code in closure_holds];identities=[];entities=[];entries=[]
     if not isinstance(units,SindaUnits):
         return Conversion(None,(),tuple(diagnostics+[{'code':'td_native_explicit_units_required'}]))
+    if snapshot.native['version'] != 'AC1032':
+        return Conversion(None, (), tuple(diagnostics + [{'code': 'td_native_container_version_unmapped'}]))
     inventory=inventory if inventory is not None else decode_drawing(snapshot)
     payloads=sorted((p for p in inventory.payloads if p.report['payload_decoded']),key=lambda p:p.record['handle'])
     decoded={p.record['handle'] for p in payloads};all_handles={r['handle'] for r in snapshot.native['objects']}

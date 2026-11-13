@@ -479,7 +479,13 @@ The geometry-class regression checks the shared conic filer, solid boundaries,
 finite-element connectivity and known unsupported classes. It uses owned wire
 fixtures in both Windows TD acceptance stages. TST-021 checks exact sources,
 fixtures, locks, bounded verdicts and timing summaries. The underlying drawing
-inventory, raw files and decoded values stay local.
+raw drawing files and decoded values stay local.
+The source-inventory follow-up checks AC1027 inspection and byte-exact copying
+in `tools/build_independent_dwg.py`. Both Windows TD stages exercise expanded
+wire profiles, exact stream consumption, source-node boundaries and preservation
+of unsupported attributes. TST-021 scans the exact source inventory, owned
+fixtures, locks, bounded verdicts, scalar timings, staged bytes and outgoing
+history and identities. Original models and raw probes remain in local storage.
 Dynamic power acceptance adds owned RcHeatLoad v17, SINDA TVS and zero-phase
 PER fixtures. Run `tools/check_td.py`, vendor-free fresh CLI preparation in
 `tools/build_independent_dwg.py`, and the native interpolation, cycle reset,
@@ -711,6 +717,12 @@ source blocks, solver controls, stored INSERT roots and an active restart SAVE
 path for the first v73 case. The captured tree supports bounded nested INSERT
 discovery. Remaining case settings, runtime dependency closure, orbit/environment
 physics bindings and full-drawing native reconstruction remain open.
+The [source inventory](../inventory/td-geometry-sources.md) supplies additional
+AC1027 inspection fixtures and AC1032 wire revisions for FD solids, rectangles,
+linear solid elements, conductors and expressions. Read-only inspection and
+static boundary export now cover the reviewed cases. Unknown marker-56 surface
+attributes, CAD importer synchronization, active meshing and geometry-attached
+thermal physics remain open.
 Unrepresented modes and additional source versions need verified format evidence,
 while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.
 

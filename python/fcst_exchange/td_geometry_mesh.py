@@ -424,6 +424,8 @@ _LINEAR_SOLID_FACES = {
 def _element_points(payload, nodes, length_unit):
     if not isinstance(length_unit, str) or length_unit not in LENGTH_UNITS:
         reject('td_geometry_length_unit')
+    if payload.fields.get('additional_node_selector', 0):
+        reject('td_element_node_selector_unmapped')
     handles = payload.fields['node_handles']
     if nodes is None or any(handle not in nodes for handle in handles):
         reject('td_element_missing_node')
@@ -550,7 +552,7 @@ def selected_geometry(staged, handles, *, inventory=None):
     if len(selected) != len(handles):
         reject('td_geometry_duplicate_handle')
     if inventory is None:
-        inventory = decode_drawing(staged.snapshot)
+        inventory = decode_drawing(staged.snapshot, handles=selected or None)
     geometry = {p.record['handle']: p for p in inventory.payloads if isinstance(p, (RectangleEnvelope, RectanglePayload))}
     if not selected:
         geometry_classes = {row['number'] for row in staged.snapshot.native['classes']
@@ -568,11 +570,16 @@ def render_geometry(staged, length_unit, handles=()):
 
     if not isinstance(staged, DwgPreview):
         reject('independent_td_preview_required')
-    inventory = decode_drawing(staged.snapshot)
-    nodes = {p.record['handle']: p for p in inventory.payloads if isinstance(p, NodePayload)}
+    inventory = decode_drawing(staged.snapshot, handles=set(handles) if handles else None)
+    geometry = selected_geometry(staged, handles, inventory=inventory)
+    if handles:
+        node_handles = {node for _, payload in geometry for node in payload.fields.get('node_handles', ())}
+        node_payloads = decode_drawing(staged.snapshot, handles=node_handles).payloads if node_handles else ()
+    else:
+        node_payloads = inventory.payloads
+    nodes = {p.record['handle']: p for p in node_payloads if isinstance(p, NodePayload)}
     lines = ['# FCST TD geometry-only export. Coordinates in metres.']
     vertices = faces = triangles = quads = 0
-    geometry = selected_geometry(staged, handles, inventory=inventory)
     for handle, payload in geometry:
         points, boundary = boundary_mesh(payload, length_unit, face_limit=Limits().records - faces, nodes=nodes)
         kind = payload.shape if isinstance(payload, (ConicPayload, CurvedSolidPayload)) else (

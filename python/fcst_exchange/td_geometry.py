@@ -41,12 +41,15 @@ class RectanglePayload:
 
     @property
     def report(self):
-        return {'profile':'td-rcrectangle-v7-attributes54/1','handle':self.record['handle'],
+        revision = self.fields['attributes'].get('wire_revision', 54)
+        return {'profile':f'td-rcrectangle-v7-attributes{revision}/1','handle':self.record['handle'],
                 'payload_decoded':True,'geometric_envelope_decoded':True,'thermal_semantics_decoded':False,
                 'native_ready':False,'qualified':False,
                 'scope':'Complete serialized rectangle, surface attributes and mesh controls; physical selector mappings and mesh regeneration pending'}
 
     def edited_record(self,changes):
+        if 'extended_attributes' in self.fields['attributes']:
+            reject('td_rectangle_extended_edit_unmapped')
         return _edit_geometry(self,changes,decode_rectangle_complete,6,2,self.fields['parameter_expressions'])
 
 
@@ -81,12 +84,12 @@ def _prefix(filer,standard):
 
 
 def decode_rectangle_complete(row,standard):
-    return _decode_surface(row, standard, RectanglePayload, ATTRIBUTE_REVISION)
+    return _decode_surface(row, standard, RectanglePayload, (ATTRIBUTE_REVISION, EXTENDED_ATTRIBUTE_REVISION))
 
 
-def _decode_surface(row, standard, cls, revision, *shape):
+def _decode_surface(row, standard, cls, revisions, *shape):
     filer=Filer(row);fields=_prefix(filer,standard);b=filer.data
-    fields['attributes']=read_attributes(filer, revision=revision)
+    fields['attributes']=read_attributes(filer, revisions=revisions)
     fields['additional_parameters']=tuple(b.bd() for _ in range(6))
     fields['mesh_controls']=read_mesh_controls(filer)
     fields['parameter_expressions']=tuple(filer.expression() for _ in range(filer.count()))
@@ -106,7 +109,7 @@ class DiskPayload(RectanglePayload):
 
 
 def decode_disk(row, standard):
-    return _decode_surface(row, standard, DiskPayload, EXTENDED_ATTRIBUTE_REVISION)
+    return _decode_surface(row, standard, DiskPayload, (EXTENDED_ATTRIBUTE_REVISION,))
 
 
 @dataclass(frozen=True)
@@ -127,7 +130,7 @@ def conic_decoder(shape):
     # These classes share the same data/text/handle filer. The class identity
     # selects the meaning of the parameter slots after structural decoding.
     def decode(row, standard):
-        return _decode_surface(row, standard, ConicPayload, EXTENDED_ATTRIBUTE_REVISION, shape)
+        return _decode_surface(row, standard, ConicPayload, (EXTENDED_ATTRIBUTE_REVISION,), shape)
     return decode
 
 
@@ -166,16 +169,19 @@ def rectangle_payload(fields):
 class BrickPayload(RectanglePayload):
     @property
     def report(self):
-        return {'profile':'td-rcfdbrick-v21/1','handle':self.record['handle'],'payload_decoded':True,
+        version = self.fields.get('wire_version', 21)
+        return {'profile':f'td-rcfdbrick-v{version}/1','handle':self.record['handle'],'payload_decoded':True,
                 'geometric_envelope_decoded':True,'thermal_semantics_decoded':False,'native_ready':False,'qualified':False,
                 'scope':'Complete serialized brick, subdivision, material/face fields, mesh controls and advection; physical selector bindings and mesh regeneration pending'}
 
     def edited_record(self,changes):
+        if 'extended_attributes' in self.fields:
+            reject('td_brick_extended_edit_unmapped')
         return _edit_geometry(self,changes,decode_brick,12,3,self.fields['attributes']['parameter_expressions'])
 
 
 def decode_brick(row,standard):
-    return _decode_solid(row, standard, BrickPayload, 21)
+    return _decode_solid(row, standard, BrickPayload, 21, 23)
 
 
 @dataclass(frozen=True)
@@ -221,12 +227,13 @@ def decode_solid_ellipsoid(row, standard):
     return _decode_solid(row, standard, EllipsoidSolidPayload, 23)
 
 
-def _decode_solid(row, standard, cls, version):
-    f=Filer(row);b=f.data;f.version(version)
+def _decode_solid(row, standard, cls, *versions):
+    f=Filer(row);b=f.data;version=f.version_one_of(*versions)
     fields={'serialized_parameters':tuple(f.number(f'parameter_{i}') for i in range(12)),
             'origin':b.point(),'axes':tuple(b.point() for _ in range(3)),
             'common_handles':common_handles(f,standard),'attributes':read_solid_attributes(f)}
     if version == 23:
+        fields['wire_version'] = 23
         fields['extended_attributes'] = {'names': f.texts(), 'indices': f.integers(), 'text_ids': read_text_ids(f)}
     f.finish();return cls(fields,dict(f.spans),dict(row),standard)
 
@@ -235,7 +242,9 @@ def _decode_solid(row, standard, cls, version):
 class LinearSolidPayload(RectanglePayload):
     @property
     def report(self):
-        return {'profile': f'td-rclinear{self.shape}2-v5-attributes13/1', 'handle': self.record['handle'],
+        version = self.fields.get('node_wire_version', 5)
+        revision = self.fields['attributes'].get('wire_version', 13)
+        return {'profile': f'td-rclinear{self.shape}2-v{version}-attributes{revision}/1', 'handle': self.record['handle'],
                 'payload_decoded': True, 'geometric_envelope_decoded': True, 'thermal_semantics_decoded': False,
                 'native_ready': False, 'qualified': False,
                 'scope': 'Ordered node references, optional element frame and serialized element attributes'}
@@ -293,7 +302,7 @@ class PolygonMeshPayload(RectanglePayload):
 def decode_polygon_mesh(row, standard):
     filer = Filer(row)
     common = common_handles(filer, standard)
-    attrs = read_attributes(filer, revision=EXTENDED_ATTRIBUTE_REVISION)
+    attrs = read_attributes(filer, revisions=(EXTENDED_ATTRIBUTE_REVISION,))
     b = filer.data
     version = b.bl()
     if version not in (1, 2):
@@ -333,7 +342,7 @@ def decode_quadratic_quad(row, standard):
 def _decode_linear_shell(row, standard, shape, count, *, order=1):
     filer = Filer(row)
     common = common_handles(filer, standard)
-    attrs = read_attributes(filer, revision=EXTENDED_ATTRIBUTE_REVISION)
+    attrs = read_attributes(filer, revisions=(EXTENDED_ATTRIBUTE_REVISION,))
     fields = _element_nodes(filer, count)
     filer.version(5)
     references = tuple(filer.handle() for _ in range(filer.count()))
@@ -365,7 +374,7 @@ def _decode_linear_solid(row, standard, cls):
     common = common_handles(filer, standard)
     fields = _element_nodes(filer, cls.node_count)
     b = filer.data
-    filer.version(13)
+    revision = filer.version_one_of(13, 14)
 
     def references():
         return tuple(filer.handle() for _ in range(filer.count()))
@@ -375,6 +384,8 @@ def _decode_linear_solid(row, standard, cls):
              'point_values': tuple((b.bd(), b.point()) for _ in range(filer.count()))}
     attrs['modifiers'] = (tuple(b.bd() for _ in range(4)), tuple(filer.expression() for _ in range(4))) if b.take(1) else None
     attrs.update(references_c=references(), selector=b.bl(), expression=filer.expression())
+    if revision == 14:
+        attrs.update(wire_version=14, additional_selector=b.bl())
     filer.version(1)
     filer.finish()
     fields.update(common_handles=common, attributes=attrs)
@@ -382,7 +393,7 @@ def _decode_linear_solid(row, standard, cls):
 
 
 def _element_nodes(filer, count):
-    filer.version(5)
+    version = filer.version_one_of(5, 6)
     if filer.count() != count:
         reject('td_element_node_count')
     nodes = tuple(filer.handle()['target'] for _ in range(count))
@@ -391,7 +402,10 @@ def _element_nodes(filer, count):
     label = filer.text()
     b = filer.data
     frame = tuple(b.point() for _ in range(4)) if b.take(1) else ()
-    return {'node_handles': nodes, 'label': label, 'element_frame': frame, 'selector': b.bl()}
+    fields = {'node_handles': nodes, 'label': label, 'element_frame': frame, 'selector': b.bl()}
+    if version == 6:
+        fields.update(node_wire_version=6, additional_node_selector=b.bl())
+    return fields
 
 
 def brick_payload(fields):

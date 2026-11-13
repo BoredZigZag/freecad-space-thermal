@@ -67,17 +67,20 @@ def read_text_ids(filer):
     return tuple((filer.text(), filer.data.bl(), filer.data.bl()) for _ in range(filer.count()))
 
 
-def read_attributes(filer, *, revision=ATTRIBUTE_REVISION):
+def read_attributes(filer, *, revisions=(ATTRIBUTE_REVISION,)):
     b=filer.data
     fields={'groups':tuple((filer.text(),b.bl()) for _ in range(filer.count())),
             'legacy_names':tuple(filer.text() for _ in range(2)),
             'legacy_selectors':tuple(b.bl() for _ in range(2)),
             'names':tuple(filer.text() for _ in range(3))}
-    if b.bd()!=revision:reject('td_surface_attribute_revision')
+    revision = b.bd()
+    if revision not in revisions:
+        reject('td_surface_attribute_revision')
     for name,kind,count in ATTRIBUTE_LAYOUT:
         values=tuple(read_value(filer,kind) for _ in range(count))
         fields[name]=values[0] if count==1 else values
     if revision == EXTENDED_ATTRIBUTE_REVISION:
+        fields['wire_revision'] = 55
         fields['extended_attributes'] = {
             'text_ids': read_text_ids(filer), 'names': (filer.text(), filer.text()),
             'name_maps': tuple(read_value(filer, 'text_pairs') for _ in range(2)),

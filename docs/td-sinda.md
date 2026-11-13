@@ -40,7 +40,9 @@ the versioned TD records, retains opaque classes in the report, and lists
 captured companions by file role. Case property overrides resolve against the
 captured tree relative to the drawing. Unsafe, missing and wrong-role inputs
 stay explicit. The report carries source handles as strings to preserve their
-full width.
+full width. The file inventory recognizes SpaceClaim (`.scdoc`), TD Designer
+(`.dsco`) and CoSolver settings (`.scp`). Importer-to-companion links and
+synchronization remain unresolved.
 
 The supported case-manager layout inventories the first v73 case through its
 steady/transient selectors, v36 radiation tasks, property overrides, thermal
@@ -85,8 +87,14 @@ prior vendor conversion or service. Original files remain immutable. Exports
 publish a new tree atomically after validation; existing destinations, source/work
 overlap, stale sources and unrequested changes reject.
 
-The declared binary payload profiles are **RcNode v22**, **RcConductor v22** and
-**RcHeatLoad v17**. These are serialization versions, not TD release claims.
+The backend supports AC1032 inspection and guarded writes. AC1027 supports
+inspection, geometry export for decoded records and byte-exact source copying.
+Native thermal conversion, DWG rewrite and edited drawing export require AC1032.
+
+The binary payload readers cover **RcNode v22**, **RcConductor v22–v24** and
+**RcHeatLoad v17**, including v5 and v6 expressions. Closed-network reconstruction
+uses the original validated conductor v22 profile. These wire versions do not
+identify TD releases.
 Readers consume the entire data, separate UCS-2 text and reference streams;
 unsupported versions remain opaque with an explicit diagnostic. They inventory
 source expressions, tables, logic and unresolved selectors without executing or
@@ -335,6 +343,11 @@ nodes/conductors/loads this covers 996 complete payloads. Unknown rectangle
 attribute revisions retain a partial envelope; unsupported solids retain opaque
 bytes. Neither status grants physical reconstruction.
 
+Rectangle marker 55 and FD brick v23 also support complete decoding and static
+boundary export. Their additional attributes are retained. Serialized size
+edits and thermal material assignment use the earlier validated rectangle and
+brick layouts.
+
 Owned `rectangle_payload`/`brick_payload` writers create those complete records
 without an imported drawing or vendor template. The native factory writes their
 actual class identities (`RCRECTANGLE`/`RcRectangle` and
@@ -385,7 +398,7 @@ produce diagnostics.
 | Ogive | Shared conic record decoding. Boundary parameters remain held. |
 | FD brick, solid cone, cylinder, sphere and ellipsoid | Static boundary export. Hollow ellipsoids support closed nested walls or proportional walls with matching normalized trims. |
 | Polygon and FD mesh | Ordered polygon connectivity and boundary export for the supported layouts |
-| Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundary export for the reviewed layouts. Older class layouts remain held. |
+| Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundary export for the reviewed layouts, including solid-element node v6 and attribute v14 records. Older class layouts and unmapped node selectors remain held. |
 | Quadratic triangle and quadrilateral | Ordered source-node decoding for the reviewed layout. Curved boundaries remain held. |
 | Quadratic tetrahedron, pyramid, wedge and brick, automatic mesh entities | Recognized classes with explicit unsupported diagnostics |
 
@@ -394,6 +407,10 @@ catalog describes the product surface across releases. Serialized layout
 support is tied to explicit wire versions and tested separately.
 [OpenTD 2025 R2](https://developer.synopsys.com/docs/opentd-net8-reference-2025-r2/class_open_t_d_1_1_thermal_desktop.xhtml)
 [OpenTD 2026 R1](https://developer.synopsys.com/docs/opentd-reference-2026-r1/net8-reference/OpenTD.ThermalDesktop.md)
+
+The [WP-08 source inventory](../inventory/td-geometry-sources.md) records the
+local drawing checks and the fixtures needed for additional geometry and
+thermal coverage.
 
 ### Prepare a native conduction mesh
 

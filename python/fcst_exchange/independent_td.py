@@ -72,6 +72,8 @@ class DwgPreview:
                 try:properties.append(parse_properties(raw,Path(name).suffix.lower()[1:]).report)
                 except ExchangeError as error:properties.append({'status':'retained-opaque','limitation':error.code})
         conversion=self._conversion(inventory).report
+        field_edits = self.snapshot.native['version'] == 'AC1032' and any(
+            p.report['payload_decoded'] for p in inventory.payloads)
         from .td_property_model import dependency_catalog
         return {**self.snapshot.report,**conversion,'source_revision':self.original.source_hash,
                 'thermal_mapping':'canonical-constant-network' if conversion['native_ready'] else 'unmapped',
@@ -80,7 +82,7 @@ class DwgPreview:
                 'files':len(self.original.files),'directories':len(self.original.directories),
                 'operations':{'inspect':True,'unchanged-source-export':True,
                               'thermal-native-reconstruction':conversion['native_ready'],'thermal-controlled-edit':conversion['native_ready'],
-                              'guarded-source-field-export':any(p.report['payload_decoded'] for p in inventory.payloads) or any('entries' in p for p in properties)},
+                              'guarded-source-field-export':field_edits or any('entries' in p for p in properties)},
                 'limitations':[] if conversion['native_ready'] else ['required_td_class_semantics_incomplete','semantic_dependency_closure_unqualified']}
 
     def require_native(self):
@@ -186,6 +188,8 @@ class IndependentTdAdapter:
         for edit in edits:
             if not isinstance(edit,dict):reject('td_source_edit_shape')
             if set(edit)=={'handle','changes'}:
+                if staged.snapshot.native['version'] != 'AC1032':
+                    reject('independent_dwg_container_profile')
                 handle=source_edit_handle(edit['handle'])
                 if handle not in payloads or handle in seen:reject('td_source_edit_handle')
                 seen.add(handle);payload=payloads[handle]

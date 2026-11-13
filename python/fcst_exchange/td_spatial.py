@@ -21,7 +21,8 @@ def _constant_assignment(payload, scale):
     attrs = payload.fields['attributes']
     if isinstance(payload, BrickPayload):
         advection = attrs['advection']
-        if (attrs['selector_a'] != 0 or attrs['selector_b'] != 1 or attrs['selector_c'] != 0
+        if ('extended_attributes' in payload.fields or attrs['selector_a'] != 0
+                or attrs['selector_b'] != 1 or attrs['selector_c'] != 0
                 or attrs['selector_d'] != 0 or attrs['scalars_a'] != (1,) * 4
                 or any(advection['selectors']) or any(advection['values'])
                 or any(not expression_is_constant(e) for e in (*attrs['expressions_a'], *advection['expressions']))):
@@ -29,7 +30,7 @@ def _constant_assignment(payload, scale):
         return attrs['names_a'][1], 0.0, (1,) * 4
 
     top, bottom = attrs['property_names']
-    if (attrs['primary_selector'] != 1 or bottom.casefold() not in ('', 'default')
+    if ('extended_attributes' in attrs or attrs['primary_selector'] != 1 or bottom.casefold() not in ('', 'default')
             or attrs['property_label'].casefold() not in ('', 'default') or attrs['property_value']
             or any(attrs['selectors_a']) or any(attrs['selectors_b']) or any(attrs['selectors_f']) or any(attrs['selectors_i'])
             or any(value <= 0 for value in attrs['values_g']) or any(attrs['name_lists']) or any(attrs['name_maps'])
@@ -74,6 +75,8 @@ def _region(prefix, material, thickness, grid):
 def prepare_spatial(staged, properties, length_unit, *, temperature, temperature_range, handles=()):
     """Build an independent conduction-only input from captured DWG/TDP bytes."""
     geometry = selected_geometry(staged, handles)
+    if staged.snapshot.native['version'] != 'AC1032':
+        reject('td_spatial_container_version_unmapped')
     if length_unit not in LENGTH_UNITS:
         reject('td_geometry_length_unit')
     if (len(temperature_range) != 2

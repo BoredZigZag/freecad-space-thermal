@@ -199,22 +199,26 @@ void apply_edits(Document& doc) {
     require(input.cursor==input.bytes.size());
 }
 void fresh(const char* name) { require(!std::filesystem::exists(name)); }
-void load(Document& doc, int& errors) {
+Dwg_Version_Type load(Document& doc, int& errors, bool inspection) {
     require(std::filesystem::is_regular_file("source.dwg"));
     require(std::filesystem::file_size("source.dwg") <= max_bytes);
     std::ifstream input("source.dwg",std::ios::binary); char signature[6]; input.read(signature,6);
-    require(input.gcount()==6 && std::memcmp(signature,"AC1032",6)==0);
+    require(input.gcount()==6);
+    const auto version = std::memcmp(signature,"AC1032",6)==0 ? R_2018 : R_2013;
+    require(version==R_2018 || (inspection && std::memcmp(signature,"AC1027",6)==0));
     errors=dwg_read_file("source.dwg",&doc.data);
     require(errors < DWG_ERR_CRITICAL);
-    require(doc.data.header.version==R_2018 && doc.data.header.from_version==R_2018);
+    require(doc.data.header.version==version && doc.data.header.from_version==version);
     require(doc.data.num_objects<=100000 && doc.data.num_classes<=10000);
+    return version;
 }
-void snapshot(Document& doc, int errors) {
+void snapshot(Document& doc, int errors, Dwg_Version_Type version) {
     fresh("native.json"); fresh("standard.json");
     auto& data=doc.data;
     std::ofstream out("native.json",std::ios::binary); require(bool(out));
     out << "{\"protocol\":\"" << protocol << "\",\"patch_sha256\":\"" << FCST_PATCH_SHA256
-        << "\",\"version\":\"AC1032\",\"opaque_encoding\":\"msb-first-final-byte/1\",\"read_errors\":" << errors
+        << "\",\"version\":\"" << (version==R_2018 ? "AC1032" : "AC1027")
+        << "\",\"opaque_encoding\":\"msb-first-final-byte/1\",\"read_errors\":" << errors
         << ",\"classes\":[";
     for (unsigned i=0; i<data.num_classes; ++i) {
         if (i) out << ',';
@@ -255,9 +259,9 @@ void snapshot(Document& doc, int errors) {
     const int closed=std::fclose(chain.fh);
     require(result < DWG_ERR_CRITICAL && closed==0);
 }
-void fixture() {
+void fixture(Dwg_Version_Type version) {
     fresh("source.dwg"); Document doc;
-    doc.data.header.version=R_2018; doc.data.header.from_version=R_2018;
+    doc.data.header.version=version; doc.data.header.from_version=version;
     require(dwg_add_Document(&doc.data,0)==0);
     auto* space=dwg_model_space_object(&doc.data);
     require(space && space->tio.object && space->tio.object->tio.BLOCK_HEADER);
@@ -278,12 +282,13 @@ int main(int argc,char** argv) {
                       << FCST_PATCH_SHA256 << "\",\"license\":\"GPL-3.0-or-later\",\"vendor_runtime_required\":false}\n";
             return 0;
         }
-        if (operation=="fixture") { fixture(); return 0; }
+        if (operation=="fixture") { fixture(R_2018); return 0; }
+        if (operation=="fixture-ac1027") { fixture(R_2013); return 0; }
         if (operation=="create-network") { create_network(); return 0; }
         require(operation=="inspect" || operation=="rewrite" || operation=="rewrite-edited");
-        Document doc; int errors=0; load(doc,errors);
+        Document doc; int errors=0; const auto version=load(doc,errors,operation=="inspect");
         if (operation=="rewrite-edited") apply_edits(doc);
-        snapshot(doc,errors);
+        snapshot(doc,errors,version);
         if (operation=="rewrite" || operation=="rewrite-edited") {
             fresh("derived.dwg");
             require(dwg_write_file("derived.dwg",&doc.data)<DWG_ERR_CRITICAL);

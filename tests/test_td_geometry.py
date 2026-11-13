@@ -108,6 +108,83 @@ def curved_record(shape, *, trailing=False, shell_parameters=None, solid_paramet
 
 
 class TdGeometryTests(unittest.TestCase):
+    def test_v6_expression_consumes_only_its_fields_and_preserves_inert_source(self):
+        from fcst_exchange.td_filer import Filer, expression_is_constant
+
+        for version, source in ((5, ''), (6, ''), (6, 'owned_symbol'), (7, '')):
+            writer = FilerWriter()
+            b = writer.data
+            b.bl(version)
+            for selector in (-1, 0, 0):
+                b.bl(selector)
+            writer.text(source)
+            writer.text('')
+            writer.table()
+            b.bl(0)
+            b.bl(-1)
+            if version == 5:
+                b.put(0, 1)
+                writer.table()
+            b.bl(23)
+            row, _ = envelope(writer.result(4))
+            filer = Filer(row)
+            if version == 7:
+                with self.assertRaisesRegex(ExchangeError, 'filer_version'):
+                    filer.expression()
+                continue
+            fields = filer.expression()
+            self.assertEqual(fields['text'], source)
+            self.assertEqual(fields.get('wire_version', 5), version)
+            self.assertEqual(expression_is_constant(fields), not source)
+            self.assertEqual(filer.data.bl(), 23)
+            self.assertEqual(filer.handle()['target'], 0)
+            filer.finish()
+
+    def test_extended_primitive_profiles_preserve_fields_and_export_static_boundaries(self):
+        from fcst_exchange.td_spatial import _constant_assignment
+        from fcst_exchange.td_surface import write_expression, write_mesh_controls, write_solid_attributes
+
+        for solid, decode, name, parameters in (
+                (False, decode_rectangle_complete, 'attributes55', (4, 6)),
+                (True, decode_brick, 'v23', (4, 6, 8))):
+            writer = FilerWriter()
+            b = writer.data
+            if not solid:
+                b.bd(SENTINEL)
+            b.bl(23 if solid else 7)
+            count = 12 if solid else 6
+            for value in (*parameters, *(0,) * (count - len(parameters))):
+                b.bd(value)
+            for point in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)):
+                b.point(point)
+            if solid:
+                attrs = brick_boundary_fields()['attributes']
+                write_solid_attributes(writer, attrs)
+                writer.integers(())  # Empty text vector.
+                writer.integers((7, 11))
+                b.bl(0)
+            else:
+                attrs = rectangle_boundary_fields()['attributes']
+                write_owned_surface55(writer, attrs)
+                for _ in range(6):
+                    b.bd(0)
+                write_mesh_controls(writer, {**rectangle_boundary_fields()['mesh_controls'], 'values': (0,) * 6})
+                b.bl(len(parameters))
+                for _ in parameters:
+                    write_expression(writer, expression())
+                b.bl(0)
+            row, standard = envelope(writer.result(5 if solid else 4))
+            payload = decode(row, Fields(standard.items()))
+            self.assertIn(name, payload.report['profile'])
+            self.assertFalse(payload.report['thermal_semantics_decoded'])
+            points, faces = boundary_mesh(payload, 'm')
+            self.assertEqual(tuple(map(max, zip(*points))), (*parameters, 0) if not solid else parameters)
+            self.assertEqual(len(faces), 24 if solid else 4)
+            with self.assertRaisesRegex(ExchangeError, 'material_mode'):
+                _constant_assignment(payload, 1)
+            with self.assertRaisesRegex(ExchangeError, 'extended_edit_unmapped'):
+                payload.edited_record({'serialized_parameters': parameters})
+
     def test_extended_conics_and_solids_match_analytic_geometry(self):
         from collections import Counter
         from fcst_contracts.spatial import determinant
@@ -169,15 +246,17 @@ class TdGeometryTests(unittest.TestCase):
     def test_linear_brick_uses_ordered_source_nodes_and_holds_unmapped_physics(self):
         from fcst_contracts.spatial import determinant
 
-        def element_writer(count):
+        def element_writer(count, *, version=5, node_selector=0, attribute_selector=0):
             writer = FilerWriter()
-            writer.data.bl(5)
+            writer.data.bl(version)
             writer.data.bl(count)
             writer.references.extend(range(1, count + 1))
             writer.text('owned element')
             writer.data.put(0, 1)
             writer.data.bl(1)
-            writer.data.bl(13)
+            if version == 6:
+                writer.data.bl(node_selector)
+            writer.data.bl(14 if version == 6 else 13)
             writer.text('owned material')
             writer.text('owned optics')
             writer.data.bl(0)
@@ -195,6 +274,8 @@ class TdGeometryTests(unittest.TestCase):
             writer.data.bl(0)
             writer.data.bl(1)
             writer.expression()
+            if version == 6:
+                writer.data.bl(attribute_selector)
             writer.data.bl(1)
             return writer
 
@@ -260,13 +341,20 @@ class TdGeometryTests(unittest.TestCase):
                 (4, decode_linear_tetra, (0, 1, 3, 4), 4e-9, [3, 3, 3, 3]),
                 (5, decode_linear_pyramid, (0, 1, 2, 3, 4), 8e-9, [3, 3, 3, 3, 4])):
             targets = tuple(handles[i] for i in order)
-            record, common = envelope(element_writer(count).result(11), targets=targets)
-            solid = decode(record, Fields(common.items()))
-            points, faces = boundary_mesh(solid, 'mm', nodes=nodes)
-            self.assertEqual(sorted(map(len, faces)), face_sizes)
-            volume = sum(determinant((points[a], points[j], points[k])) / 6
-                         for a, *rest in faces for j, k in zip(rest, rest[1:]))
-            self.assertAlmostEqual(volume, expected, places=16)
+            for version in (5, 6):
+                record, common = envelope(element_writer(count, version=version, attribute_selector=19).result(11), targets=targets)
+                solid = decode(record, Fields(common.items()))
+                points, faces = boundary_mesh(solid, 'mm', nodes=nodes)
+                self.assertEqual(sorted(map(len, faces)), face_sizes)
+                volume = sum(determinant((points[a], points[j], points[k])) / 6
+                             for a, *rest in faces for j, k in zip(rest, rest[1:]))
+                self.assertAlmostEqual(volume, expected, places=16)
+                if version == 6:
+                    self.assertEqual(solid.fields['attributes']['additional_selector'], 19)
+                    self.assertIn('v6-attributes14', solid.report['profile'])
+            record, common = envelope(element_writer(count, version=6, node_selector=9).result(11), targets=targets)
+            with self.assertRaisesRegex(ExchangeError, 'node_selector_unmapped'):
+                boundary_mesh(decode(record, Fields(common.items())), 'mm', nodes=nodes)
         node = nodes[handles[0]]
         nodes[handles[0]] = replace(node, fields={**node.fields, 'offsets': (1, 0, 0)})
         with self.assertRaisesRegex(ExchangeError, 'offset_unmapped'):
@@ -345,6 +433,12 @@ class TdGeometryTests(unittest.TestCase):
         for version in (1, 2):
             payload = decode_polygon_mesh(*encoded(faces, version))
             self.assertEqual(boundary_mesh(payload, 'm'), (list(points), faces))
+            row, standard = encoded(faces, version)
+            registered = drawing([], geometry_classes={13: ('RCMESHFD', 'RcMeshFD')})
+            native = {**registered.native, 'objects': [row]}
+            document = Fields((name, [standard] if name == 'OBJECTS' else data) for name, data in registered.standard)
+            inventory = decode_drawing(NativeSnapshot(native, document, ''))
+            self.assertEqual(inventory.records[0]['status'], 'payload-decoded')
         for invalid in ((0, 1, -1), (0, 1, len(points)), (0, 1, 1), (0, 1)):
             with self.assertRaisesRegex(ExchangeError, 'polygon_mesh_connectivity'):
                 decode_polygon_mesh(*encoded((invalid,), 2))
@@ -376,7 +470,12 @@ class TdGeometryTests(unittest.TestCase):
             with self.assertRaisesRegex(ExchangeError, 'geometry_selection'):
                 render_geometry(preview, 'm')
             cone = sorted(CONIC_CLASSES).index('RcCone') + 101
-            obj, report = render_geometry(preview, 'm', (cone,))
+            from unittest.mock import Mock
+            from fcst_exchange.td_decode import DECODERS
+            decoder = Mock(side_effect=AssertionError('unselected payload decoded'))
+            with patch.dict(DECODERS, {'RcTorus': decoder}):
+                obj, report = render_geometry(preview, 'm', (cone,))
+            decoder.assert_not_called()
             self.assertIn(f'o td_cone_{cone}\n'.encode(), obj)
             self.assertEqual(report['objects'], 1)
 
