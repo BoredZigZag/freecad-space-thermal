@@ -139,7 +139,8 @@ def _quantity(value, unit):
 
 
 def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix='',
-                 source_maps=(), assumptions=(), limitations=()):
+                 source_maps=(), assumptions=(), limitations=(), material_frames=(),
+                 material_laws=(), tensor_laws=()):
     """Prepare disconnected regions as a single mesh with explicit material assignments.
 
     The native reader independently recomputes geometry, mappings and capacity.
@@ -193,14 +194,17 @@ def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix
             for j in indices:
                 mappings.append(dict(id=region.identifier(f'map-{i}-{j}'), from_id=element, to_id=node_ids[j],
                                      weight=1/len(indices), area=q(area,'m2'), provenance=provenance))
-    entities[1:1] = mesh_entities
+    entities[1:1] = [*mesh_entities, *material_frames]
     model = read('model', dict(contract_version='1.0.0', minimum_reader='1.0.0',
         project_id=identity(prefix + 'project'), revision=0, entities=entities,
         assumptions=['Fixed geometry; reference density; row-sum storage', *assumptions],
         limitations=['First-order spatial profile', *limitations], source_maps=list(source_maps),
         mappings=mappings, attachments=[], audit={'timestamp':'2026-01-01'}, gui={'selection':[]}))
-    return seal(dict(contract_version='2.0.0', model=model, material_laws=[], node_storage=[],
-        spatial=dict(length_unit='m', mesh_revision='0'*64, points=points, cells=cells, surfaces=[], contacts=[])))
+    spatial = dict(length_unit='m', mesh_revision='0'*64, points=points, cells=cells, surfaces=[], contacts=[])
+    if tensor_laws:
+        spatial['tensor_laws'] = list(tensor_laws)
+    return seal(dict(contract_version='2.0.0', model=model, material_laws=list(material_laws), node_storage=[],
+                     spatial=spatial))
 
 
 def from_mesh(positions, connectivity, *, topology, volumes, nodal_volumes, thickness=0,

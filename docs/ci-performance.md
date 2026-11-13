@@ -836,3 +836,33 @@ fixed stage durations and exclude runner setup and contention.
 The case dependency regression runs in the existing unit and TD drivers. The
 inventory parses each captured include at most once, including duplicate roots
 and cyclic references. Verification retains every existing required case.
+
+## WP-08 TD geometry and spatial materials
+
+The [passing Foundation handoff](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43339181735)
+used cold caches. The Debug driver took 563.187 s with three acceptance
+workers and the Release driver took 280.950 s with two. The Debug job was on
+the critical path after unit tests. Its largest stage was radiation at
+310.140 s, overlapping spatial acceptance at 236.281 s and thermal
+preparation at 254.984 s.
+
+The three required million-facet builds accounted for approximately 124.71 s
+of radiation. A fixed-duration replay with the observed dispatch order and
+the existing shared-stage constraint found that a 20% reduction in those
+builds would leave the 513.281 s acceptance span unchanged. The reference
+comparison and numerical checkpoint determined the tail. Dispatching in
+descending order of the same recorded durations modeled 489.812 s, or
+481.625 s with the hypothetical reduction. The replay covers the acceptance
+stages and assumes fixed durations. The existing hosted baseline remains tied
+to its passing candidate.
+
+The geometry regressions run in the existing unit and TD stages. The new
+native flux and enthalpy checks share the spatial stage, and the property-law
+CLI check reuses the existing synthetic DWG and backend build.
+
+Seven alternating warm pairs each prepared and bound the same owned material
+1,000 times. Re-reading the parsed property entry for every binding took
+240.92 ms (215.23–284.96). Reusing the material profile took 57.98 ms
+(53.16–64.97). The returned bindings matched in each pair. The benchmark
+measures Python property preparation and binding, excluding DWG input, solver
+work and runner setup.

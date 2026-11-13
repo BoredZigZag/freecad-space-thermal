@@ -8,6 +8,7 @@ physical meaning or qualify a thermal model.
 from .core import reject
 
 ATTRIBUTE_REVISION=5.4e22
+EXTENDED_ATTRIBUTE_REVISION=5.5e22
 
 
 def _array(value,*,size=None,limit=10000):
@@ -62,16 +63,26 @@ def read_value(filer,kind):
     reject('td_surface_field_kind')
 
 
-def read_attributes(filer):
+def read_text_ids(filer):
+    return tuple((filer.text(), filer.data.bl(), filer.data.bl()) for _ in range(filer.count()))
+
+
+def read_attributes(filer, *, revision=ATTRIBUTE_REVISION):
     b=filer.data
     fields={'groups':tuple((filer.text(),b.bl()) for _ in range(filer.count())),
             'legacy_names':tuple(filer.text() for _ in range(2)),
             'legacy_selectors':tuple(b.bl() for _ in range(2)),
             'names':tuple(filer.text() for _ in range(3))}
-    if b.bd()!=ATTRIBUTE_REVISION:reject('td_surface_attribute_revision')
+    if b.bd()!=revision:reject('td_surface_attribute_revision')
     for name,kind,count in ATTRIBUTE_LAYOUT:
         values=tuple(read_value(filer,kind) for _ in range(count))
         fields[name]=values[0] if count==1 else values
+    if revision == EXTENDED_ATTRIBUTE_REVISION:
+        fields['extended_attributes'] = {
+            'text_ids': read_text_ids(filer), 'names': (filer.text(), filer.text()),
+            'name_maps': tuple(read_value(filer, 'text_pairs') for _ in range(2)),
+            'name_lists': tuple((filer.text(), filer.texts()) for _ in range(2)),
+        }
     return fields
 
 

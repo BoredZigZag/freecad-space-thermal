@@ -468,6 +468,13 @@ rejection cases in `tools/check_td.py`, and native flux and capacity checks in
 bridge, fixture, pins, bounded DWG/TD/spatial verdicts, scalar timings, outgoing
 history, approved identities and final GitHub prose. Original DWG/TDP bytes,
 derived meshes, source identifiers and raw results remain local.
+The extended TD geometry and material slice uses owned wire fixtures for curved
+primitives and linear solid elements. The existing native DWG workflow exercises
+temperature tables through the CLI. Both Windows spatial drivers check rotated
+flux, conservation, capacity and enthalpy. TST-021 scans the exact changed
+sources, fixtures, source locks, bounded reports, scalar timings, outgoing
+history, approved author metadata and final GitHub prose. Original drawings,
+decoded attributes, node coordinates, derived OBJ files and raw outputs stay local.
 Dynamic power acceptance adds owned RcHeatLoad v17, SINDA TVS and zero-phase
 PER fixtures. Run `tools/check_td.py`, vendor-free fresh CLI preparation in
 `tools/build_independent_dwg.py`, and the native interpolation, cycle reset,
@@ -663,12 +670,17 @@ documents and owned property libraries have independent conversion paths; static
 SINDA arrays/intrinsics have bounded readers. Complete rectangle/brick wire
 profiles have owned readers/writers and guarded constant-size source edits.
 `td-export-geometry` maps verified sizes, frames, local transforms and literal
-subdivisions to OBJ boundary quads. `td-prepare-spatial` reconstructs quad4
-single-layer rectangles and hex8 homogeneous bricks with their constant
-isotropic TDP assignments, shell thickness and volume-weighted nodal capacity.
-The vendor-free input uses generated FCST nodes and disconnected bodies.
-Source numbering, multilayer, variable or anisotropic geometry materials,
-and contact, radiation and case coupling remain open.
+subdivisions to OBJ boundaries. Reviewed layouts cover rectangles, bricks,
+disks, solid cylinders, solid spheres and linear finite-element bricks and wedges.
+Finite-element export resolves the source node handles.
+`td-prepare-spatial` reconstructs quad4 single-layer rectangles and hex8
+homogeneous bricks with volume-weighted nodal capacity. It binds basic
+isotropic and orthotropic TDP temperature laws to transformed material axes
+and supports constant, axis-aligned laminates and series/parallel aggregates
+of basic materials. The input uses generated FCST nodes and disconnected bodies.
+Finite-difference source numbering, native curved and finite-element physics,
+automatic mesh regeneration, multilayer assignments, and coupling to source
+contacts, loads, optical properties, radiation and case controls remain open.
 Basic isotropic TDP temperature tables now bind to native thermal inputs with
 explicit intervals, interpolation, extrapolation and optional node masses. The
 binding reads the active specific-heat and conductivity laws and exercises

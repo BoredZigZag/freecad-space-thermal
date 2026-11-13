@@ -98,6 +98,20 @@ def spatial_properties():
                        'entries': [{**entry, 'tables': {}, 'vectors': {}} for entry in materials]})
 
 
+def spatial_law_properties():
+    from fcst_exchange.td_property_laws import write_laws
+
+    entries = [
+        {'name': 'OWNED SHEET', 'scalars': {'CONDUCT': 4, 'DENSITY': 20, 'SPECHEAT': 30, 'USEANISO': 1,
+                                         'CONDUCTY': 8, 'CONDUCTZ': 9, 'USEVARCONDUCT': 1, 'USEVARSPECHEAT': 1},
+         'tables': {'VARCONDUCT': [[250, 2], [350, 6], [450, 14]], 'VARSPECHEAT': [[250, 25], [450, 45]]}},
+        {'name': 'OWNED solid', 'scalars': {'CONDUCT': 7, 'DENSITY': 10, 'SPECHEAT': 50, 'USEVARCONDUCT': 1},
+         'tables': {'VARCONDUCT': [[250, 6], [450, 10]]}},
+    ]
+    return write_laws({'profile': 'td-property-laws/1', 'kind': 'tdp',
+                       'entries': [{'vectors': {}, **entry} for entry in entries]})
+
+
 def spatial_preview(root, fields=None, properties=None):
     from fcst_exchange.independent_td import DwgPreview
     from fcst_exchange.source_tree import capture_project

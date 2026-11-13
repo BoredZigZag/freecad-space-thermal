@@ -5,6 +5,8 @@ from collections import Counter
 from .core import Limits, reject
 from .dwg_native import _one
 from .td_decode import decode_drawing
+from .td_geometry import LinearSolidPayload
+from .td_node import NodePayload
 from .td_project_graph import companion_inventory, dictionary_graph
 from .td_project_records import project_records
 from .td_property_model import dependency_catalog
@@ -45,13 +47,22 @@ def inspect_project(staged):
     configuration_handles = {r['handle'] for r in configuration}
     inventory = decode_drawing(snapshot)
     classes = {row['number']: row for row in snapshot.native['classes']}
+    node_handles = {p.record['handle'] for p in inventory.payloads if isinstance(p, NodePayload)}
+    element_nodes = {p.record['handle']: p.fields['node_handles'] for p in inventory.payloads
+                     if isinstance(p, LinearSolidPayload)}
     thermal = []
     for record in inventory.records:
         handle = record['handle']
         if str(handle) not in configuration_handles:
             identity = classes[objects[handle]['type']]
-            thermal.append({**record, 'handle': str(handle), 'class': identity['cppname'],
-                            'dxf': identity['dxfname'], 'dictionary_reachable': handle in reached})
+            item = {**record, 'handle': str(handle), 'class': identity['cppname'],
+                    'dxf': identity['dxfname'], 'dictionary_reachable': handle in reached}
+            if handle in element_nodes:
+                item['node_bindings'] = [
+                    {'target': str(node), 'status': 'resolved' if node in node_handles
+                     else 'unmapped' if node in objects else 'missing'}
+                    for node in element_nodes[handle]]
+            thermal.append(item)
     for record in configuration:
         record['dictionary_reachable'] = int(record['handle']) in reached
         for link in record.get('common_references', ()):

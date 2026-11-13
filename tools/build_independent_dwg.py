@@ -311,7 +311,7 @@ raise SystemExit(main())
     # Complete owned surface/solid streams are exercised in a real new container
     # and edited through the vendor-denied CLI, not just a Python envelope.
     sys.path.insert(0,str(ROOT/'tests'))
-    from td_geometry_fixture import rectangle_fields,brick_fields,spatial_fields,spatial_properties
+    from td_geometry_fixture import rectangle_fields,brick_fields,spatial_fields,spatial_properties,spatial_law_properties
     from fcst_exchange.td_geometry import rectangle_payload,brick_payload
     rectangle=rectangle_fields();rectangle['attributes']['references_a']=((1,),(0,))
     brick=brick_fields();brick['attributes']['references_a']=((1,),(0,))
@@ -398,6 +398,15 @@ raise SystemExit(main())
     materials={e['id']:e['label'] for e in spatial['model']['entities'] if e['kind']=='material'}
     assigned=[(e['topology'],materials[e['material_id']]) for e in spatial['model']['entities'] if e['kind']=='element']
     storage=sum(e['capacity']['value'] for e in spatial['model']['entities'] if e['kind']=='node')
+    variable_tdp=spatial_law_properties()
+    (boundary_edited/'variable.tdp').write_bytes(variable_tdp)
+    variable_output=attempt/'spatial-variable.json'
+    if not invoke(['td-prepare-spatial',boundary_edited,'network.dwg',variable_output,'--backend',receipt_path,
+                   '--work',attempt/'spatial-variable-cli','--properties','variable.tdp','--length-unit','mm',
+                   '--temperature','300','--temperature-min','250','--temperature-max','450']):
+        raise ValueError('backend_spatial_variable_cli_failed')
+    variable=read_input(loads(variable_output.read_bytes()))
+    tensor_laws=variable['spatial']['tensor_laws']
     from td_sinda_time_fixture import SINDA,td_records
     timed_source=attempt/'time-source';timed_source.mkdir()
     timed_created,_=runtime.run('create-network',network_packet(td_records()),attempt/'time-create')
@@ -464,6 +473,10 @@ raise SystemExit(main())
                        assigned==[('quadrilateral','OWNED SHEET')]*4+[('hexahedron','OWNED solid')]*8
                        and len(spatial['spatial']['points'])==36 and abs(storage-0.0001776)<1e-12
                        and (boundary_source/'fixture.tdp').read_bytes()==(boundary_edited/'fixture.tdp').read_bytes()==spatial_tdp
+                       and len(variable['material_laws'])==2 and len(tensor_laws)==1
+                       and tensor_laws[0]['temperatures_K']==[250,350,450]
+                       and [m[0][0] for m in tensor_laws[0]['tensors_W_per_mK']]==[2,6,14]
+                       and (boundary_edited/'variable.tdp').read_bytes()==variable_tdp
                        and (boundary_source/'network.dwg').read_bytes()==boundary_raw,
                    'td-sinda-time-load-cli':
                        len(td_tables)==1 and td_tables[0]['period_s']==1 and td_tables[0]['points']==[[0,2],[.5,6],[1,4]]

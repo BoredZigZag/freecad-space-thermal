@@ -62,23 +62,25 @@ def _number(value):
 
 def read_laws(raw,kind,*,limits=Limits()):
     if not isinstance(kind,str) or kind not in SCALARS:reject('td_property_law_profile')
-    doc=parse_properties(raw,kind,limits=limits);entries=[]
-    for entry in doc.entries:
-        row={'name':entry.name,'scalars':{},'tables':{},'vectors':{}}
-        for f in entry.fields:
-            if f.depth:continue
-            if f.tag in {'NAME','COMMENT_MULTILINE'}:continue
-            if f.tag in SCALARS[kind]:row['scalars'][f.tag]=f.scalar()
-            elif f.tag in TABLES[kind]:row['tables'][f.tag]=[list(p) for p in f.table(limit=limits.records).points]
-            elif kind=='tdp' and f.tag in GRID_FIELDS:row['vectors'][f.tag]=list(f.vector(limit=limits.records))
-            else:reject('td_property_law_field_unmapped')
-        if entry.blocks:
-            if kind!='tdp':reject('td_property_law_composite_structure')
-            row['aggregate']=_aggregate(entry)
-        entries.append(row)
+    doc=parse_properties(raw,kind,limits=limits)
+    entries=[entry_laws(entry,kind,limits=limits) for entry in doc.entries]
     library={'profile':PROFILE,'kind':kind,'entries':entries}
     validate_laws(library,limits=limits)
     return library
+
+
+def entry_laws(entry,kind,*,limits=Limits()):
+    row={'name':entry.name,'scalars':{},'tables':{},'vectors':{}}
+    for f in entry.fields:
+        if f.depth or f.tag in {'NAME','COMMENT_MULTILINE'}:continue
+        if f.tag in SCALARS[kind]:row['scalars'][f.tag]=f.scalar()
+        elif f.tag in TABLES[kind]:row['tables'][f.tag]=[list(p) for p in f.table(limit=limits.records).points]
+        elif kind=='tdp' and f.tag in GRID_FIELDS:row['vectors'][f.tag]=list(f.vector(limit=limits.records))
+        else:reject('td_property_law_field_unmapped')
+    if entry.blocks:
+        if kind!='tdp':reject('td_property_law_composite_structure')
+        row['aggregate']=_aggregate(entry)
+    return row
 
 
 def validate_laws(library,*,limits=Limits()):

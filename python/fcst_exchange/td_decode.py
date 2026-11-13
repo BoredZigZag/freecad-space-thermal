@@ -7,10 +7,16 @@ from .dwg_native import _one
 from .td_node import decode_node
 from .td_conductor import decode_conductor
 from .td_load import decode_load
-from .td_geometry import decode_rectangle,decode_brick
+from .td_geometry import (decode_rectangle, decode_brick, decode_disk, decode_cylinder, decode_sphere,
+                          decode_linear_brick, decode_linear_wedge)
 
-DECODERS={'RcNode':decode_node,'RcConductor':decode_conductor,'RcHeatLoad':decode_load,'RcRectangle':decode_rectangle,'RcFdBrick':decode_brick}
-GEOMETRY_CLASSES={'RcRectangle':'RCRECTANGLE','RcFdBrick':'RCTD_FDBRICK'}
+DECODERS={'RcNode':decode_node,'RcConductor':decode_conductor,'RcHeatLoad':decode_load,'RcRectangle':decode_rectangle,
+          'RcFdBrick':decode_brick,'RcDisk':decode_disk,'RcFdSolidCylinder':decode_cylinder,'RcFdSolidSphere':decode_sphere,
+          'RcLinearBrick2':decode_linear_brick,'RcLinearWedge2':decode_linear_wedge}
+GEOMETRY_CLASSES={'RcRectangle':'RCRECTANGLE','RcFdBrick':'RCTD_FDBRICK','RcDisk':'RCDISK',
+                  'RcFdSolidCylinder':'RCTD_FDSOLIDCYLINDER','RcFdSolidSphere':'RCTD_FDSOLIDSPHERE',
+                  'RcLinearBrick2':'RCLINEARBRICK2','RcLinearWedge2':'RCLINEARWEDGE2'}
+UNMAPPED_GEOMETRY_CLASSES = {'TdMesher', 'RcLinearQuad2'}
 
 
 @dataclass(frozen=True)

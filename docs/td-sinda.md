@@ -356,20 +356,29 @@ Complete structural decoding explicitly reports
 constant network.
 
 `fcst td-export-geometry ROOT network.dwg output.obj --backend RECEIPT --work WORK --length-unit mm`
-exports geometry-only boundary quads for the reviewed rectangle and brick
-layouts. The caller declares the drawing length unit. OBJ coordinates are in
-metres. Repeat `--handle` with decimal DWG handles to select specific objects.
-With no handles, the command requires complete supported records for every
-rectangle and brick in the drawing. It preserves source identities as OBJ object
-names. Keep derived geometry from restricted drawings local.
+exports geometry for the reviewed rectangles, finite-difference bricks, disks,
+solid cylinders, solid spheres, eight-node finite-element bricks and six-node
+finite-element wedges. The caller
+declares the drawing length unit. OBJ coordinates are in metres. Repeat
+`--handle` with decimal DWG handles to select specific objects. With no handles,
+the command checks all recognized geometry records, including unsupported
+mesh-manager and finite-element quadrilateral records. The OBJ object names
+retain the selected source handles.
+Keep derived geometry from restricted drawings local.
 
 The exporter applies the drawing origin and right-handed basis, the local
 translation and ordered rotations, and the stored normalized subdivision
 boundaries. Static 6.3 code analysis establishes the size and transform layout.
 The local rotation axes use the right-hand rule, and the translation occupies
 the translation column of the local affine transform. [ObjectARX transform methods](https://help.autodesk.com/cloudhelp/2019/ENU/OARX-RefGuide/files/OREF-__MEMBERTYPE_Methods_AcGeMatrix3d.html)
-The exported brick mesh covers its exterior. Dynamic size, transform, and
-subdivision expressions remain held.
+The exported solid mesh covers its exterior. For disks, cylinders and spheres,
+the exporter retains the literal partition boundaries and adds angular samples
+at most 22.5 degrees apart. It joins the full-revolution seam and merges the
+collapsed axis or pole vertices. The curved boundary is a tessellation for
+display. Finite-element boundaries use the ordered source node coordinates.
+Missing or unsupported node targets, nonzero node offsets, invalid element
+geometry and dynamic primitive size, transform or subdivision expressions
+produce diagnostics.
 
 ### Prepare a native conduction mesh
 
@@ -389,20 +398,27 @@ kelvin. The output records the source revisions and maps each DWG handle to
 its generated submodel.
 
 The mesh uses FCST-generated nodes with volume-weighted thermal capacity.
-Bodies are independent and have insulated boundaries. The profile accepts
-constant isotropic materials and literal subdivisions. Active layering,
-material laws, advection and dynamic geometry require additional mappings.
-Source node numbering, contacts, loads, radiation and case settings are
-outside this conduction profile. Use repeated `--handle` arguments to select
-bodies when the complete selection exceeds the 1 MiB spatial input limit.
+Bodies are independent and have insulated boundaries. Basic material
+conductivity can be isotropic or orthotropic. Orthotropic axes follow the
+transformed primitive axes. The converter binds active temperature-only
+conductivity and specific-heat tables using piecewise-linear interpolation on
+the declared interval. Every active table must cover that interval. The
+converter also supports constant, axis-aligned laminates of basic materials and
+constant basic-material aggregates with exact series or parallel weighting per
+axis. The volumetric heat capacity accounts for the mass of each constituent.
+Pressure-dependent tables, variable composites, active layering, advection and
+dynamic geometry remain held. Curved and finite-element bodies have geometry
+export support. Their native thermal reconstruction, source node numbering on
+finite-difference primitives, contacts, loads, radiation and case settings
+remain open. Use repeated `--handle` arguments to select bodies when the complete
+selection exceeds the 1 MiB spatial input limit.
 The owned DWG reader and the FCST worker require no vendor runtime or license.
 
-Remaining independent implementation needs verified layouts/semantics for complete
-additional surface/solid/mesh classes and physical bindings, material-derived node modes, canonical variable/composite and
-spectral bindings, composite effective physics, case/manager, orbit/environment
-and dynamic source constructs. Those
-fields cannot be reconstructed by guessing from display geometry or neutral
-selector numbers. Additional serialization versions, including the planned
+Remaining independent implementation includes further surface, solid and mesh
+classes, automatic mesh regeneration, complete material and optical assignments,
+source geometry-to-node and face coupling, additional material-derived node
+modes, and case, orbit/environment and dynamic source constructs. Additional
+serialization versions, including the planned
 2025 R2/2026 R1 coverage, need suitable format/fixture evidence. Required unknown
 objects still prevent importing the entire available example as a native model.
 The closed-network, property, array and preservation work above does not depend
@@ -641,3 +657,7 @@ private originals, decoded structures, source-handle maps, generated DWG files a
 raw reference/build/CLI logs stay local. Public evidence includes profile counts,
 hashes and verdicts only. TST-021 executes `tests/test_td_geometry.py`, the frozen
 native fresh-process workflows and exact staged/history/report/prose preflight.
+The curved and finite-element geometry tests use owned wire fixtures. The
+variable-material acceptance uses an owned DWG/TDP pair and checks native flux,
+conservation, heat capacity and integrated enthalpy in both Windows presets.
+Scan these sources, pins and bounded verdicts under TST-021 before publication.

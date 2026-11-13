@@ -5,7 +5,9 @@ from fcst_exchange.dwg_native import snapshot
 
 PATCH='a'*64
 NAMES={1:('RCNODE','RcNode'),2:('RCCONDUCTOR','RcConductor'),3:('RCHEATLOAD','RcHeatLoad'),
-       4:('RCRECTANGLE','RcRectangle'),5:('RCTD_FDBRICK','RcFdBrick')}
+       4:('RCRECTANGLE','RcRectangle'),5:('RCTD_FDBRICK','RcFdBrick'),6:('RCDISK','RcDisk'),
+       7:('RCTD_FDSOLIDCYLINDER','RcFdSolidCylinder'),8:('RCTD_FDSOLIDSPHERE','RcFdSolidSphere'),
+       9:('RCLINEARBRICK2','RcLinearBrick2'),10:('RCLINEARWEDGE2','RcLinearWedge2')}
 
 
 def envelope(payload,handle=101,targets=(101,102,103,104)):

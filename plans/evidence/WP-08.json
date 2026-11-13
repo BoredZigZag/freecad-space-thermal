@@ -229,6 +229,30 @@
     "qualified": false,
     "privacy": "Owned fixtures and bounded verdicts only. Captured cases, companion files and detailed inventory remain local."
   },
+  "td_geometry_and_spatial_materials": {
+    "implementation_delivery": "partial",
+    "geometry": [
+      "Disk v7 with attributes 55, solid cylinder and sphere v23, and linear brick and wedge v5 with attributes v13",
+      "Tessellated curved boundaries and ordered finite-element node connectivity with resolved source references"
+    ],
+    "spatial": [
+      "Rotated orthotropic and isotropic temperature-dependent conductivity and specific heat for Cartesian primitives",
+      "Constant axis-aligned laminates and series/parallel aggregates of basic materials"
+    ],
+    "acceptance": [
+      "Owned geometry fixtures check stream closure, seam and pole handling, positive signed volume and invalid node references",
+      "The fresh independent DWG workflow checks a synthetic TDP law binding through the CLI",
+      "The native spatial driver checks flux, conservation, capacity and integrated enthalpy"
+    ],
+    "remaining": [
+      "Additional geometry codecs, automatic mesh regeneration and finite-difference source node numbering",
+      "Curved and finite-element thermal regeneration, active layering, material orienters, optical bands and geometry-attached physics",
+      "Complete source contacts, loads, radiation and case bindings with independent comparison"
+    ],
+    "qualified": false,
+    "vendor_runtime_required": false,
+    "privacy": "Owned fixtures and bounded verdicts only. Original models, decoded fields, source identities, derived meshes and raw output remain local."
+  },
   "older_container_observation": {
     "container": "AC1027",
     "observed_thermal_payloads": {"RcNode_v22": 86, "RcConductor_v23": 2},

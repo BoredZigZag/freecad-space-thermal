@@ -94,7 +94,7 @@ def check(worker, report, native_build):
         from fcst_app.discretization import read_input
         from fcst_exchange.td_spatial import prepare_spatial
         sys.path.insert(0,str(ROOT/'tests'))
-        from td_geometry_fixture import spatial_preview
+        from td_geometry_fixture import spatial_law_properties, spatial_preview
 
         with tempfile.TemporaryDirectory() as directory:
             value,_=prepare_spatial(spatial_preview(Path(directory)),'fixture.tdp','mm',
@@ -108,6 +108,28 @@ def check(worker, report, native_build):
                 near(actual,target,criteria['patch_absolute'])
         near(sum(result['conductive_in_W']),0,criteria['energy_absolute_W'])
         near(sum(result['capacity_J_per_K']),.0001248,1e-12)
+
+        with tempfile.TemporaryDirectory() as directory:
+            variable,_=prepare_spatial(spatial_preview(Path(directory), properties=spatial_law_properties()),
+                                      'fixture.tdp','mm',temperature=300,temperature_range=(250,450))
+        variable=read_input(variable)
+        result=field(variable,lambda p:350+2*p[0]+3*p[1]+4*p[2])
+        positions=coordinate(variable)
+        point_to_node={p['id']:p['node_id'] for p in variable['spatial']['points']}
+        cells={c['element_id']:c for c in variable['spatial']['cells']}
+        for cell in result['cells']:
+            row=cells[cell['element_id']]
+            center=sum(350+2*x+3*y+4*z for x,y,z in (positions[point_to_node[p]] for p in row['point_ids']))/len(row['point_ids'])
+            if row['topology']=='quad4':
+                # The imported frame maps local u onto -x and local v onto z.
+                targets=(-2*(6+.08*(center-350)),0,-32)
+            else:
+                targets=tuple(-gradient*(8+.02*(center-350)) for gradient in (2,3,4))
+            for actual,target in zip(cell['heat_flux_W_per_m2'],targets):near(actual,target,criteria['patch_absolute'])
+        near(sum(result['conductive_in_W']),0,criteria['energy_absolute_W'])
+        warm=field(variable,lambda p:400)
+        near(sum(warm['capacity_J_per_K']),48e-9*20*40+192e-9*10*50,1e-12)
+        near(sum(warm['storage_change_J']),48e-9*20*3500+192e-9*10*5000,1e-12)
     def tensor():
         v=brick(tensor=[[2,0,0],[0,3,0],[0,0,4]],rotation=[[0,-1,0],[1,0,0],[0,0,1]])
         out=field(v)
