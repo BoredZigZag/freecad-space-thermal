@@ -866,3 +866,26 @@ Seven alternating warm pairs each prepared and bound the same owned material
 (53.16–64.97). The returned bindings matched in each pair. The benchmark
 measures Python property preparation and binding, excluding DWG input, solver
 work and runner setup.
+
+## WP-08 TD geometry classes
+
+The cold Debug and Release drivers took 484.610 s with three acceptance workers
+and 298.422 s with two on the latest passing candidate. The critical path went
+through the 118 s unit job, the 557 s Debug job and the Foundation gate. Debug
+radiation was the largest stage at 246.484 s, with approximately 103.21 s across
+three million-facet builds. Debug spatial and host acceptance triggered the
+warm-baseline timing thresholds. The comparison mixes cache states.
+[Foundation run 43348858606](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43348858606)
+
+A fixed-duration replay preserving the shared reference and checkpoint build
+constraint modeled 438.141 s with the observed order. A 20% decrease in the
+million-facet build times left that span unchanged. Longest-first dispatch of
+the same workloads modeled 417.235 s, or 410.750 s with the hypothetical build
+decrease. The replay covers acceptance stages and excludes setup and contention.
+
+The geometry checks run in the existing unit and TD stages. Seven alternating
+warm pairs each exported the same 2,304-face synthetic torus six times.
+Evaluating coordinates per face took a median 106.12 ms (103.55–148.21).
+Evaluating each lattice position once took 87.38 ms (77.32–139.71) with identical
+ordered face coordinates. The ranges overlap and the benchmark excludes DWG
+inspection, process startup and CI scheduling.

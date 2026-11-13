@@ -5,7 +5,7 @@ from collections import Counter
 from .core import Limits, reject
 from .dwg_native import _one
 from .td_decode import decode_drawing
-from .td_geometry import LinearSolidPayload
+from .td_geometry import LinearShellPayload, LinearSolidPayload
 from .td_node import NodePayload
 from .td_project_graph import companion_inventory, dictionary_graph
 from .td_project_records import project_records
@@ -49,7 +49,7 @@ def inspect_project(staged):
     classes = {row['number']: row for row in snapshot.native['classes']}
     node_handles = {p.record['handle'] for p in inventory.payloads if isinstance(p, NodePayload)}
     element_nodes = {p.record['handle']: p.fields['node_handles'] for p in inventory.payloads
-                     if isinstance(p, LinearSolidPayload)}
+                     if isinstance(p, (LinearShellPayload, LinearSolidPayload))}
     thermal = []
     for record in inventory.records:
         handle = record['handle']

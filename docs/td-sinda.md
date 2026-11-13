@@ -356,14 +356,11 @@ Complete structural decoding explicitly reports
 constant network.
 
 `fcst td-export-geometry ROOT network.dwg output.obj --backend RECEIPT --work WORK --length-unit mm`
-exports geometry for the reviewed rectangles, finite-difference bricks, disks,
-solid cylinders, solid spheres, eight-node finite-element bricks and six-node
-finite-element wedges. The caller
-declares the drawing length unit. OBJ coordinates are in metres. Repeat
+exports geometry using the declared drawing length unit. OBJ coordinates are
+in metres. Repeat
 `--handle` with decimal DWG handles to select specific objects. With no handles,
-the command checks all recognized geometry records, including unsupported
-mesh-manager and finite-element quadrilateral records. The OBJ object names
-retain the selected source handles.
+the command checks all recognized geometry records, including known classes
+whose layouts are still held. The OBJ object names retain source handles.
 Keep derived geometry from restricted drawings local.
 
 The exporter applies the drawing origin and right-handed basis, the local
@@ -379,6 +376,24 @@ display. Finite-element boundaries use the ordered source node coordinates.
 Missing or unsupported node targets, nonzero node offsets, invalid element
 geometry and dynamic primitive size, transform or subdivision expressions
 produce diagnostics.
+
+| TD geometry family | AC1032 coverage |
+| --- | --- |
+| Rectangle, disk, ellipse, cone, cylinder, sphere, ellipsoid, elliptic cone and cylinder | Static boundary export |
+| Parabolic trough, paraboloid, offset paraboloid, torus | Static boundary export |
+| Scarfed cone and cylinder | Boundary export for zero scarf angle. Active scarf geometry remains held. |
+| Ogive | Shared conic record decoding. Boundary parameters remain held. |
+| FD brick, solid cone, cylinder, sphere and ellipsoid | Static boundary export. Hollow ellipsoids support closed nested walls or proportional walls with matching normalized trims. |
+| Polygon and FD mesh | Ordered polygon connectivity and boundary export for the supported layouts |
+| Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundary export for the reviewed layouts. Older class layouts remain held. |
+| Quadratic triangle and quadrilateral | Ordered source-node decoding for the reviewed layout. Curved boundaries remain held. |
+| Quadratic tetrahedron, pyramid, wedge and brick, automatic mesh entities | Recognized classes with explicit unsupported diagnostics |
+
+The catalog includes the geometry families exposed by TD's API. The class
+catalog describes the product surface across releases. Serialized layout
+support is tied to explicit wire versions and tested separately.
+[OpenTD 2025 R2](https://developer.synopsys.com/docs/opentd-net8-reference-2025-r2/class_open_t_d_1_1_thermal_desktop.xhtml)
+[OpenTD 2026 R1](https://developer.synopsys.com/docs/opentd-reference-2026-r1/net8-reference/OpenTD.ThermalDesktop.md)
 
 ### Prepare a native conduction mesh
 

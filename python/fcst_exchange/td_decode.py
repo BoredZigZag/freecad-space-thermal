@@ -7,16 +7,42 @@ from .dwg_native import _one
 from .td_node import decode_node
 from .td_conductor import decode_conductor
 from .td_load import decode_load
-from .td_geometry import (decode_rectangle, decode_brick, decode_disk, decode_cylinder, decode_sphere,
-                          decode_linear_brick, decode_linear_wedge)
+from .td_geometry import (conic_decoder, decode_rectangle, decode_brick, decode_disk, decode_cylinder, decode_sphere,
+                          decode_solid_cone, decode_solid_ellipsoid, decode_linear_brick, decode_linear_wedge,
+                          decode_linear_tetra, decode_linear_pyramid, decode_linear_tri, decode_linear_quad,
+                          decode_quadratic_tri, decode_quadratic_quad, decode_polygon_mesh)
+
+CONIC_CLASSES = {
+    'RcCone': 'cone', 'RcCylinder': 'cylinder', 'RcEllipse': 'ellipse', 'RcEllipsoid': 'ellipsoid',
+    'RcEllipticCone': 'elliptic-cone', 'RcEllipticCylinder': 'elliptic-cylinder',
+    'RcOffsetParaboloid': 'offset-paraboloid', 'RcOgive': 'ogive', 'RcParabolicTrough': 'parabolic-trough',
+    'RcParaboloid': 'paraboloid', 'RcScarfedCone': 'scarfed-cone', 'RcScarfedCylinder': 'scarfed-cylinder',
+    'RcSphere': 'sphere', 'RcTorus': 'torus',
+}
 
 DECODERS={'RcNode':decode_node,'RcConductor':decode_conductor,'RcHeatLoad':decode_load,'RcRectangle':decode_rectangle,
           'RcFdBrick':decode_brick,'RcDisk':decode_disk,'RcFdSolidCylinder':decode_cylinder,'RcFdSolidSphere':decode_sphere,
-          'RcLinearBrick2':decode_linear_brick,'RcLinearWedge2':decode_linear_wedge}
+          'RcFdSolidCone':decode_solid_cone,'RcFdSolidEllipsoid':decode_solid_ellipsoid,
+          'RcLinearBrick2':decode_linear_brick,'RcLinearWedge2':decode_linear_wedge,
+          'RcLinearTet2':decode_linear_tetra,'RcLinearPyramid2':decode_linear_pyramid,
+          'RcLinearTri2':decode_linear_tri,'RcLinearQuad2':decode_linear_quad,'RcMeshFD':decode_polygon_mesh,
+          'RcQuadraticTri':decode_quadratic_tri,'RcQuadraticQuad':decode_quadratic_quad,
+          **{name:conic_decoder(shape) for name,shape in CONIC_CLASSES.items()}}
 GEOMETRY_CLASSES={'RcRectangle':'RCRECTANGLE','RcFdBrick':'RCTD_FDBRICK','RcDisk':'RCDISK',
                   'RcFdSolidCylinder':'RCTD_FDSOLIDCYLINDER','RcFdSolidSphere':'RCTD_FDSOLIDSPHERE',
-                  'RcLinearBrick2':'RCLINEARBRICK2','RcLinearWedge2':'RCLINEARWEDGE2'}
-UNMAPPED_GEOMETRY_CLASSES = {'TdMesher', 'RcLinearQuad2'}
+                  'RcFdSolidCone':'RCTD_FDSOLIDCONE','RcFdSolidEllipsoid':'RCTD_FDSOLIDELLIPSOID',
+                  'RcLinearBrick2':'RCLINEARBRICK2','RcLinearWedge2':'RCLINEARWEDGE2',
+                  'RcLinearTet2':'RCLINEARTETRA2','RcLinearPyramid2':'RCLINEARPYRAMID2',
+                  'RcLinearTri2':'RCLINEARTRI2','RcLinearQuad2':'RCLINEARQUAD2','RcMeshFD':'RCPOLYGON',
+                  'RcQuadraticTri':'RCQUADRATICTRI','RcQuadraticQuad':'RCQUADRATICQUAD',
+                  **{name:name.upper() for name in CONIC_CLASSES}}
+GEOMETRY_DXF_ALIASES = {'RcParabolicTrough': {'RCPARABTROUGH'}, 'RcMeshFD': {'TD_MESH'}}
+UNMAPPED_GEOMETRY_CLASSES = {
+    'RcPolygon', 'TdMesher', 'TdMesherVa',
+    'RcLinearTri', 'RcLinearQuad', 'RcLinearTet', 'RcLinearBrick', 'RcLinearWedge',
+    'RcQuadraticTet', 'RcQuadraticBrick',
+    'RcQuadraticWedge', 'RcQuadraticPyramid',
+}
 
 
 @dataclass(frozen=True)
@@ -40,9 +66,13 @@ def decode_drawing(snapshot):
     payloads=[];records=[]
     for row in snapshot.native['objects']:
         if row['type']<500:continue
-        decoder=DECODERS.get(names[row['type']]);code='td_class_profile_unmapped'
-        if names[row['type']] in GEOMETRY_CLASSES and classes[row['type']]['dxfname']!=GEOMETRY_CLASSES[names[row['type']]]:
-            decoder=None;code='td_geometry_class_identity_unmapped'
+        name = names[row['type']]
+        decoder = DECODERS.get(name)
+        code = 'td_geometry_profile_unmapped' if name in UNMAPPED_GEOMETRY_CLASSES else 'td_class_profile_unmapped'
+        if name in GEOMETRY_CLASSES:
+            dxf = classes[row['type']]['dxfname']
+            if dxf != GEOMETRY_CLASSES[name] and dxf not in GEOMETRY_DXF_ALIASES.get(name, ()):
+                decoder=None;code='td_geometry_class_identity_unmapped'
         if decoder is None and row['kind'] not in {'UNKNOWN_ENT','UNKNOWN_OBJ'}:continue
         if decoder:
             try:

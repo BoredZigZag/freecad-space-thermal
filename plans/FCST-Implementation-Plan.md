@@ -475,6 +475,11 @@ flux, conservation, capacity and enthalpy. TST-021 scans the exact changed
 sources, fixtures, source locks, bounded reports, scalar timings, outgoing
 history, approved author metadata and final GitHub prose. Original drawings,
 decoded attributes, node coordinates, derived OBJ files and raw outputs stay local.
+The geometry-class regression checks the shared conic filer, solid boundaries,
+finite-element connectivity and known unsupported classes. It uses owned wire
+fixtures in both Windows TD acceptance stages. TST-021 checks exact sources,
+fixtures, locks, bounded verdicts and timing summaries. The underlying drawing
+inventory, raw files and decoded values stay local.
 Dynamic power acceptance adds owned RcHeatLoad v17, SINDA TVS and zero-phase
 PER fixtures. Run `tools/check_td.py`, vendor-free fresh CLI preparation in
 `tools/build_independent_dwg.py`, and the native interpolation, cycle reset,
@@ -672,7 +677,11 @@ profiles have owned readers/writers and guarded constant-size source edits.
 `td-export-geometry` maps verified sizes, frames, local transforms and literal
 subdivisions to OBJ boundaries. Reviewed layouts cover rectangles, bricks,
 disks, solid cylinders, solid spheres and linear finite-element bricks and wedges.
-Finite-element export resolves the source node handles.
+Finite-element export resolves the source node handles. Extended geometry
+coverage includes conic shells, solid cones and ellipsoids, linear triangle,
+quadrilateral, tetrahedron and pyramid layouts, and polygon meshes. The
+[geometry coverage table](../docs/td-sinda.md#geometry-and-remaining-format-evidence)
+records the remaining shape modes and element layouts.
 `td-prepare-spatial` reconstructs quad4 single-layer rectangles and hex8
 homogeneous bricks with volume-weighted nodal capacity. It binds basic
 isotropic and orthotropic TDP temperature laws to transformed material axes

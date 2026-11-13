@@ -30,20 +30,50 @@ def rectangle():
     b.bl(99);f.text('owned opaque attributes');return f.result(1)
 
 
-def curved_record(shape, *, trailing=False):
-    from fcst_exchange.td_surface import (ATTRIBUTE_LAYOUT, EXTENDED_ATTRIBUTE_REVISION, write_expression,
-                                          write_mesh_controls, write_solid_attributes, write_value)
+def write_owned_surface55(f, attrs):
+    from fcst_exchange.td_surface import ATTRIBUTE_LAYOUT, EXTENDED_ATTRIBUTE_REVISION, write_value
+
+    b = f.data
+    b.bl(0)
+    f.text('')
+    f.text('')
+    b.bl(0)
+    b.bl(0)
+    for name in ('front', 'back', 'edge'):
+        f.text(name)
+    b.bd(EXTENDED_ATTRIBUTE_REVISION)
+    for name, field_kind, count in ATTRIBUTE_LAYOUT:
+        for value in ((attrs[name],) if count == 1 else attrs[name]):
+            write_value(f, field_kind, value)
+    b.bl(1)
+    f.text('owned identifier')
+    b.bl(17)
+    b.bl(31)
+    f.text('left')
+    f.text('right')
+    b.bl(0)
+    b.bl(0)
+    for name in ('first', 'second'):
+        f.text(name)
+        b.bl(0)
+
+
+def curved_record(shape, *, trailing=False, shell_parameters=None, solid_parameters=None, kind=None):
+    from fcst_exchange.td_surface import write_expression, write_mesh_controls, write_solid_attributes
 
     f = FilerWriter()
     b = f.data
-    if shape == 'disk':
+    shell = shape == 'disk' or shell_parameters is not None
+    if shell:
         fields = rectangle_boundary_fields()
-        parameters = (0, 3, 0, math.tau, 0, 0)
+        values = (0, 3, 0, math.tau) if shell_parameters is None else shell_parameters
+        parameters = (*values[:6], *(0,) * max(0, 6 - len(values)))
         b.bd(SENTINEL)
         b.bl(7)
     else:
         fields = brick_boundary_fields()
-        values = (5, 1, 3, 0, math.tau) if shape == 'cylinder' else (0, 3, 0, math.tau, 0, math.pi)
+        values = solid_parameters if solid_parameters is not None else (
+            (5, 1, 3, 0, math.tau) if shape == 'cylinder' else (0, 3, 0, math.tau, 0, math.pi))
         parameters = (*values, *(0,) * (12 - len(values)))
         b.bl(23)
     for value in parameters:
@@ -51,35 +81,15 @@ def curved_record(shape, *, trailing=False):
     for p in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)):
         b.point(p)
     attrs = fields['attributes']
-    if shape == 'disk':
-        b.bl(0)
-        f.text('')
-        f.text('')
-        b.bl(0)
-        b.bl(0)
-        for name in ('front', 'back', 'edge'):
-            f.text(name)
-        b.bd(EXTENDED_ATTRIBUTE_REVISION)
-        for name, kind, count in ATTRIBUTE_LAYOUT:
-            for value in ((attrs[name],) if count == 1 else attrs[name]):
-                write_value(f, kind, value)
-        b.bl(1)
-        f.text('owned identifier')
-        b.bl(17)
-        b.bl(31)
-        f.text('left')
-        f.text('right')
-        b.bl(0)
-        b.bl(0)
-        for name in ('first', 'second'):
-            f.text(name)
-            b.bl(0)
-        for _ in range(6):
-            b.bd(0)
+    if shell:
+        write_owned_surface55(f, attrs)
+        additional = values[6:]
+        for value in (*additional, *(0,) * (6 - len(additional))):
+            b.bd(value)
         fields['mesh_controls']['values'] = (0,) * 6
         write_mesh_controls(f, fields['mesh_controls'])
-        b.bl(4)
-        for _ in range(4):
+        b.bl(len(values))
+        for _ in values:
             write_expression(f, expression())
         b.bl(0)
     else:
@@ -94,10 +104,68 @@ def curved_record(shape, *, trailing=False):
         b.bl(31)
     if trailing:
         b.bl(1)
-    return f.result({'disk': 6, 'cylinder': 7, 'sphere': 8}[shape])
+    return f.result(kind or {'disk': 6, 'cylinder': 7, 'sphere': 8}[shape])
 
 
 class TdGeometryTests(unittest.TestCase):
+    def test_extended_conics_and_solids_match_analytic_geometry(self):
+        from collections import Counter
+        from fcst_contracts.spatial import determinant
+        from fcst_exchange.td_decode import CONIC_CLASSES, DECODERS
+
+        geometry = {
+            'cone': ((5, 3, 0, 0, math.tau), ((-3, 3), (-3, 3), (0, 5))),
+            'cylinder': ((5, 3, 0, math.tau), ((-3, 3), (-3, 3), (0, 5))),
+            'ellipse': ((3, 2, 0, 0, math.tau), ((-3, 3), (-2, 2), (0, 0))),
+            'ellipsoid': ((3, 2, 1, -1, 1, 0, math.tau), ((-3, 3), (-2, 2), (-1, 1))),
+            'elliptic-cone': ((5, 3, 0, 0.5, 0, math.tau), ((-3, 3), (-1.5, 1.5), (0, 5))),
+            'elliptic-cylinder': ((5, 3, 2, 0, math.tau), ((-3, 3), (-2, 2), (0, 5))),
+            'offset-paraboloid': ((4, 4, 1, 1, 0.5), ((0, 2), (-0.5, 0.5), (0, 1))),
+            'parabolic-trough': ((2, -4, 4, -2, 2), ((-4, 4), (-2, 2), (0, 2))),
+            'paraboloid': ((5, 0, 3, 0, math.tau), ((-3, 3), (-3, 3), (0, 5))),
+            'scarfed-cone': ((5, 3, 0, 0, math.tau, 0), ((-3, 3), (-3, 3), (0, 5))),
+            'scarfed-cylinder': ((5, 3, 0, math.tau, 0), ((-3, 3), (-3, 3), (0, 5))),
+            'sphere': ((3, -3, 3, 0, math.tau), ((-3, 3), (-3, 3), (-3, 3))),
+            'torus': ((3, 1, 0, math.tau, 0, math.tau), ((-4, 4), (-4, 4), (-1, 1))),
+        }
+        for name, shape in CONIC_CLASSES.items():
+            with self.subTest(shape=shape):
+                parameters = geometry.get(shape, ((1, 2, 3, 4, 5, 6), None))[0]
+                row, common = envelope(curved_record(shape, shell_parameters=parameters, kind=11))
+                payload = DECODERS[name](row, Fields(common.items()))
+                self.assertEqual(payload.shape, shape)
+                self.assertEqual((payload.fields['serialized_parameters'] + payload.fields['additional_parameters'])[:len(parameters)], parameters)
+                trailing, trailing_common = envelope(curved_record(shape, trailing=True, shell_parameters=parameters, kind=11))
+                with self.assertRaisesRegex(ExchangeError, 'unconsumed_stream'):
+                    DECODERS[name](trailing, Fields(trailing_common.items()))
+                if shape not in geometry:
+                    with self.assertRaisesRegex(ExchangeError, 'conic_parameters_unmapped'):
+                        boundary_mesh(payload, 'm')
+                    continue
+                points, faces = boundary_mesh(payload, 'm')
+                self.assertEqual(len(set(points)), len(points))
+                for coordinates, bounds in zip(zip(*points), geometry[shape][1]):
+                    self.assertAlmostEqual(min(coordinates), bounds[0])
+                    self.assertAlmostEqual(max(coordinates), bounds[1])
+                self.assertTrue(all(len(face) in (3, 4) for face in faces))
+                with self.assertRaisesRegex(ExchangeError, 'mesh_limit'):
+                    boundary_mesh(payload, 'm', face_limit=1)
+        for name, parameters, expected in (
+                ('RcFdSolidCone', (5, 0, 3, 0, 0, 0, math.tau), 15 * math.pi),
+                ('RcFdSolidCone', (5, 1, 3, 0.5, 2, 0, math.pi), (5 * math.pi / 6) * (19 - 1.75)),
+                ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 0, 0, 0, 0, 0), 8 * math.pi),
+                ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 1, 1.5, 0.5, -0.5, 0.5), 7 * math.pi),
+                ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 1.5, 1, 0.5, -0.5, 0.5), 7 * math.pi)):
+            with self.subTest(name=name, parameters=parameters):
+                row, common = envelope(curved_record(name, solid_parameters=parameters, kind=11))
+                payload = DECODERS[name](row, Fields(common.items()))
+                points, faces = boundary_mesh(payload, 'm')
+                edges = Counter((a, b) for face in faces for a, b in zip(face, (*face[1:], face[0])))
+                self.assertTrue(all(count == 1 and edges[b, a] == 1 for (a, b), count in edges.items()))
+                volume = sum(determinant((points[a], points[b], points[c])) / 6
+                             for a, *rest in faces for b, c in zip(rest, rest[1:]))
+                self.assertLess(abs(volume / expected - 1), 0.08)
+
     def test_linear_brick_uses_ordered_source_nodes_and_holds_unmapped_physics(self):
         from fcst_contracts.spatial import determinant
 
@@ -186,6 +254,19 @@ class TdGeometryTests(unittest.TestCase):
         signed_volume = sum(determinant((points[a], points[j], points[k])) / 6
                             for a, *rest in faces for j, k in zip(rest, rest[1:]))
         self.assertAlmostEqual(signed_volume, 12e-9, places=16)
+        from fcst_exchange.td_geometry import decode_linear_pyramid, decode_linear_tetra
+
+        for count, decode, order, expected, face_sizes in (
+                (4, decode_linear_tetra, (0, 1, 3, 4), 4e-9, [3, 3, 3, 3]),
+                (5, decode_linear_pyramid, (0, 1, 2, 3, 4), 8e-9, [3, 3, 3, 3, 4])):
+            targets = tuple(handles[i] for i in order)
+            record, common = envelope(element_writer(count).result(11), targets=targets)
+            solid = decode(record, Fields(common.items()))
+            points, faces = boundary_mesh(solid, 'mm', nodes=nodes)
+            self.assertEqual(sorted(map(len, faces)), face_sizes)
+            volume = sum(determinant((points[a], points[j], points[k])) / 6
+                         for a, *rest in faces for j, k in zip(rest, rest[1:]))
+            self.assertAlmostEqual(volume, expected, places=16)
         node = nodes[handles[0]]
         nodes[handles[0]] = replace(node, fields={**node.fields, 'offsets': (1, 0, 0)})
         with self.assertRaisesRegex(ExchangeError, 'offset_unmapped'):
@@ -197,6 +278,107 @@ class TdGeometryTests(unittest.TestCase):
         trailing, common = envelope(writer.result(9), targets=handles)
         with self.assertRaisesRegex(ExchangeError, 'unconsumed_stream'):
             decode_linear_brick(trailing, Fields(common.items()))
+
+    def test_linear_shells_decode_references_and_export_ordered_faces(self):
+        from fcst_exchange.td_geometry import (decode_linear_quad, decode_linear_tri,
+                                               decode_quadratic_quad, decode_quadratic_tri)
+
+        for count, decode in ((3, decode_linear_tri), (4, decode_linear_quad),
+                              (6, decode_quadratic_tri), (8, decode_quadratic_quad)):
+            writer = FilerWriter()
+            write_owned_surface55(writer, rectangle_boundary_fields()['attributes'])
+            writer.data.bl(5)
+            writer.data.bl(count)
+            writer.references.extend(range(1, count + 1))
+            writer.text('owned shell')
+            writer.data.put(0, 1)
+            writer.data.bl(1)
+            writer.data.bl(5)
+            writer.data.bl(1)
+            writer.references.append(count + 1)
+            writer.data.bl(0)
+            writer.data.bl(1)
+            handles = tuple(range(101, 102 + count))
+            row, common = envelope(writer.result(12), targets=handles)
+            payload = decode(row, Fields(common.items()))
+            self.assertEqual(payload.fields['node_handles'], handles[:-1])
+            self.assertEqual(payload.fields['references'][0]['target'], handles[-1])
+            if count > 4:
+                self.assertEqual(payload.order, 2)
+                with self.assertRaisesRegex(ExchangeError, 'curved_shell_unmapped'):
+                    boundary_mesh(payload, 'm')
+                continue
+            nodes = {}
+            for i, (handle, point) in enumerate(zip(handles, ((0, 0, 0), (3, 0, 0), (3, 2, 0), (0, 2, 0))), 1):
+                row, common = envelope(node_payload('OWNED', i, 300, 1, 'capacitive'), handle)
+                node = decode_node(row, Fields(common.items()))
+                nodes[handle] = replace(node, fields={**node.fields, 'basis': (point, *node.fields['basis'][1:])})
+            points, faces = boundary_mesh(payload, 'm', nodes=nodes)
+            self.assertEqual(faces, [tuple(range(count))])
+            self.assertEqual(points[-1], nodes[handles[count - 1]].fields['basis'][0])
+
+    def test_polygon_mesh_preserves_face_order_and_rejects_invalid_connectivity(self):
+        from fcst_exchange.td_geometry import decode_polygon_mesh
+
+        points = ((0, 0, 0), (3, 0, 0), (3, 2, 0), (1, 3, 0), (0, 2, 0))
+
+        def encoded(faces, version):
+            writer = FilerWriter()
+            write_owned_surface55(writer, rectangle_boundary_fields()['attributes'])
+            b = writer.data
+            b.bl(version)
+            b.bl(1)
+            b.bl(len(points))
+            for point in points:
+                b.point(point)
+            b.bl(1)
+            b.bl(len(faces))
+            for face in faces:
+                b.bl(1)
+                writer.integers(face)
+            if version == 2:
+                b.bl(0)
+            row, common = envelope(writer.result(13))
+            return row, Fields(common.items())
+
+        faces = ((0, 1, 2, 3, 4), (0, 4, 3))
+        for version in (1, 2):
+            payload = decode_polygon_mesh(*encoded(faces, version))
+            self.assertEqual(boundary_mesh(payload, 'm'), (list(points), faces))
+        for invalid in ((0, 1, -1), (0, 1, len(points)), (0, 1, 1), (0, 1)):
+            with self.assertRaisesRegex(ExchangeError, 'polygon_mesh_connectivity'):
+                decode_polygon_mesh(*encoded((invalid,), 2))
+
+    def test_geometry_selection_covers_registered_classes_and_reports_unmapped_profiles(self):
+        from fcst_exchange.independent_td import DwgPreview
+        from fcst_exchange.source_tree import capture_project
+        from fcst_exchange.td_decode import CONIC_CLASSES, GEOMETRY_CLASSES, UNMAPPED_GEOMETRY_CLASSES
+        from fcst_exchange.td_geometry_mesh import render_geometry
+
+        records, classes = [], {}
+        for kind, name in enumerate(sorted(CONIC_CLASSES), 20):
+            records.append(curved_record(CONIC_CLASSES[name], shell_parameters=(5, 3, 0, 0, math.tau), kind=kind))
+            classes[kind] = (GEOMETRY_CLASSES[name], name)
+        supported = drawing(records, geometry_classes=classes)
+        self.assertEqual(len(decode_drawing(supported).payloads), len(CONIC_CLASSES))
+        for kind, name in enumerate(sorted(UNMAPPED_GEOMETRY_CLASSES), 50):
+            writer = FilerWriter()
+            writer.data.bl(1)
+            records.append(writer.result(kind))
+            classes[kind] = (name.upper(), name)
+        blocked = drawing(records, geometry_classes=classes)
+        holds = [r for r in decode_drawing(blocked).records if r.get('limitation') == 'td_geometry_profile_unmapped']
+        self.assertEqual(len(holds), len(UNMAPPED_GEOMETRY_CLASSES))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'owned.dwg').write_bytes(b'AC1032-owned')
+            preview = DwgPreview(capture_project(root, 'owned.dwg'), blocked)
+            with self.assertRaisesRegex(ExchangeError, 'geometry_selection'):
+                render_geometry(preview, 'm')
+            cone = sorted(CONIC_CLASSES).index('RcCone') + 101
+            obj, report = render_geometry(preview, 'm', (cone,))
+            self.assertIn(f'o td_cone_{cone}\n'.encode(), obj)
+            self.assertEqual(report['objects'], 1)
 
     def test_curved_dwg_profiles_export_valid_disks_cylinders_and_spheres(self):
         from collections import Counter

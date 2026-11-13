@@ -253,6 +253,17 @@
     "vendor_runtime_required": false,
     "privacy": "Owned fixtures and bounded verdicts only. Original models, decoded fields, source identities, derived meshes and raw output remain local."
   },
+  "td_geometry_class_coverage": {
+    "implementation_delivery": "partial",
+    "catalog": "Versioned conic, finite-difference solid, polygon mesh, linear and quadratic element classes",
+    "acceptance": "ci/td-acceptance.json exercises owned records, analytic bounds and volumes, source-node connectivity, and unsupported-class diagnostics",
+    "remaining": [
+      "Ogive, nonzero scarf angles and independently trimmed nonproportional hollow ellipsoid geometry",
+      "Quadratic boundaries, legacy finite elements, automatic mesh regeneration and additional source versions",
+      "Native geometry-to-physics reconstruction and independent vendor reference evidence"
+    ],
+    "qualified": false
+  },
   "older_container_observation": {
     "container": "AC1027",
     "observed_thermal_payloads": {"RcNode_v22": 86, "RcConductor_v23": 2},

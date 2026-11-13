@@ -29,14 +29,14 @@ def envelope(payload,handle=101,targets=(101,102,103,104)):
     return row,common
 
 
-def drawing(records,handles=None):
+def drawing(records,handles=None,*,geometry_classes=None):
     handles=list(range(101,101+len(records))) if handles is None else handles
     rows=[];standards=[]
     for index,record in enumerate(records):
         row,standard=envelope(record,handles[index],handles);rows.append(row);standards.append(standard)
     classes=[dict(number=499+kind,proxyflag=0,appname='FCST owned fixture',cppname=cpp,dxfname=dxf,is_zombie=0,
                   item_class_id=498,num_instances=sum(p.kind==kind for p in records),dwg_version=21,
-                  maint_version=0,unknown_1=0,unknown_2=0) for kind,(dxf,cpp) in NAMES.items()]
+                  maint_version=0,unknown_1=0,unknown_2=0) for kind,(dxf,cpp) in (NAMES | (geometry_classes or {})).items()]
     native={'protocol':'fcst-dwg-native/2','patch_sha256':PATCH,'version':'AC1032','opaque_encoding':'msb-first-final-byte/1',
             'read_errors':4,'classes':classes,'objects':rows,'opaque_sections':[]}
     standard={'FILEHEADER':{'version':'AC1032'},'HEADER':{'INSUNITS':6},'CLASSES':classes,'OBJECTS':standards}

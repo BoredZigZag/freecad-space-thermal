@@ -84,14 +84,14 @@ def decode_rectangle_complete(row,standard):
     return _decode_surface(row, standard, RectanglePayload, ATTRIBUTE_REVISION)
 
 
-def _decode_surface(row, standard, cls, revision):
+def _decode_surface(row, standard, cls, revision, *shape):
     filer=Filer(row);fields=_prefix(filer,standard);b=filer.data
     fields['attributes']=read_attributes(filer, revision=revision)
     fields['additional_parameters']=tuple(b.bd() for _ in range(6))
     fields['mesh_controls']=read_mesh_controls(filer)
     fields['parameter_expressions']=tuple(filer.expression() for _ in range(filer.count()))
     fields['entity_flags']=b.bl();filer.finish()
-    return cls(fields,dict(filer.spans),dict(row),standard)
+    return cls(fields,dict(filer.spans),dict(row),standard,*shape)
 
 
 @dataclass(frozen=True)
@@ -107,6 +107,28 @@ class DiskPayload(RectanglePayload):
 
 def decode_disk(row, standard):
     return _decode_surface(row, standard, DiskPayload, EXTENDED_ATTRIBUTE_REVISION)
+
+
+@dataclass(frozen=True)
+class ConicPayload(RectanglePayload):
+    shape: str
+
+    @property
+    def report(self):
+        name = self.shape.replace('-', '')
+        return {**super().report, 'profile': f'td-rc{name}-v7-attributes55/1',
+                'scope': 'Complete conic serialization, surface attributes and mesh controls'}
+
+    def edited_record(self, changes):
+        reject('td_conic_edit_unmapped')
+
+
+def conic_decoder(shape):
+    # These classes share the same data/text/handle filer. The class identity
+    # selects the meaning of the parameter slots after structural decoding.
+    def decode(row, standard):
+        return _decode_surface(row, standard, ConicPayload, EXTENDED_ATTRIBUTE_REVISION, shape)
+    return decode
 
 
 def decode_rectangle(row,standard):
@@ -175,12 +197,28 @@ class SpherePayload(CurvedSolidPayload):
     shape = 'sphere'
 
 
+class ConeSolidPayload(CurvedSolidPayload):
+    shape = 'cone'
+
+
+class EllipsoidSolidPayload(CurvedSolidPayload):
+    shape = 'ellipsoid'
+
+
 def decode_cylinder(row, standard):
     return _decode_solid(row, standard, CylinderPayload, 23)
 
 
 def decode_sphere(row, standard):
     return _decode_solid(row, standard, SpherePayload, 23)
+
+
+def decode_solid_cone(row, standard):
+    return _decode_solid(row, standard, ConeSolidPayload, 23)
+
+
+def decode_solid_ellipsoid(row, standard):
+    return _decode_solid(row, standard, EllipsoidSolidPayload, 23)
 
 
 def _decode_solid(row, standard, cls, version):
@@ -216,6 +254,96 @@ class LinearWedgePayload(LinearSolidPayload):
     node_count = 6
 
 
+class LinearTetraPayload(LinearSolidPayload):
+    shape = 'tetra'
+    node_count = 4
+
+
+class LinearPyramidPayload(LinearSolidPayload):
+    shape = 'pyramid'
+    node_count = 5
+
+
+@dataclass(frozen=True)
+class LinearShellPayload(RectanglePayload):
+    shape: str
+    order: int = 1
+
+    @property
+    def report(self):
+        name = f'linear{self.shape}2' if self.order == 1 else f'quadratic{self.shape}'
+        return {**super().report, 'profile': f'td-rc{name}-v5-attributes55/1',
+                'scope': 'Ordered element nodes, surface attributes and linked objects'}
+
+    def edited_record(self, changes):
+        reject('td_linear_shell_edit_unmapped')
+
+
+@dataclass(frozen=True)
+class PolygonMeshPayload(RectanglePayload):
+    @property
+    def report(self):
+        return {**super().report, 'profile': f'td-rcmeshfd-v{self.fields["version"]}-attributes55/1',
+                'scope': 'Ordered polygon vertices and faces with surface attributes'}
+
+    def edited_record(self, changes):
+        reject('td_polygon_mesh_edit_unmapped')
+
+
+def decode_polygon_mesh(row, standard):
+    filer = Filer(row)
+    common = common_handles(filer, standard)
+    attrs = read_attributes(filer, revision=EXTENDED_ATTRIBUTE_REVISION)
+    b = filer.data
+    version = b.bl()
+    if version not in (1, 2):
+        reject('td_filer_version')
+    filer.version(1)
+    points = tuple(b.point() for _ in range(filer.count()))
+    filer.version(1)
+    faces = []
+    for _ in range(filer.count()):
+        filer.version(1)
+        face = filer.integers()
+        if len(face) < 3 or len(set(face)) != len(face) or any(index < 0 or index >= len(points) for index in face):
+            reject('td_polygon_mesh_connectivity')
+        faces.append(face)
+    flags = b.bl() if version == 2 else 0
+    filer.finish()
+    return PolygonMeshPayload({'version': version, 'common_handles': common, 'attributes': attrs,
+                               'points': points, 'faces': tuple(faces), 'entity_flags': flags}, {}, dict(row), standard)
+
+
+def decode_linear_tri(row, standard):
+    return _decode_linear_shell(row, standard, 'tri', 3)
+
+
+def decode_linear_quad(row, standard):
+    return _decode_linear_shell(row, standard, 'quad', 4)
+
+
+def decode_quadratic_tri(row, standard):
+    return _decode_linear_shell(row, standard, 'tri', 6, order=2)
+
+
+def decode_quadratic_quad(row, standard):
+    return _decode_linear_shell(row, standard, 'quad', 8, order=2)
+
+
+def _decode_linear_shell(row, standard, shape, count, *, order=1):
+    filer = Filer(row)
+    common = common_handles(filer, standard)
+    attrs = read_attributes(filer, revision=EXTENDED_ATTRIBUTE_REVISION)
+    fields = _element_nodes(filer, count)
+    filer.version(5)
+    references = tuple(filer.handle() for _ in range(filer.count()))
+    extra_points = tuple(filer.data.point() for _ in range(filer.count()))
+    filer.version(1)
+    filer.finish()
+    fields.update(common_handles=common, attributes=attrs, references=references, extra_points=extra_points)
+    return LinearShellPayload(fields, {}, dict(row), standard, shape, order)
+
+
 def decode_linear_brick(row, standard):
     return _decode_linear_solid(row, standard, LinearBrickPayload)
 
@@ -224,19 +352,19 @@ def decode_linear_wedge(row, standard):
     return _decode_linear_solid(row, standard, LinearWedgePayload)
 
 
+def decode_linear_tetra(row, standard):
+    return _decode_linear_solid(row, standard, LinearTetraPayload)
+
+
+def decode_linear_pyramid(row, standard):
+    return _decode_linear_solid(row, standard, LinearPyramidPayload)
+
+
 def _decode_linear_solid(row, standard, cls):
     filer = Filer(row)
     common = common_handles(filer, standard)
-    filer.version(5)
-    if filer.count() != cls.node_count:
-        reject('td_linear_solid_node_count')
-    nodes = tuple(filer.handle()['target'] for _ in range(cls.node_count))
-    if 0 in nodes or len(set(nodes)) != cls.node_count:
-        reject('td_linear_solid_node_identity')
-    label = filer.text()
+    fields = _element_nodes(filer, cls.node_count)
     b = filer.data
-    frame = tuple(b.point() for _ in range(4)) if b.take(1) else ()
-    selector = b.bl()
     filer.version(13)
 
     def references():
@@ -249,8 +377,21 @@ def _decode_linear_solid(row, standard, cls):
     attrs.update(references_c=references(), selector=b.bl(), expression=filer.expression())
     filer.version(1)
     filer.finish()
-    return cls({'common_handles': common, 'node_handles': nodes, 'label': label,
-                'element_frame': frame, 'selector': selector, 'attributes': attrs}, {}, dict(row), standard)
+    fields.update(common_handles=common, attributes=attrs)
+    return cls(fields, {}, dict(row), standard)
+
+
+def _element_nodes(filer, count):
+    filer.version(5)
+    if filer.count() != count:
+        reject('td_element_node_count')
+    nodes = tuple(filer.handle()['target'] for _ in range(count))
+    if 0 in nodes or len(set(nodes)) != count:
+        reject('td_element_node_identity')
+    label = filer.text()
+    b = filer.data
+    frame = tuple(b.point() for _ in range(4)) if b.take(1) else ()
+    return {'node_handles': nodes, 'label': label, 'element_frame': frame, 'selector': b.bl()}
 
 
 def brick_payload(fields):
