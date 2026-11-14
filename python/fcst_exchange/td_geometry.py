@@ -10,10 +10,11 @@ import math
 from .core import reject,ExchangeError
 from .td_filer import Filer
 from .td_node import common_handles
-from .td_surface import (ATTRIBUTE_REVISION, EXTENDED_ATTRIBUTE_REVISION, read_attributes, read_mesh_controls,
+from .td_surface import (ATTRIBUTE_REVISION, EXTENDED_ATTRIBUTE_REVISION, MESH_ATTRIBUTE_REVISION, read_attributes, read_mesh_controls,
     read_solid_attributes, read_text_ids, write_attributes, write_mesh_controls, write_expression, write_solid_attributes)
 
 SENTINEL=float.fromhex('0x1.f07c18386f74ep+295')
+EXTENDED_SURFACE_REVISIONS = (EXTENDED_ATTRIBUTE_REVISION, MESH_ATTRIBUTE_REVISION)
 
 
 @dataclass(frozen=True)
@@ -84,7 +85,7 @@ def _prefix(filer,standard):
 
 
 def decode_rectangle_complete(row,standard):
-    return _decode_surface(row, standard, RectanglePayload, (ATTRIBUTE_REVISION, EXTENDED_ATTRIBUTE_REVISION))
+    return _decode_surface(row, standard, RectanglePayload, (ATTRIBUTE_REVISION, *EXTENDED_SURFACE_REVISIONS))
 
 
 def _decode_surface(row, standard, cls, revisions, *shape):
@@ -93,7 +94,10 @@ def _decode_surface(row, standard, cls, revisions, *shape):
     fields['additional_parameters']=tuple(b.bd() for _ in range(6))
     fields['mesh_controls']=read_mesh_controls(filer)
     fields['parameter_expressions']=tuple(filer.expression() for _ in range(filer.count()))
-    fields['entity_flags']=b.bl();filer.finish()
+    fields['entity_flags']=b.bl()
+    if fields['attributes'].get('wire_revision') == 56:
+        fields['mesh_references'] = _mesh_references(filer)
+    filer.finish()
     return cls(fields,dict(filer.spans),dict(row),standard,*shape)
 
 
@@ -101,7 +105,8 @@ def _decode_surface(row, standard, cls, revisions, *shape):
 class DiskPayload(RectanglePayload):
     @property
     def report(self):
-        return {**super().report, 'profile': 'td-rcdisk-v7-attributes55/1',
+        revision = self.fields['attributes']['wire_revision']
+        return {**super().report, 'profile': f'td-rcdisk-v7-attributes{revision}/1',
                 'scope': 'Complete disk geometry, surface attributes and mesh controls'}
 
     def edited_record(self, changes):
@@ -109,7 +114,7 @@ class DiskPayload(RectanglePayload):
 
 
 def decode_disk(row, standard):
-    return _decode_surface(row, standard, DiskPayload, (EXTENDED_ATTRIBUTE_REVISION,))
+    return _decode_surface(row, standard, DiskPayload, EXTENDED_SURFACE_REVISIONS)
 
 
 @dataclass(frozen=True)
@@ -119,7 +124,8 @@ class ConicPayload(RectanglePayload):
     @property
     def report(self):
         name = self.shape.replace('-', '')
-        return {**super().report, 'profile': f'td-rc{name}-v7-attributes55/1',
+        revision = self.fields['attributes']['wire_revision']
+        return {**super().report, 'profile': f'td-rc{name}-v7-attributes{revision}/1',
                 'scope': 'Complete conic serialization, surface attributes and mesh controls'}
 
     def edited_record(self, changes):
@@ -130,7 +136,7 @@ def conic_decoder(shape):
     # These classes share the same data/text/handle filer. The class identity
     # selects the meaning of the parameter slots after structural decoding.
     def decode(row, standard):
-        return _decode_surface(row, standard, ConicPayload, (EXTENDED_ATTRIBUTE_REVISION,), shape)
+        return _decode_surface(row, standard, ConicPayload, EXTENDED_SURFACE_REVISIONS, shape)
     return decode
 
 
@@ -281,7 +287,9 @@ class LinearShellPayload(RectanglePayload):
     @property
     def report(self):
         name = f'linear{self.shape}2' if self.order == 1 else f'quadratic{self.shape}'
-        return {**super().report, 'profile': f'td-rc{name}-v5-attributes55/1',
+        revision = self.fields['attributes']['wire_revision']
+        version = self.fields.get('node_wire_version', 5)
+        return {**super().report, 'profile': f'td-rc{name}-v{version}-attributes{revision}/1',
                 'scope': 'Ordered element nodes, surface attributes and linked objects'}
 
     def edited_record(self, changes):
@@ -292,7 +300,8 @@ class LinearShellPayload(RectanglePayload):
 class PolygonMeshPayload(RectanglePayload):
     @property
     def report(self):
-        return {**super().report, 'profile': f'td-rcmeshfd-v{self.fields["version"]}-attributes55/1',
+        revision = self.fields['attributes']['wire_revision']
+        return {**super().report, 'profile': f'td-rcmeshfd-v{self.fields["version"]}-attributes{revision}/1',
                 'scope': 'Ordered polygon vertices and faces with surface attributes'}
 
     def edited_record(self, changes):
@@ -302,7 +311,7 @@ class PolygonMeshPayload(RectanglePayload):
 def decode_polygon_mesh(row, standard):
     filer = Filer(row)
     common = common_handles(filer, standard)
-    attrs = read_attributes(filer, revisions=(EXTENDED_ATTRIBUTE_REVISION,))
+    attrs = read_attributes(filer, revisions=EXTENDED_SURFACE_REVISIONS)
     b = filer.data
     version = b.bl()
     if version not in (1, 2):
@@ -318,9 +327,26 @@ def decode_polygon_mesh(row, standard):
             reject('td_polygon_mesh_connectivity')
         faces.append(face)
     flags = b.bl() if version == 2 else 0
+    fields = {'version': version, 'common_handles': common, 'attributes': attrs,
+              'points': points, 'faces': tuple(faces), 'entity_flags': flags}
+    if attrs.get('wire_revision') == 56:
+        fields['mesh_references'] = _mesh_references(filer)
     filer.finish()
-    return PolygonMeshPayload({'version': version, 'common_handles': common, 'attributes': attrs,
-                               'points': points, 'faces': tuple(faces), 'entity_flags': flags}, {}, dict(row), standard)
+    return PolygonMeshPayload(fields, {}, dict(row), standard)
+
+
+def _mesh_references(filer):
+    # These entity layouts end with soft pointers. Their ownership and thermal
+    # meaning are unresolved. The count is bounded by the handle stream itself.
+    links = []
+    while filer.handles.end - filer.handles.position >= 8:
+        if len(links) == 10000:
+            reject('td_mesh_reference_limit')
+        link = filer.handle()
+        if link['code'] != 4:
+            reject('td_mesh_reference_code')
+        links.append(link)
+    return tuple(links)
 
 
 def decode_linear_tri(row, standard):
@@ -342,8 +368,17 @@ def decode_quadratic_quad(row, standard):
 def _decode_linear_shell(row, standard, shape, count, *, order=1):
     filer = Filer(row)
     common = common_handles(filer, standard)
-    attrs = read_attributes(filer, revisions=(EXTENDED_ATTRIBUTE_REVISION,))
-    fields = _element_nodes(filer, count)
+    attrs = read_attributes(filer, revisions=EXTENDED_SURFACE_REVISIONS)
+    marker56 = attrs.get('wire_revision') == 56
+    if marker56:
+        # An optional soft pointer precedes the ordered hard node pointers.
+        stream = filer.handles
+        position = stream.position
+        code = stream.take(4)
+        stream.position = position
+        if code == 4:
+            attrs['leading_soft_reference'] = filer.handle()
+    fields = _element_nodes(filer, count, hard_pointers=marker56)
     filer.version(5)
     references = tuple(filer.handle() for _ in range(filer.count()))
     extra_points = tuple(filer.data.point() for _ in range(filer.count()))
@@ -392,11 +427,14 @@ def _decode_linear_solid(row, standard, cls):
     return cls(fields, {}, dict(row), standard)
 
 
-def _element_nodes(filer, count):
+def _element_nodes(filer, count, *, hard_pointers=False):
     version = filer.version_one_of(5, 6)
     if filer.count() != count:
         reject('td_element_node_count')
-    nodes = tuple(filer.handle()['target'] for _ in range(count))
+    links = tuple(filer.handle() for _ in range(count))
+    if hard_pointers and any(link['code'] != 5 for link in links):
+        reject('td_element_node_reference_code')
+    nodes = tuple(link['target'] for link in links)
     if 0 in nodes or len(set(nodes)) != count:
         reject('td_element_node_identity')
     label = filer.text()

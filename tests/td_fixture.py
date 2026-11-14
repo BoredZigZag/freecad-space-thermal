@@ -10,16 +10,17 @@ NAMES={1:('RCNODE','RcNode'),2:('RCCONDUCTOR','RcConductor'),3:('RCHEATLOAD','Rc
        9:('RCLINEARBRICK2','RcLinearBrick2'),10:('RCLINEARWEDGE2','RcLinearWedge2')}
 
 
-def envelope(payload,handle=101,targets=(101,102,103,104)):
+def envelope(payload,handle=101,targets=(101,102,103,104),*,reference_codes=()):
     # The common prefix is deliberately omitted from this synthetic envelope.
     bits=''.join(f'{byte:08b}' for byte in payload.data)[:payload.data_bits]
     bits+=''.join(f'{byte:08b}' for byte in payload.strings)[:payload.string_bits]
     if payload.string_bits:bits+=''.join(f'{byte:08b}' for byte in payload.string_bits.to_bytes(2,'little'))
     bits+=str(int(bool(payload.string_bits)));data_bits=len(bits)
     bits+='01010000' # common null layer
-    for index in payload.references:
+    for i,index in enumerate(payload.references):
         target=targets[index-1] if index else 0;size=(target.bit_length()+7)//8
-        bits+='0100'+f'{size:04b}'+(''.join(f'{v:08b}' for v in target.to_bytes(size,'big')) if size else '')
+        code = reference_codes[i] if i < len(reference_codes) else 4
+        bits+=f'{code:04b}{size:04b}'+(''.join(f'{v:08b}' for v in target.to_bytes(size,'big')) if size else '')
     bits+='1'*(-len(bits)%8)
     raw=int(bits,2).to_bytes(len(bits)//8,'big')
     row=dict(handle=handle,type=499+payload.kind,kind='UNKNOWN_ENT',bits=len(bits),data=raw.hex(),rest_bits=0,rest='',
@@ -29,11 +30,12 @@ def envelope(payload,handle=101,targets=(101,102,103,104)):
     return row,common
 
 
-def drawing(records,handles=None,*,geometry_classes=None):
+def drawing(records,handles=None,*,geometry_classes=None,reference_codes=None):
     handles=list(range(101,101+len(records))) if handles is None else handles
     rows=[];standards=[]
     for index,record in enumerate(records):
-        row,standard=envelope(record,handles[index],handles);rows.append(row);standards.append(standard)
+        codes = reference_codes.get(index, ()) if reference_codes else ()
+        row,standard=envelope(record,handles[index],handles,reference_codes=codes);rows.append(row);standards.append(standard)
     classes=[dict(number=499+kind,proxyflag=0,appname='FCST owned fixture',cppname=cpp,dxfname=dxf,is_zombie=0,
                   item_class_id=498,num_instances=sum(p.kind==kind for p in records),dwg_version=21,
                   maint_version=0,unknown_1=0,unknown_2=0) for kind,(dxf,cpp) in (NAMES | (geometry_classes or {})).items()]

@@ -7,6 +7,7 @@ from .dwg_native import _one
 from .td_node import decode_node
 from .td_conductor import decode_conductor
 from .td_load import decode_load
+from .td_mesher import MESHERS, decode_mesher
 from .td_geometry import (conic_decoder, decode_rectangle, decode_brick, decode_disk, decode_cylinder, decode_sphere,
                           decode_solid_cone, decode_solid_ellipsoid, decode_linear_brick, decode_linear_wedge,
                           decode_linear_tetra, decode_linear_pyramid, decode_linear_tri, decode_linear_quad,
@@ -38,7 +39,7 @@ GEOMETRY_CLASSES={'RcRectangle':'RCRECTANGLE','RcFdBrick':'RCTD_FDBRICK','RcDisk
                   **{name:name.upper() for name in CONIC_CLASSES}}
 GEOMETRY_DXF_ALIASES = {'RcParabolicTrough': {'RCPARABTROUGH'}, 'RcMeshFD': {'TD_MESH', 'RCMESHFD'}}
 UNMAPPED_GEOMETRY_CLASSES = {
-    'RcPolygon', 'TdMesher', 'TdMesherVa',
+    'RcPolygon', 'TdMesherVa',
     'RcLinearTri', 'RcLinearQuad', 'RcLinearTet', 'RcLinearBrick', 'RcLinearWedge',
     'RcQuadraticTet', 'RcQuadraticBrick',
     'RcQuadraticWedge', 'RcQuadraticPyramid',
@@ -68,6 +69,16 @@ def decode_drawing(snapshot, *, handles=None):
         if row['type'] < 500 or (handles is not None and row['handle'] not in handles):
             continue
         name = names[row['type']]
+        if name in MESHERS:
+            try:
+                payload = decode_mesher(row, standards[row['handle']], classes[row['type']])
+            except ExchangeError as error:
+                records.append({'handle': row['handle'], 'status': 'retained-opaque', 'limitation': error.code,
+                                'native_ready': False, 'qualified': False})
+            else:
+                payloads.append(payload)
+                records.append({**payload.report, 'status': 'partial-payload'})
+            continue
         decoder = DECODERS.get(name)
         code = 'td_geometry_profile_unmapped' if name in UNMAPPED_GEOMETRY_CLASSES else 'td_class_profile_unmapped'
         if name in GEOMETRY_CLASSES:
@@ -77,8 +88,11 @@ def decode_drawing(snapshot, *, handles=None):
         if decoder is None and row['kind'] not in {'UNKNOWN_ENT','UNKNOWN_OBJ'}:continue
         if decoder:
             try:
-                payload=decoder(row,standards[row['handle']]);payloads.append(payload)
-                records.append({'handle':row['handle'],'status':'payload-decoded' if payload.report['payload_decoded'] else 'partial-payload',**payload.report});continue
+                payload = decoder(row, standards[row['handle']])
+                report = payload.report
+                payloads.append(payload)
+                records.append({**report, 'status': 'payload-decoded' if report['payload_decoded'] else 'partial-payload'})
+                continue
             except ExchangeError as error:code=error.code
         records.append({'handle':row['handle'],'status':'retained-opaque','limitation':code,
                         'native_ready':False,'qualified':False})

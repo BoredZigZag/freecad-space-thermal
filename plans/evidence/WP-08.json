@@ -258,8 +258,8 @@
     "catalog": "Versioned conic, finite-difference solid, polygon mesh, linear and quadratic element classes",
     "acceptance": "ci/td-acceptance.json exercises owned records, analytic bounds and volumes, source-node connectivity, and unsupported-class diagnostics",
     "remaining": [
-      "Ogive, nonzero scarf angles and independently trimmed nonproportional hollow ellipsoid geometry",
-      "Quadratic boundaries, legacy finite elements, automatic mesh regeneration and additional source versions",
+      "Source comparisons for ogive, nonzero scarf angles and independently trimmed hollow ellipsoids",
+      "Quadratic-solid boundaries, legacy finite elements, automatic mesh regeneration and additional source versions",
       "Native geometry-to-physics reconstruction and independent vendor reference evidence"
     ],
     "qualified": false
@@ -281,7 +281,15 @@
       "additional_static_primitive_boundaries": 87,
       "ac1027_example_element_boundaries": 106
     },
-    "holds": ["Marker-56 surfaces and meshes", "TD Direct/Designer synchronization and mesh regeneration", "Geometry-attached thermal physics and source solver parity"],
+    "holds": ["TD Direct/Designer synchronization and mesh regeneration", "Geometry-attached thermal physics and source solver parity"],
+    "qualified": false
+  },
+  "dwg_geometry_and_stored_meshes": {
+    "acceptance": "tools/check_td.py tests marker-56 stream closure, analytic conics, closed trimmed cavities, quadratic shell display boundaries and stored mesh and CAD links",
+    "marker_56_geometry_records": 6213,
+    "independent_nastran_comparison": {"nodes": 127, "quad_connectivities": 103},
+    "stored_mesh_elements": {"td_direct_example": 106, "largest_opentd_example": 7705, "heating_coil_per_case": 12900},
+    "holds": ["Legacy FE and quadratic-solid DWG layouts", "Paired native conic and displaced midside fixtures", "TD Designer and TdMesherVa", "CAD synchronization and regeneration after changes"],
     "qualified": false
   }
 }

@@ -29,7 +29,7 @@ patch for the ten drawings are unverified.
 | --- | --- |
 | `Compartment.dwg` | One `TdMesher`, 2,296 `RcLinearTri2`, 6,557 `RcLinearTet2` and 1,148 `RcLinearWedge2`. The archive also includes `Compartments.rco` and `Compartments.tdp`. |
 | `SatelliteConfigurator.dwg` | One `TdMesher`, five linear FE topologies (triangle, quadrilateral, tetrahedron, wedge and brick), rectangles, an FD brick, an FD cylinder and an FD cone. Also acquire `SatelliteConfigurator.rco` and `SatelliteConfigurator.tdp`. |
-| `captureScreenshotsDemo.dwg` | Three cones, four cylinders, two spheres, three disks, 21 rectangles and 24 `RcMeshFD` objects with DXF name `RCMESHFD`. The alias is recognized. The marker-56 surface and mesh layout remains held. |
+| `captureScreenshotsDemo.dwg` | Three cones, four cylinders, two spheres, three disks, 21 rectangles and 24 `RcMeshFD` objects with DXF name `RCMESHFD`. FCST decodes the marker-56 surfaces and polygon meshes and exports their static boundaries. |
 | `Contours.dwg` | One rectangle, two FD bricks, two FD spheres and one FD cylinder. The archive includes `Contours.rco`, `Contours.tdp` and `contours.sav`. `ContourFinder/ContourFinderDialog.cs` references the DWG and SAV. |
 | `QFlowPlotterModel.dwg` | Rectangles, FD bricks, FD cylinders and disks. The archive includes `qflowplotter.rco`, `qflowplotter.tdp` and `qflowplotter.sav`. `QFlowPlotter/QFlowPlotterDialog.cs` references the DWG and SAV. |
 | `exploringResults.dwg` | Seven rectangles and two FD bricks. The separate `exploringResultsSav/` suite provides result-reader samples including `steady.sav`, `hot_beta0.sav` and `comparer/baseline.sav`. Verify each case association before using it for parity. |
@@ -38,8 +38,8 @@ patch for the ten drawings are unverified.
 | `common.dwg`, `reducedModelDemo.dwg` | Zero active classes from the current WP-08 geometry catalog. |
 
 The vendor FE, mesh and curved-solid examples exercise several wire layouts.
-Solid elements and FD solids now have additional coverage. Marker-56 surfaces
-and mesh regeneration remain open. The archives also include standalone
+The reader covers the observed marker-56 records and stored mesh links.
+Mesh regeneration remains open. The archives also include standalone
 SINDA/FLUINT examples under `model/controlSindaFluint/` (`control.inp`,
 `control.cc`, `justRun.inp`, `justRun.cc`). Use those for the deck path.
 Their relationship to any DWG must be established separately.
@@ -62,7 +62,7 @@ distribution. The original drawing writer builds remain unverified.
 
 | Sample | Exact files and verified contents |
 | --- | --- |
-| `ANSYS CoSolver/Heating Coil Steady v221/` and `ANSYS CoSolver/Heating Coil Transient v221/` | Each contains `CRTech/HeatingCoil.dwg`, `CRTech/System.scdoc`, `CRTech/Container.scdoc`, `CRTech/HeatingCoil.scdoc`, `CRTech/rcoptics.rco`, `CRTech/tdthermo.tdp` and `CRTech/crtech.scp`. Both AC1032 DWGs contain two `TdScImporter` records, one `TdFiniteElementMeshImporter`, one heat load and 12,900 linear elements each (100 triangles, 2,800 quads and 10,000 wedges). FCST decodes the element and heat-load records and retains the importer payloads opaque. Use the supplied CAD files as the starting set and verify importer-to-file associations during reopen or synchronization. |
+| `ANSYS CoSolver/Heating Coil Steady v221/` and `ANSYS CoSolver/Heating Coil Transient v221/` | Each contains `CRTech/HeatingCoil.dwg`, `CRTech/System.scdoc`, `CRTech/Container.scdoc`, `CRTech/HeatingCoil.scdoc`, `CRTech/rcoptics.rco`, `CRTech/tdthermo.tdp` and `CRTech/crtech.scp`. Both AC1032 DWGs contain two `TdScImporter` records, one `TdFiniteElementMeshImporter`, one heat load and 12,900 linear elements each (100 triangles, 2,800 quads and 10,000 wedges). FCST decodes the elements and heat loads and resolves links to the stored mesh. The supplied CAD files can seed a future synchronization test. |
 | Heating Coil coupling files | Both cases include `SyC/Settings.h5` and `Fluent/fluent.scp`. The steady mesh is `Fluent/HeatingCoil.cas.h5` and the transient mesh is `Fluent/HeatingCoilFLUENTMesh.cas.h5`. The transient `CRTech/` directory also contains `CouplingRegions.txt`, `Convection_Coefficients.txt`, `Fluid_Temperatures.txt` and `HeatRate.txt`. These are candidates for checking coupling-region and load mappings. The vendor workshop describes the data-exchange setup. A fresh licensed run is needed to verify solver results. [CRTech workshop slides](https://tfaws.nasa.gov/wp-content/uploads/TFAWS2020-CRTech-CHT.pdf) |
 | `TDDirect/TDD_Test_Drawing.dwg`, `TDDirect/TDD_Block.scdoc` | The original installed DWG is byte-identical to the CMU Argus copy below. The installed SCDOC differs in bytes from the public copy. Preserve the provenance of both companion variants when testing. |
 | `beercan.dwg`, `thermal_SI.dwg` and `TdThermo.tdp` | The installed Beer Can is byte-distinct from the UC Davis tutorial copy and has the same FE class counts. Its disk and four linear FE classes decode. The SI template is AC1027 and has no active WP-08 geometry classes. |
@@ -76,7 +76,7 @@ the vendor installation for local work.
 
 | Source | Exact files and WP-08 use |
 | --- | --- |
-| CMU Argus TD Direct test | [`TDD_Test_Drawing.dwg`](https://github.com/cmu-argus/Thermal/blob/66e37cc0bfb4a1b5b8a9489e6bd4f9b4ec8d5877/TDD_Test_Drawing.dwg) and [`TDD_Block.scdoc`](https://github.com/cmu-argus/Thermal/blob/66e37cc0bfb4a1b5b8a9489e6bd4f9b4ec8d5877/TDD_Block.scdoc). The AC1027 drawing opens in the independent adapter. All 52 linear triangles and 54 linear tetrahedra resolve their source nodes and export boundaries. The `TdScImporter` and `TdFiniteElementMeshImporter` payloads remain opaque. The former contains the companion filename. Capture a fresh sync and connectivity export to test regeneration. |
+| CMU Argus TD Direct test | [`TDD_Test_Drawing.dwg`](https://github.com/cmu-argus/Thermal/blob/66e37cc0bfb4a1b5b8a9489e6bd4f9b4ec8d5877/TDD_Test_Drawing.dwg) and [`TDD_Block.scdoc`](https://github.com/cmu-argus/Thermal/blob/66e37cc0bfb4a1b5b8a9489e6bd4f9b4ec8d5877/TDD_Block.scdoc). The AC1027 drawing opens in the independent adapter. All 52 linear triangles and 54 linear tetrahedra resolve their source nodes and export boundaries. The importer link reader resolves the SpaceClaim companion and the generated elements. Capture a fresh sync and connectivity export to test regeneration. |
 | UC Davis FE conduction and radiation | [`FEconductandRad-Completed.zip`](https://github.com/Space-and-Satellite-Systems-UC-Davis/Structure-Thermal-Desktop/blob/c7424e7e9be0b40527c69f84800ef6c691fc73dc/Reference%20Files%20and%20Tutorials/CRTech%20Tutorials/6.%20FE_CondRad_63/FEconductandRad-Completed.zip) contains `FEconductandRad-Completed/fe1.dwg`, `RcOptics.rco` and `TdThermo.tdp` in the same member directory. The current decoder reads 220 linear quads and 168 linear bricks. |
 | UC Davis Beer Can | [`BeerCan-Completed.zip`](https://github.com/Space-and-Satellite-Systems-UC-Davis/Structure-Thermal-Desktop/blob/c7424e7e9be0b40527c69f84800ef6c691fc73dc/Reference%20Files%20and%20Tutorials/CRTech%20Tutorials/5.%20BeerCan_63/BeerCan-Completed.zip) contains `BeerCan-Completed/beercan.dwg`, `RcOptics.rco` and `TdThermo.tdp`. The decoder reads one disk, eight linear triangles, 40 quads, 32 wedges and 32 bricks. The [vendor install guide](https://www.crtech.com/sites/default/files/files/Install_instructions/ThermalDesktopInstall_licensed.pdf) also documents a `beercan.dwg` test model. |
 | UC Davis mesh mapping | [`MappingResults-Complete.zip`](https://github.com/Space-and-Satellite-Systems-UC-Davis/Structure-Thermal-Desktop/blob/c7424e7e9be0b40527c69f84800ef6c691fc73dc/Reference%20Files%20and%20Tutorials/CRTech%20Tutorials/7.%20MappingResults_63/MappingResults-Complete.zip) contains `MappingResults-Complete/coarse.dwg`, `coarse_quad.NAS`, `fine_quad.NAS`, `RcOptics.rco` and `TdThermo.tdp`. The drawing contains 103 decodable linear quads. The two Nastran meshes give independent connectivity inputs for mapping checks. |
@@ -181,6 +181,25 @@ Geometry-derived heat capacity, conductivity, contact, radiation and solver
 comparisons still need mapped inputs and independent reference results. Public
 automation uses owned synthetic records. Acquired drawings, coordinates and
 raw inspection results remain local.
+
+### Geometry and stored-mesh follow-up
+
+The marker-56 reader consumed the data, text and handle streams for 6,213
+records in the 25-drawing snapshot set. Static export passed for all 5,943
+triangles, 20 quads, 209 rectangles, 24 FD meshes, 3 cones, 4 cylinders, 8 disks
+and 2 spheres in that revision. Nine surfaces used a decimal-rounded full
+revolution and closed correctly after angle normalization.
+
+| Source | Stored geometry verified locally |
+| --- | --- |
+| CMU TD Direct test | Selecting the SpaceClaim or FE importer exports 52 triangles and 54 tetrahedra. The declared SpaceClaim companion resolves in the captured tree. |
+| UC Davis Mapping Results | Selecting the FE importer exports 103 quads. All 127 DWG node IDs and coordinates match `coarse_quad.NAS` exactly. All 103 element connectivities match after allowing cyclic rotation and winding reversal. |
+| OpenTD demo meshers | The two `TdMesher` objects export 1,645 and 7,705 linked elements. The larger export has 27,376 faces. |
+| Installed Heating Coil examples | The mesh-bearing SpaceClaim importer and FE importer each select 12,900 elements per drawing. The second SpaceClaim importer has CAD links only. |
+
+The checks preserve original bytes and use stored nodes and elements. They leave
+mesh settings, CAD synchronization, generated-state comparison and solver
+qualification open. Raw model, CAD, mesh and result files remain local.
 
 ## Files still needed for full coverage
 

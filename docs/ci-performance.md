@@ -918,3 +918,28 @@ OBJ bytes and verdicts. This measures local Python export and excludes native
 inspection, runner setup and CI scheduling. The existing unit and TD stages
 exercise the selection and wire checks. The AC1027 smoke reuses the DWG job's
 existing compiled backend.
+
+## WP-08 DWG geometry and stored meshes
+
+The passing cold-cache Debug and Release drivers took 575.891 s with three
+acceptance workers and 233.359 s with two. The hosted critical path went
+through the 116 s unit job, the 645 s Debug job and the Foundation gate.
+Debug radiation was the longest acceptance stage at 306.406 s. The separate
+Embree package job took 672 s, including 619.860 s for its package probe.
+The cold hosted and warm baseline timings use different cache states.
+[Passing Foundation run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43510244665)
+
+A fixed-duration Debug replay tested cutting 20% from the three recorded
+million-facet builds. The existing dispatch modeled 524.578 s with and without
+the reduction because the serialized thermal reference and numerical checkpoint
+stages determined the tail. Longest-first dispatch modeled 495.438 s, or
+487.453 s with the hypothetical reduction. The model excludes setup and
+contention. The workflow, baseline, repetitions and criteria are unchanged.
+
+The implementation reuses selected-record decoding for stored mesh links.
+Five alternating warm pairs exported the same 7,705 linked elements from an
+already inspected drawing. Decoding the complete drawing for each pass took a
+median 14.478 s (14.317–15.051 s). Decoding the selected mesh, its elements and
+their nodes took 3.563 s (3.431–3.913 s). OBJ bytes and receipts matched. This
+is a local Python export measurement. The added tests run in the existing
+unit and TD stages without additional backend builds or corpus downloads.

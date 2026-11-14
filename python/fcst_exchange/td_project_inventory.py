@@ -4,8 +4,9 @@ from collections import Counter
 
 from .core import Limits, reject
 from .dwg_native import _one
-from .td_decode import decode_drawing
+from .td_decode import GEOMETRY_CLASSES, decode_drawing
 from .td_geometry import LinearShellPayload, LinearSolidPayload
+from .td_mesher import MesherPayload
 from .td_node import NodePayload
 from .td_project_graph import companion_inventory, dictionary_graph
 from .td_project_records import project_records
@@ -50,6 +51,8 @@ def inspect_project(staged):
     node_handles = {p.record['handle'] for p in inventory.payloads if isinstance(p, NodePayload)}
     element_nodes = {p.record['handle']: p.fields['node_handles'] for p in inventory.payloads
                      if isinstance(p, (LinearShellPayload, LinearSolidPayload))}
+    meshers = {p.record['handle']: p for p in inventory.payloads if isinstance(p, MesherPayload)}
+    mesh_references = []
     thermal = []
     for record in inventory.records:
         handle = record['handle']
@@ -62,6 +65,23 @@ def inspect_project(staged):
                     {'target': str(node), 'status': 'resolved' if node in node_handles
                      else 'unmapped' if node in objects else 'missing'}
                     for node in element_nodes[handle]]
+            if handle in meshers:
+                mesher = meshers[handle]
+                links = []
+                for target in mesher.references:
+                    linked = objects.get(target)
+                    linked_class = classes.get(linked['type'], {}) if linked else {}
+                    name = linked_class.get('cppname', linked['kind'] if linked else None)
+                    if target in element_nodes or target in node_handles or target in meshers:
+                        status = 'resolved'
+                    elif linked is None:
+                        status = 'missing' if target else 'null'
+                    else:
+                        status = 'unmapped' if name in GEOMETRY_CLASSES or name == 'RcNode' else 'present'
+                    links.append({'target': str(target), 'class': name, 'status': status})
+                item['stored_mesh_links'] = links
+                if mesher.companion:
+                    mesh_references.append({'manager': str(handle), 'role': 'spaceclaim-document', 'path': mesher.companion})
             thermal.append(item)
     for record in configuration:
         record['dictionary_reachable'] = int(record['handle']) in reached
@@ -73,7 +93,7 @@ def inspect_project(staged):
     original = staged.original
     properties = dependency_catalog(snapshot, original.files, inventory=inventory)
     properties['references'] = [{**r, 'handle': str(r['handle'])} for r in properties['references']]
-    companions = companion_inventory(original.files, original.entry, references)
+    companions = companion_inventory(original.files, original.entry, references + mesh_references)
     counts = Counter(r['status'] for r in (*configuration, *thermal))
     if len(configuration) + len(thermal) + len(graph['entries']) + len(companions['files']) > Limits().records:
         reject('td_project_inventory_limit')

@@ -41,8 +41,9 @@ captured companions by file role. Case property overrides resolve against the
 captured tree relative to the drawing. Unsafe, missing and wrong-role inputs
 stay explicit. The report carries source handles as strings to preserve their
 full width. The file inventory recognizes SpaceClaim (`.scdoc`), TD Designer
-(`.dsco`) and CoSolver settings (`.scp`). Importer-to-companion links and
-synchronization remain unresolved.
+(`.dsco`) and CoSolver settings (`.scp`). It resolves the stored SpaceClaim
+path from reviewed `TdScImporter` v6 records against the captured tree and
+lists linked drawing objects. Synchronization and generator controls remain open.
 
 The supported case-manager layout inventories the first v73 case through its
 steady/transient selectors, v36 radiation tasks, property overrides, thermal
@@ -343,7 +344,7 @@ nodes/conductors/loads this covers 996 complete payloads. Unknown rectangle
 attribute revisions retain a partial envelope; unsupported solids retain opaque
 bytes. Neither status grants physical reconstruction.
 
-Rectangle marker 55 and FD brick v23 also support complete decoding and static
+Rectangle markers 55 and 56 and FD brick v23 support complete decoding and static
 boundary export. Their additional attributes are retained. Serialized size
 edits and thermal material assignment use the earlier validated rectangle and
 brick layouts.
@@ -376,6 +377,13 @@ the command checks all recognized geometry records, including known classes
 whose layouts are still held. The OBJ object names retain source handles.
 Keep derived geometry from restricted drawings local.
 
+Pass a `TdMesher` v43, `TdFiniteElementMeshImporter` v39 or `TdScImporter` v6
+handle to export its linked, already generated geometry. The export follows
+declared drawing references and retains the linked element handles in OBJ.
+Explicit generator selections allow up to 100,000 faces and all exports are
+bounded to 16 MiB. The importer settings stay opaque. CAD synchronization,
+mesh generation from CAD and regeneration after a parameter change remain open.
+
 The exporter applies the drawing origin and right-handed basis, the local
 translation and ordered rotations, and the stored normalized subdivision
 boundaries. Static 6.3 code analysis establishes the size and transform layout.
@@ -394,13 +402,18 @@ produce diagnostics.
 | --- | --- |
 | Rectangle, disk, ellipse, cone, cylinder, sphere, ellipsoid, elliptic cone and cylinder | Static boundary export |
 | Parabolic trough, paraboloid, offset paraboloid, torus | Static boundary export |
-| Scarfed cone and cylinder | Boundary export for zero scarf angle. Active scarf geometry remains held. |
-| Ogive | Shared conic record decoding. Boundary parameters remain held. |
-| FD brick, solid cone, cylinder, sphere and ellipsoid | Static boundary export. Hollow ellipsoids support closed nested walls or proportional walls with matching normalized trims. |
-| Polygon and FD mesh | Ordered polygon connectivity and boundary export for the supported layouts |
+| Scarfed cone and cylinder | Static boundary export with either sign of scarf angle where the trim plane intersects every generator above the base. |
+| Ogive | Static circular-profile boundary with full or partial sweep. |
+| FD brick, solid cone, cylinder, sphere and ellipsoid | Static boundary export. Hollow ellipsoids support strictly nested full-sweep cavities with independent trims, plus proportional walls with matching normalized trims. |
+| Polygon and FD mesh | Ordered polygon connectivity and boundary export for the supported layouts, including marker 56. |
 | Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundary export for the reviewed layouts, including solid-element node v6 and attribute v14 records. Older class layouts and unmapped node selectors remain held. |
-| Quadratic triangle and quadrilateral | Ordered source-node decoding for the reviewed layout. Curved boundaries remain held. |
-| Quadratic tetrahedron, pyramid, wedge and brick, automatic mesh entities | Recognized classes with explicit unsupported diagnostics |
+| Quadratic triangle and quadrilateral | Four-face display tessellation through stored midside points where the edge assignment is unambiguous. The stored node order is preserved in the inventory. |
+| Quadratic tetrahedron, pyramid, wedge and brick | Recognized classes with unsupported-layout diagnostics. |
+| Automatic mesh and CAD importer entities | Stored geometry export for the reviewed link profiles. `TdMesherVa`, CAD synchronization and mesh regeneration remain held. |
+
+The new conic and quadratic-shell boundaries are tested against analytic or
+synthetic geometry. Native source comparisons for these shapes still need the
+paired fixtures listed in the source inventory.
 
 The catalog includes the geometry families exposed by TD's API. The class
 catalog describes the product surface across releases. Serialized layout

@@ -486,6 +486,11 @@ wire profiles, exact stream consumption, source-node boundaries and preservation
 of unsupported attributes. TST-021 scans the exact source inventory, owned
 fixtures, locks, bounded verdicts, scalar timings, staged bytes and outgoing
 history and identities. Original models and raw probes remain in local storage.
+The DWG geometry and stored-mesh follow-up adds marker-56 fixtures, analytic
+shape checks, quadratic-shell display tessellation and mesher/importer link
+regressions in both Windows TD stages. TST-021 scans exact code, synthetic
+fixtures, inventory prose, source pins, bounded verdicts, timing summaries,
+outgoing history and approved identities. Acquired CAD, DWGs and OBJ stay local.
 Dynamic power acceptance adds owned RcHeatLoad v17, SINDA TVS and zero-phase
 PER fixtures. Run `tools/check_td.py`, vendor-free fresh CLI preparation in
 `tools/build_independent_dwg.py`, and the native interpolation, cycle reset,
@@ -720,9 +725,11 @@ physics bindings and full-drawing native reconstruction remain open.
 The [source inventory](../inventory/td-geometry-sources.md) supplies additional
 AC1027 inspection fixtures and AC1032 wire revisions for FD solids, rectangles,
 linear solid elements, conductors and expressions. Read-only inspection and
-static boundary export now cover the reviewed cases. Unknown marker-56 surface
-attributes, CAD importer synchronization, active meshing and geometry-attached
-thermal physics remain open.
+static boundary export now cover the reviewed cases, including marker-56
+surfaces and linked stored meshes. The next geometry gaps are legacy and
+quadratic-solid wire layouts, native source comparisons for the new conics,
+CAD importer synchronization and regeneration from CAD. Geometry-attached
+thermal physics remains open.
 Unrepresented modes and additional source versions need verified format evidence,
 while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.
 

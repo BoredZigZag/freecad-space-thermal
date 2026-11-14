@@ -30,8 +30,8 @@ def rectangle():
     b.bl(99);f.text('owned opaque attributes');return f.result(1)
 
 
-def write_owned_surface55(f, attrs):
-    from fcst_exchange.td_surface import ATTRIBUTE_LAYOUT, EXTENDED_ATTRIBUTE_REVISION, write_value
+def write_owned_surface55(f, attrs, *, marker56=False):
+    from fcst_exchange.td_surface import ATTRIBUTE_LAYOUT, EXTENDED_ATTRIBUTE_REVISION, MESH_ATTRIBUTE_REVISION, write_value
 
     b = f.data
     b.bl(0)
@@ -41,8 +41,26 @@ def write_owned_surface55(f, attrs):
     b.bl(0)
     for name in ('front', 'back', 'edge'):
         f.text(name)
-    b.bd(EXTENDED_ATTRIBUTE_REVISION)
-    for name, field_kind, count in ATTRIBUTE_LAYOUT:
+    b.bd(MESH_ATTRIBUTE_REVISION if marker56 else EXTENDED_ATTRIBUTE_REVISION)
+    if marker56:
+        layout = (
+            *ATTRIBUTE_LAYOUT[:6],
+            ('selectors_a', 'integer', 2), ('names_a', 'text', 6),
+            ('indices_a', 'integer', 4), ('source_submodel', 'text', 1),
+            ('selectors_b', 'integer', 8), ('names_b', 'text', 2), ('values_a', 'double', 4),
+            *ATTRIBUTE_LAYOUT[13:15], ('additional_selector_d', 'integer', 1),
+            *ATTRIBUTE_LAYOUT[15:17], ('reference_mode', 'integer', 1),
+            *ATTRIBUTE_LAYOUT[18:24], ('expression_selectors', 'integer', 2),
+            ('expressions_a', 'expression', 5), *ATTRIBUTE_LAYOUT[25:],
+        )
+        attrs = {**attrs, 'selectors_a': (0, 1), 'names_a': ('one', '', '', 'four', 'five', 'six'),
+                 'indices_a': (7, 8, 9, 10), 'source_submodel': 'owned submodel', 'selectors_b': (0,) * 8,
+                 'names_b': ('left edge', 'right edge'), 'values_a': (1, 2, 3, 4),
+                 'additional_selector_d': 7, 'reference_mode': 1, 'expression_selectors': (1, 2),
+                 'expressions_a': attrs['expressions_a'][:5]}
+    else:
+        layout = ATTRIBUTE_LAYOUT
+    for name, field_kind, count in layout:
         for value in ((attrs[name],) if count == 1 else attrs[name]):
             write_value(f, field_kind, value)
     b.bl(1)
@@ -56,9 +74,11 @@ def write_owned_surface55(f, attrs):
     for name in ('first', 'second'):
         f.text(name)
         b.bl(0)
+    if marker56:
+        b.bl(0)
 
 
-def curved_record(shape, *, trailing=False, shell_parameters=None, solid_parameters=None, kind=None):
+def curved_record(shape, *, trailing=False, shell_parameters=None, solid_parameters=None, kind=None, marker56=False):
     from fcst_exchange.td_surface import write_expression, write_mesh_controls, write_solid_attributes
 
     f = FilerWriter()
@@ -82,7 +102,7 @@ def curved_record(shape, *, trailing=False, shell_parameters=None, solid_paramet
         b.point(p)
     attrs = fields['attributes']
     if shell:
-        write_owned_surface55(f, attrs)
+        write_owned_surface55(f, attrs, marker56=marker56)
         additional = values[6:]
         for value in (*additional, *(0,) * (6 - len(additional))):
             b.bd(value)
@@ -108,6 +128,90 @@ def curved_record(shape, *, trailing=False, shell_parameters=None, solid_paramet
 
 
 class TdGeometryTests(unittest.TestCase):
+    def test_marker56_geometry_preserves_ordered_data_and_rejects_bad_handles(self):
+        from fcst_exchange.td_geometry import decode_linear_tri, decode_polygon_mesh
+
+        disk = curved_record('disk', marker56=True)
+        row, common = envelope(disk)
+        payload = decode_disk(row, Fields(common.items()))
+        self.assertIn('attributes56', payload.report['profile'])
+        self.assertEqual(payload.fields['attributes']['names_b'], ('left edge', 'right edge'))
+        self.assertEqual(payload.fields['attributes']['reference_mode'], 1)
+        self.assertTrue(boundary_mesh(payload, 'm')[1])
+
+        writer = FilerWriter()
+        write_owned_surface55(writer, rectangle_boundary_fields()['attributes'], marker56=True)
+        writer.data.bl(6)
+        writer.data.bl(3)
+        writer.references.extend((4, 1, 2, 3))
+        writer.text('owned triangle')
+        writer.data.put(0, 1)
+        for value in (1, 0, 5, 0, 0, 1):
+            writer.data.bl(value)
+        targets = (201, 202, 203, 204)
+        for codes in ((4, 5, 5, 5), (4, 5, 4, 5)):
+            row, common = envelope(writer.result(12), targets=targets, reference_codes=codes)
+            if codes[2] != 5:
+                with self.assertRaisesRegex(ExchangeError, 'element_node_reference_code'):
+                    decode_linear_tri(row, Fields(common.items()))
+                continue
+            payload = decode_linear_tri(row, Fields(common.items()))
+            self.assertEqual(payload.fields['node_handles'], targets[:3])
+            self.assertEqual(payload.fields['attributes']['leading_soft_reference']['target'], 204)
+
+        writer = FilerWriter()
+        write_owned_surface55(writer, rectangle_boundary_fields()['attributes'], marker56=True)
+        for value in (2, 1, 3):
+            writer.data.bl(value)
+        for point in ((0, 0, 0), (1, 0, 0), (0, 1, 0)):
+            writer.data.point(point)
+        for value in (1, 1, 1):
+            writer.data.bl(value)
+        writer.integers((0, 1, 2))
+        writer.data.bl(0)
+        writer.references.append(1)
+        for code in (4, 5):
+            row, common = envelope(writer.result(13), targets=(201,), reference_codes=(code,))
+            if code == 5:
+                with self.assertRaisesRegex(ExchangeError, 'mesh_reference_code'):
+                    decode_polygon_mesh(row, Fields(common.items()))
+                continue
+            payload = decode_polygon_mesh(row, Fields(common.items()))
+            self.assertEqual(payload.fields['mesh_references'][0]['target'], 201)
+            self.assertEqual(boundary_mesh(payload, 'm')[1], ((0, 1, 2),))
+
+    def test_scarf_plane_and_ogive_profile_match_analytic_surfaces(self):
+        from fcst_exchange.td_decode import DECODERS
+
+        for shape, name, top in (('scarfed-cone', 'RcScarfedCone', 2),
+                                  ('scarfed-cylinder', 'RcScarfedCylinder', 3)):
+            for angle in (.25, -.25):
+                parameters = (8, 3, top, 0, math.pi, angle) if shape.endswith('cone') else (8, 3, 0, math.pi, angle)
+                row, common = envelope(curved_record(shape, shell_parameters=parameters, kind=11))
+                points, faces = boundary_mesh(DECODERS[name](row, Fields(common.items())), 'm')
+                self.assertTrue(faces)
+                maximum = max(z for _, _, z in points)
+                self.assertGreater(maximum, 8)
+                for x, y, z in points:
+                    self.assertAlmostEqual(math.hypot(x, y), 3 + (top - 3) * z / 8)
+                rim = [p for p in points if math.isclose(p[2] + math.tan(angle) * p[0], 8)]
+                self.assertGreaterEqual(len(rim), 9)
+                self.assertTrue(all(z + math.tan(angle) * x <= 8 + 1e-12 for x, _, z in points))
+
+        parameters = (5, 2, 0, math.pi / 2, -3, 4)
+        row, common = envelope(curved_record('ogive', shell_parameters=parameters, kind=11))
+        points, faces = boundary_mesh(DECODERS['RcOgive'](row, Fields(common.items())), 'm')
+        self.assertTrue(faces)
+        for x, y, z in points:
+            self.assertAlmostEqual((math.hypot(x, y) + 3) ** 2 + z ** 2, 25)
+            self.assertGreaterEqual(min(x, y), 0)
+
+        disk = curved_record('disk', shell_parameters=(0, 3, 0, round(math.tau, 11)))
+        row, common = envelope(disk)
+        rounded = boundary_mesh(decode_disk(row, Fields(common.items())), 'm')
+        row, common = envelope(curved_record('disk'))
+        self.assertEqual(rounded, boundary_mesh(decode_disk(row, Fields(common.items())), 'm'))
+
     def test_v6_expression_consumes_only_its_fields_and_preserves_inert_source(self):
         from fcst_exchange.td_filer import Filer, expression_is_constant
 
@@ -198,6 +302,7 @@ class TdGeometryTests(unittest.TestCase):
             'elliptic-cone': ((5, 3, 0, 0.5, 0, math.tau), ((-3, 3), (-1.5, 1.5), (0, 5))),
             'elliptic-cylinder': ((5, 3, 2, 0, math.tau), ((-3, 3), (-2, 2), (0, 5))),
             'offset-paraboloid': ((4, 4, 1, 1, 0.5), ((0, 2), (-0.5, 0.5), (0, 1))),
+            'ogive': ((5, 2, 0, math.tau, -4, 4), ((-2, 2), (-2, 2), (-4, 4))),
             'parabolic-trough': ((2, -4, 4, -2, 2), ((-4, 4), (-2, 2), (0, 2))),
             'paraboloid': ((5, 0, 3, 0, math.tau), ((-3, 3), (-3, 3), (0, 5))),
             'scarfed-cone': ((5, 3, 0, 0, math.tau, 0), ((-3, 3), (-3, 3), (0, 5))),
@@ -215,10 +320,6 @@ class TdGeometryTests(unittest.TestCase):
                 trailing, trailing_common = envelope(curved_record(shape, trailing=True, shell_parameters=parameters, kind=11))
                 with self.assertRaisesRegex(ExchangeError, 'unconsumed_stream'):
                     DECODERS[name](trailing, Fields(trailing_common.items()))
-                if shape not in geometry:
-                    with self.assertRaisesRegex(ExchangeError, 'conic_parameters_unmapped'):
-                        boundary_mesh(payload, 'm')
-                    continue
                 points, faces = boundary_mesh(payload, 'm')
                 self.assertEqual(len(set(points)), len(points))
                 for coordinates, bounds in zip(zip(*points), geometry[shape][1]):
@@ -232,7 +333,9 @@ class TdGeometryTests(unittest.TestCase):
                 ('RcFdSolidCone', (5, 1, 3, 0.5, 2, 0, math.pi), (5 * math.pi / 6) * (19 - 1.75)),
                 ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 0, 0, 0, 0, 0), 8 * math.pi),
                 ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 1, 1.5, 0.5, -0.5, 0.5), 7 * math.pi),
-                ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 1.5, 1, 0.5, -0.5, 0.5), 7 * math.pi)):
+                ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 1.5, 1, 0.5, -0.5, 0.5), 7 * math.pi),
+                ('RcFdSolidEllipsoid', (3, 2, 1, -.75, .75, 0, math.tau, 1, 1.5, .5, -.25, .25),
+                 math.pi * (6 * (1.5 - 2 * .75 ** 3 / 3) - 1.5 * (.5 - 2 * .25 ** 3 / (.25 * 3))))):
             with self.subTest(name=name, parameters=parameters):
                 row, common = envelope(curved_record(name, solid_parameters=parameters, kind=11))
                 payload = DECODERS[name](row, Fields(common.items()))
@@ -391,19 +494,31 @@ class TdGeometryTests(unittest.TestCase):
             payload = decode(row, Fields(common.items()))
             self.assertEqual(payload.fields['node_handles'], handles[:-1])
             self.assertEqual(payload.fields['references'][0]['target'], handles[-1])
-            if count > 4:
-                self.assertEqual(payload.order, 2)
-                with self.assertRaisesRegex(ExchangeError, 'curved_shell_unmapped'):
-                    boundary_mesh(payload, 'm')
-                continue
             nodes = {}
-            for i, (handle, point) in enumerate(zip(handles, ((0, 0, 0), (3, 0, 0), (3, 2, 0), (0, 2, 0))), 1):
+            corners = ((0, 0, 0), (3, 0, 0), (3, 2, 0), (0, 2, 0))[:count if count <= 4 else count // 2]
+            mids = [(0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1]), .25)
+                    for a, b in zip(corners, (*corners[1:], corners[0]))] if count > 4 else []
+            for i, (handle, point) in enumerate(zip(handles, (*corners, *mids)), 1):
                 row, common = envelope(node_payload('OWNED', i, 300, 1, 'capacitive'), handle)
                 node = decode_node(row, Fields(common.items()))
                 nodes[handle] = replace(node, fields={**node.fields, 'basis': (point, *node.fields['basis'][1:])})
             points, faces = boundary_mesh(payload, 'm', nodes=nodes)
-            self.assertEqual(faces, [tuple(range(count))])
-            self.assertEqual(points[-1], nodes[handles[count - 1]].fields['basis'][0])
+            self.assertEqual(points[:count], [*corners, *mids])
+            if count > 4:
+                self.assertEqual(payload.order, 2)
+                self.assertEqual(len(faces), 4)
+                self.assertEqual({i for face in faces for i in face}, set(range(len(points))))
+                if count == 8:
+                    self.assertEqual(points[-1], (1.5, 1.0, .5))
+                with self.assertRaisesRegex(ExchangeError, 'mesh_limit'):
+                    boundary_mesh(payload, 'm', nodes=nodes, face_limit=3)
+                reversed_mids = tuple(reversed(handles[len(corners):count]))
+                reordered = replace(payload, fields={**payload.fields, 'node_handles': (*handles[:len(corners)], *reversed_mids)})
+                other_points, other_faces = boundary_mesh(reordered, 'm', nodes=nodes)
+                self.assertEqual([[points[i] for i in face] for face in faces],
+                                 [[other_points[i] for i in face] for face in other_faces])
+            else:
+                self.assertEqual(faces, [tuple(range(count))])
 
     def test_polygon_mesh_preserves_face_order_and_rejects_invalid_connectivity(self):
         from fcst_exchange.td_geometry import decode_polygon_mesh
@@ -478,6 +593,50 @@ class TdGeometryTests(unittest.TestCase):
             decoder.assert_not_called()
             self.assertIn(f'o td_cone_{cone}\n'.encode(), obj)
             self.assertEqual(report['objects'], 1)
+
+    def test_stored_mesh_selection_and_cad_companion_require_declared_links(self):
+        from fcst_exchange.independent_td import DwgPreview
+        from fcst_exchange.source_tree import capture_project
+        from fcst_exchange.td_geometry_mesh import render_geometry
+        from fcst_exchange.td_project_inventory import inspect_project
+
+        first = curved_record('disk', kind=6)
+        second = curved_record('disk', kind=6, shell_parameters=(1, 2, 0, math.pi))
+        mesher = FilerWriter()
+        mesher.data.bl(39)
+        mesher.data.bl(0)  # Retained settings.
+        mesher.references.append(1)
+        importer = FilerWriter()
+        importer.data.bl(6)
+        importer.text('Owned.scdoc')
+        importer.data.bl(0)
+        importer.references.append(3)
+        classes = {17: ('TDFEMESHIMPORTER', 'TdFiniteElementMeshImporter'), 18: ('TDSCIMPORTER', 'TdScImporter')}
+        records = [first, second, mesher.result(17), importer.result(18)]
+        codes = {2: (5,), 3: (4,)}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'owned.dwg').write_bytes(b'AC1032-owned')
+            (root / 'owned.scdoc').write_bytes(b'owned CAD')
+            source = capture_project(root, 'owned.dwg')
+            staged = DwgPreview(source, drawing(records, geometry_classes=classes, reference_codes=codes))
+            result, receipt = render_geometry(staged, 'm', (104,))
+            self.assertEqual((result, receipt), render_geometry(staged, 'm', (101,)))
+            self.assertNotIn(b'td_disk_102', result)
+            with self.assertRaisesRegex(ExchangeError, 'duplicate_handle'):
+                render_geometry(staged, 'm', (104, 104))
+            report = inspect_project(staged)
+            bound = report['companion_inventory']['declared_inputs']
+            self.assertEqual([(r['role'], r['status']) for r in bound], [('spaceclaim-document', 'resolved')])
+            mesher_record = next(r for r in report['thermal_objects'] if r['handle'] == '103')
+            self.assertEqual(mesher_record['status'], 'partial-payload')
+            self.assertFalse(mesher_record['native_ready'])
+            # The fixture generator binds references by index. Remove the target
+            # after encoding to model a source with a dangling DWG pointer.
+            native = {**staged.snapshot.native, 'objects': staged.snapshot.native['objects'][1:]}
+            missing = replace(staged, snapshot=NativeSnapshot(native, staged.snapshot.standard, ''))
+            with self.assertRaisesRegex(ExchangeError, 'missing_reference'):
+                render_geometry(missing, 'm', (104,))
 
     def test_curved_dwg_profiles_export_valid_disks_cylinders_and_spheres(self):
         from collections import Counter

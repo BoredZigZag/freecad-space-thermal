@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Independent geometry-only reconstruction of reviewed TD geometry."""
 import math
-from dataclasses import replace
+from itertools import permutations
 
 from fcst_contracts.spatial import determinant
 
@@ -96,13 +96,17 @@ def _subdivision(subdivision):
 
 def _azimuth_cuts(start, end, cuts, *, wrap=False):
     span = end - start
-    if not math.isfinite(span) or abs(span) > math.tau + 1e-12:
+    # The source can round one revolution in decimal serialization. Snap
+    # either signed representation to the exact period before wrapping.
+    if math.isclose(abs(span), math.tau, abs_tol=1e-10, rel_tol=0):
+        span = math.copysign(math.tau, span)
+    if not math.isfinite(span) or abs(span) > math.tau:
         reject('td_geometry_angle_range')
     if wrap and span <= 0:
         span = span % math.tau or math.tau
     if not span > 0:
         reject('td_geometry_angle_range')
-    closed = math.isclose(span, math.tau, abs_tol=1e-12, rel_tol=0)
+    closed = span == math.tau
     # Reduce the starting azimuth before interpolation. Keep the original span.
     reduced_start = math.remainder(start, math.tau)
     values = []
@@ -173,6 +177,25 @@ def _shell_parameters(shape, parameters, cuts):
         u, wrap_u = _azimuth_cuts(start, end, cuts[0], wrap=True)
         v = _interval(1.0, inner / major, cuts[1])
         return u, v, wrap_u, False, lambda a, r: (major * r * math.cos(a), minor * r * math.sin(a), 0.0)
+    if shape == 'ogive':
+        large, small, start, end, low, high = parameters[:6]
+        if not (0 < small <= large and -large <= low < high <= large):
+            reject('td_geometry_size_range')
+        center = small - large
+        tip = math.sqrt((small / large) * (2 - small / large))
+        if max(abs(low / large), abs(high / large)) > tip:
+            reject('td_geometry_size_range')
+        u, wrap_u = _azimuth_cuts(start, end, cuts[0], wrap=True)
+        first, last = math.asin(low / large), math.asin(high / large)
+        v, _ = _azimuth_cuts(first, last, cuts[1])
+
+        def point(a, b):
+            radius = center + large * math.cos(b)
+            if abs(radius) <= math.ulp(large) * 2:
+                radius = 0.0
+            return radius * math.cos(a), radius * math.sin(a), large * math.sin(b)
+
+        return u, v, wrap_u, False, point
 
     height, base = parameters[:2]
     aspect, scarf = 1.0, 0.0
@@ -194,23 +217,35 @@ def _shell_parameters(shape, parameters, cuts):
         top, start, end = parameters[2:5]
     if not (height > 0 and min(base, top) >= 0 and max(base, top) > 0 and 0 < aspect <= 1):
         reject('td_geometry_size_range')
-    if scarf:
-        reject('td_geometry_conic_scarf_unmapped')
+    if abs(scarf) >= math.pi / 2:
+        reject('td_geometry_angle_range')
+    slope = math.tan(scarf)
+    # The tilted plane intersects the underlying cone's generators. Bound the
+    # entire circumference so every intersection stays ahead of the base.
+    taper = (top - base) / height
+    if scarf and (not abs(taper * slope) < 1 or not abs(base * slope) < height):
+        reject('td_geometry_size_range')
     u, wrap_u = _azimuth_cuts(start, end, cuts[0], wrap=True)
 
     def point(a, fraction):
+        cosine, sine = math.cos(a), math.sin(a)
+        if scarf:
+            edge_height = (height - base * slope * cosine) / (1 + taper * slope * cosine)
+            axial = edge_height * fraction
+            radius = _blend(base, top, axial / height)
+            return radius * cosine, radius * sine, axial
         if shape == 'paraboloid':
             radius = math.hypot(base * math.sqrt(1 - fraction), top * math.sqrt(fraction))
         else:
             radius = _blend(base, top, fraction)
-        return radius * math.cos(a), aspect * radius * math.sin(a), height * fraction
+        return radius * cosine, aspect * radius * sine, height * fraction
 
     return u, cuts[1], wrap_u, False, point
 
 
 _SHELL_WIDTHS = {
     'cone': 5, 'cylinder': 4, 'ellipse': 5, 'ellipsoid': 7, 'elliptic-cone': 6, 'elliptic-cylinder': 5,
-    'offset-paraboloid': 5, 'parabolic-trough': 5, 'paraboloid': 5, 'scarfed-cone': 6,
+    'offset-paraboloid': 5, 'ogive': 6, 'parabolic-trough': 5, 'paraboloid': 5, 'scarfed-cone': 6,
     'scarfed-cylinder': 5, 'sphere': 5, 'torus': 6,
 }
 
@@ -306,17 +341,11 @@ def _curved_boundary(payload, length_unit, face_limit):
             matching_trims = math.isclose(ilow / iz, low / z_radius, abs_tol=1e-12) and math.isclose(
                 ihigh / iz, high / z_radius, abs_tol=1e-12)
             if not (proportional and matching_trims):
-                if (low, high, ilow, ihigh) == (-z_radius, z_radius, -iz, iz) and math.isclose(
-                        end - start, math.tau, abs_tol=1e-12, rel_tol=0):
-                    outer_payload = replace(payload, fields={**fields, 'serialized_parameters': (*parameters[:7], 0, 0, 0, 0, 0)})
-                    cavity = (ix, iy, iz, ilow, ihigh, start, end, 0, 0, 0, 0, 0)
-                    inner_payload = replace(payload, fields={**fields, 'serialized_parameters': cavity})
-                    outer_points, outer_faces = _curved_boundary(outer_payload, length_unit, face_limit)
-                    inner_points, inner_faces = _curved_boundary(inner_payload, length_unit, face_limit - len(outer_faces))
-                    if set(outer_points).intersection(inner_points):
-                        reject('td_geometry_coordinate_precision')
-                    return outer_points + inner_points, outer_faces + [
-                        tuple(len(outer_points) + index for index in reversed(face)) for face in inner_faces]
+                if low < ilow < ihigh < high and math.isclose(end - start, math.tau, abs_tol=1e-10, rel_tol=0):
+                    outer = (x_radius, y_radius, z_radius, low, high)
+                    inner = (ix, iy, iz, ilow, ihigh)
+                    frame = _frame(fields['origin'], fields['axes'], attrs['mesh_controls'], scale)
+                    return _closed_ellipsoid_cavity(outer, inner, start, end, partitions, frame, scale, face_limit)
                 reject('td_geometry_ellipsoid_inner_layout_unmapped')
             inner = ratio
         else:
@@ -413,6 +442,51 @@ def _curved_boundary(payload, length_unit, face_limit):
     return points, [tuple(compact[index] for index in face) for face in faces]
 
 
+def _closed_ellipsoid_cavity(outer, inner, start, end, partitions, frame, scale, face_limit):
+    # Each trimmed wall is a closed volume with its own end caps. The cavity
+    # has reversed winding. The strict trim and axis bounds separate the walls.
+    angles, _ = _azimuth_cuts(start, end, partitions[0])
+    points, faces = [], []
+    for radii, reverse in ((outer, False), (inner, True)):
+        x, y, z, low, high = radii
+        levels, _ = _azimuth_cuts(math.asin(low / z), math.asin(high / z), partitions[2])
+        size = len(angles)
+        caps = (abs(low) < z) + (abs(high) < z)
+        if len(faces) + (len(levels) - 1 + caps) * size > face_limit:
+            reject('td_geometry_mesh_limit')
+
+        def vertex(local):
+            index = len(points)
+            points.append(world_point(*frame, tuple(scale * value for value in local)))
+            return index
+
+        def append(face):
+            faces.append(face[::-1] if reverse else face)
+
+        rings = []
+        for level in levels:
+            if abs(level) == math.pi / 2:
+                rings.append((vertex((0, 0, math.copysign(z, level))),) * size)
+                continue
+            ring = math.cos(level)
+            rings.append(tuple(vertex((x * ring * math.cos(a), y * ring * math.sin(a), z * math.sin(level)))
+                               for a in angles))
+        for lower, upper in zip(rings, rings[1:]):
+            for i in range(size):
+                j = (i + 1) % size
+                append(tuple(dict.fromkeys((lower[i], lower[j], upper[j], upper[i]))))
+        for ring, height, bottom in ((rings[0], low, True), (rings[-1], high, False)):
+            if ring[0] == ring[1]:
+                continue
+            center = vertex((0, 0, height))
+            for i in range(size):
+                edge = (ring[i], ring[(i + 1) % size])
+                append((center, *(edge[::-1] if bottom else edge)))
+    if len(set(points)) != len(points):
+        reject('td_geometry_coordinate_precision')
+    return points, faces
+
+
 _LINEAR_SOLID_FACES = {
     'brick': ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)),
     'wedge': ((0, 2, 1), (3, 4, 5), (0, 1, 4, 3), (1, 2, 5, 4), (2, 0, 3, 5)),
@@ -446,9 +520,11 @@ def _delta(point, origin):
 def _element_shell_boundary(payload, nodes, length_unit, face_limit):
     if face_limit < 1:
         reject('td_geometry_mesh_limit')
-    if payload.fields['extra_points'] or payload.order != 1:
+    if payload.fields['extra_points']:
         reject('td_element_curved_shell_unmapped')
     points = _element_points(payload, nodes, length_unit)
+    if payload.order == 2:
+        return _quadratic_shell_boundary(points, face_limit)
     normals = []
     for a, b in zip(points[1:], points[2:]):
         u, v = _delta(a, points[0]), _delta(b, points[0])
@@ -460,6 +536,47 @@ def _element_shell_boundary(payload, nodes, length_unit, face_limit):
     if len(normals) == 2 and sum(a * b for a, b in zip(*normals)) <= 0:
         reject('td_element_invalid_cell')
     return points, [tuple(range(len(points)))]
+
+
+def _quadratic_shell_boundary(points, face_limit):
+    # Two samples on each parametric axis retain every stored midside point.
+    # Match midside points to edges using a unique minimum displacement from
+    # their midpoints. Source variants with ambiguous connectivity stay held.
+    # The quadrilateral center uses its serendipity shape functions.
+    if face_limit < 4:
+        reject('td_geometry_mesh_limit')
+    corners = len(points) // 2
+    edges = zip(points[:corners], (*points[1:corners], points[0]))
+    midpoints = [tuple(x * .5 + y * .5 for x, y in zip(a, b)) for a, b in edges]
+    assignments = sorted((sum(math.dist(points[i], mid) for i, mid in zip(order, midpoints)), order)
+                         for order in permutations(range(corners, len(points))))
+    if not math.isfinite(assignments[0][0]) or math.isclose(assignments[0][0], assignments[1][0], rel_tol=1e-12):
+        reject('td_element_midside_order_unmapped')
+    mids = assignments[0][1]
+    if len(points) == 6:
+        first, second, third = mids
+        faces = [(0, first, third), (first, 1, second), (third, second, 2), mids]
+    else:
+        offsets = [_delta(point, points[0]) for point in points]
+        center = tuple(value - sum(offset[i] * 0.25 for offset in offsets[:4])
+                       + sum(offset[i] * 0.5 for offset in offsets[4:]) for i, value in enumerate(points[0]))
+        if not all(math.isfinite(v) for v in center) or center in points:
+            reject('td_geometry_coordinate_precision')
+        points = [*points, center]
+        faces = [(i, mids[i], 8, mids[i - 1]) for i in range(4)]
+
+    def normal(a, b, c):
+        u, v = _delta(points[b], points[a]), _delta(points[c], points[a])
+        return tuple(u[(i + 1) % 3] * v[(i + 2) % 3] - u[(i + 2) % 3] * v[(i + 1) % 3]
+                     for i in range(3))
+
+    reference = normal(0, 1, corners - 1)
+    for a, *rest in faces:
+        for b, c in zip(rest, rest[1:]):
+            projection = sum(x * y for x, y in zip(reference, normal(a, b, c)))
+            if not math.isfinite(projection) or projection <= 0:
+                reject('td_element_invalid_cell')
+    return points, faces
 
 
 def _linear_solid_boundary(payload, nodes, length_unit, face_limit):
@@ -563,14 +680,67 @@ def selected_geometry(staged, handles, *, inventory=None):
     return [(handle, geometry[handle]) for handle in sorted(selected)]
 
 
+def _stored_mesh_selection(snapshot, meshers, requested):
+    from .td_decode import GEOMETRY_CLASSES, UNMAPPED_GEOMETRY_CLASSES
+    from .dwg_native import _one
+    from .td_mesher import MESHERS, decode_mesher
+
+    classes = {row['number']: row for row in snapshot.native['classes']}
+    objects = {row['handle']: row for row in snapshot.native['objects']}
+    standards = {_one(row, 'handle')[2]: row for row in _one(snapshot.standard, 'OBJECTS')}
+    selected = set(requested) - meshers.keys()
+    for handle in sorted(set(requested) & meshers.keys()):
+        seen = {handle}
+        pending = [meshers[handle]]
+        elements = set()
+        while pending:
+            mesh = pending.pop()
+            for target in mesh.references:
+                if target == 0:
+                    continue
+                linked = objects.get(target)
+                if linked is None:
+                    reject('td_mesher_missing_reference')
+                identity = classes.get(linked['type'], {})
+                name = identity.get('cppname')
+                if name in MESHERS:
+                    if target in seen or len(seen) >= Limits().include_depth:
+                        reject('td_mesher_reference_graph')
+                    seen.add(target)
+                    child = meshers.get(target)
+                    if child is None:
+                        child = decode_mesher(linked, standards[target], identity)
+                    pending.append(child)
+                elif name in GEOMETRY_CLASSES or name in UNMAPPED_GEOMETRY_CLASSES:
+                    elements.add(target)
+                elif name != 'RcNode' and linked['kind'] != '3DSOLID':
+                    reject('td_mesher_reference_unmapped')
+        if not elements:
+            reject('td_mesher_no_stored_elements')
+        selected.update(elements)
+    return selected
+
+
 def render_geometry(staged, length_unit, handles=()):
     """Build a bounded OBJ with drawing handles and no thermal assignments."""
     from .independent_td import DwgPreview
     from .td_decode import decode_drawing
+    from .td_mesher import MesherPayload
 
     if not isinstance(staged, DwgPreview):
         reject('independent_td_preview_required')
-    inventory = decode_drawing(staged.snapshot, handles=set(handles) if handles else None)
+    selected = set(handles)
+    if len(handles) != len(selected):
+        reject('td_geometry_duplicate_handle')
+    inventory = decode_drawing(staged.snapshot, handles=selected or None)
+    meshers = {p.record['handle']: p for p in inventory.payloads if isinstance(p, MesherPayload)}
+    selected_meshers = meshers.keys() & selected
+    if selected_meshers:
+        # Use only the explicit links for selected generators. Whole-drawing
+        # export continues to select the drawing's geometry records directly.
+        selected = _stored_mesh_selection(staged.snapshot, meshers, selected)
+        handles = tuple(sorted(selected))
+        inventory = decode_drawing(staged.snapshot, handles=selected)
     geometry = selected_geometry(staged, handles, inventory=inventory)
     if handles:
         node_handles = {node for _, payload in geometry for node in payload.fields.get('node_handles', ())}
@@ -579,16 +749,26 @@ def render_geometry(staged, length_unit, handles=()):
         node_payloads = inventory.payloads
     nodes = {p.record['handle']: p for p in node_payloads if isinstance(p, NodePayload)}
     lines = ['# FCST TD geometry-only export. Coordinates in metres.']
+    # Large stored FE meshes can exceed the ordinary 10,000-face budget.
+    # Explicit generator selection keeps the larger budget tied to its links.
+    face_limit = 100000 if selected_meshers else Limits().records
+    output_limit = 16 * 1024 * 1024
+    output_size = len(lines[0]) + 1
     vertices = faces = triangles = quads = 0
     for handle, payload in geometry:
-        points, boundary = boundary_mesh(payload, length_unit, face_limit=Limits().records - faces, nodes=nodes)
+        points, boundary = boundary_mesh(payload, length_unit, face_limit=face_limit - faces, nodes=nodes)
         kind = payload.shape if isinstance(payload, (ConicPayload, CurvedSolidPayload)) else (
             'disk' if isinstance(payload, DiskPayload) else 'brick' if isinstance(payload, BrickPayload)
             else 'polygon_mesh' if isinstance(payload, PolygonMeshPayload)
+            else f'quadratic_{payload.shape}' if isinstance(payload, LinearShellPayload) and payload.order == 2
             else f'linear_{payload.shape}' if isinstance(payload, (LinearShellPayload, LinearSolidPayload)) else 'rectangle')
-        lines.append(f'o td_{kind}_{handle}')
-        lines.extend('v ' + ' '.join(format(x, '.17g') for x in point) for point in points)
-        lines.extend('f ' + ' '.join(str(vertices + index + 1) for index in face) for face in boundary)
+        body = [f'o td_{kind}_{handle}']
+        body.extend('v ' + ' '.join(format(x, '.17g') for x in point) for point in points)
+        body.extend('f ' + ' '.join(str(vertices + index + 1) for index in face) for face in boundary)
+        output_size += sum(len(line) + 1 for line in body)
+        if output_size > output_limit:
+            reject('td_geometry_output_limit')
+        lines.extend(body)
         vertices += len(points)
         faces += len(boundary)
         triangles += sum(len(face) == 3 for face in boundary)
