@@ -105,8 +105,6 @@ def companion_inventory(files, entry, references):
             relative = path_name(reference['path'].replace('\\', '/'))
         except ExchangeError:
             return {**reference, 'status': 'external-or-unsafe'}
-        if base is None:
-            return {**reference, 'status': 'run-directory-unmapped'}
         candidate = str(base / relative)
         target = members.get(candidate.casefold())
         if target is None:
@@ -118,8 +116,26 @@ def companion_inventory(files, entry, references):
         return {**reference, 'status': 'resolved', 'member': target}
 
     drawing_directory = PurePosixPath(entry).parent
-    bindings = [resolve(ref, drawing_directory if not ref.get('run_directory_selector') else None) for ref in references]
-    include_roots = {r['member'] for r in bindings if r['role'] == 'sinda-include' and r['status'] == 'resolved'}
+    def resolve_case_reference(reference):
+        selector = reference.get('run_directory_selector', 0)
+        if selector == 0:
+            return resolve(reference, drawing_directory)
+        if selector != 1 or 'run_directory' not in reference:
+            return {**reference, 'status': 'run-directory-unmapped'}
+        directory = reference['run_directory'].replace('\\', '/')
+        if directory in ('.', './'):
+            return resolve(reference, drawing_directory)
+        try:
+            # A trailing separator is harmless. Preserve leading separators so
+            # absolute and UNC paths fail the same way as drive-letter paths.
+            relative = path_name(directory.rstrip('/'))
+        except ExchangeError:
+            return {**reference, 'status': 'run-directory-external-or-unsafe'}
+        return resolve(reference, drawing_directory / relative)
+
+    bindings = [resolve_case_reference(ref) for ref in references]
+    include_roots = {r['member'] for r in bindings
+                     if r['role'] in {'sinda-include', 'sinda-deck'} and r['status'] == 'resolved'}
     includes = _include_inventory(captured, include_roots, resolve)
     return {'files': inventory, 'declared_inputs': bindings,
             'resolution_counts': dict(Counter(r['status'] for r in bindings)), 'sinda_includes': includes}

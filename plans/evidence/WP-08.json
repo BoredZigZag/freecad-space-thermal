@@ -3,7 +3,7 @@
   "status": "in_progress",
   "implementation_delivery": "implemented_and_tested_unqualified",
   "verification_base_revision": "9b71634a4f08ad382f1b79b357c0e86de63e50ec",
-  "verification_identity": "Exact implementation input hashes below; final candidate-bound Windows reports and CI must pass before push",
+  "verification_identity": "Historical implementation input hashes for the verification base revision. Candidate-bound Windows reports record the current inputs.",
   "input_sha256": {
     "ci/td-acceptance.json": "d09c92f989d1a374354c3844381b46944d0cce45e9e8f4c6549790923208c344",
     "ci/td-profiles.json": "e5b3a9af9dae1a6cd3563ddc87a3c48268143a28c1712aba1e84e509938b5981",
@@ -129,8 +129,11 @@
     "source_tool_reopen_run_unqualified",
     "owned_engine_WP11_WP12_comparisons_pending",
     "paired_ESATAN_WP09_qualification_pending",
-    "2025_R2_and_2026_R1_profiles_not_implemented",
     "full_required_source_semantics_not_qualified"
+  ],
+  "optional_coverage": [
+    "Historical RcPolygon C++ class",
+    "Additional TD serialization revisions outside the required 6.3 profile, including other legacy revisions and 2025 R2 and 2026 R1"
   ],
   "publication": {
     "policy_version": 4,
@@ -166,7 +169,7 @@
       "Material-derived node and dynamic source modes",
       "Canonical variable/composite/spectral bindings and effective composite physics",
       "Case/manager/orbit/environment formats",
-      "Remaining SINDA control/radiation constructs and additional source versions"
+      "Remaining SINDA control/radiation constructs for the required profile"
     ],
     "vendor_runtime_required": false,
     "qualified": false,
@@ -224,7 +227,7 @@
     "operation": "td-inspect-project",
     "scope": "First v73 case source blocks and controls, stored SINDA INSERT paths with bounded captured-tree traversal, and active restart SAVE binding",
     "acceptance": "tools/check_td.py checks inert submodel source, duplicate roots, nested INSERTs, unsafe and missing targets, cycles, malformed directives, future control versions, and restart resolution",
-    "remaining": "Subsequent cases, complete case records, custom run directories, CSR restart data, source execution and full-model dependency closure",
+    "remaining": "Subsequent cases, complete case records, unsupported run-directory modes, CSR restart data, source execution and full-model dependency closure",
     "vendor_runtime_required": false,
     "qualified": false,
     "privacy": "Owned fixtures and bounded verdicts only. Captured cases, companion files and detailed inventory remain local."
@@ -259,7 +262,7 @@
     "acceptance": "ci/td-acceptance.json exercises owned records, analytic bounds and volumes, source-node connectivity, and unsupported-class diagnostics",
     "remaining": [
       "Source comparisons for ogive, nonzero scarf angles and independently trimmed hollow ellipsoids",
-      "Native reference comparisons for legacy finite elements and quadratic solids, automatic mesh regeneration and additional source versions",
+      "Native reference comparisons for the reviewed legacy finite-element and quadratic-solid layouts and automatic mesh regeneration",
       "Native geometry-to-physics reconstruction and independent vendor reference evidence"
     ],
     "qualified": false
@@ -296,7 +299,15 @@
     "coverage": "Legacy triangle, quad, tet, wedge and brick wrappers. Quadratic tet, pyramid, wedge and brick wrappers and display boundaries. TdMesherVA v43 stored links and TdScImporter v6 CAD companion binding.",
     "acceptance": "Owned records verify ordered nodes, wrapper closure, moved midsides, watertight boundaries, linked Discovery companion hashes and initial versus reused stored mesh states through the comparison CLI.",
     "timing_review": "The warm Foundation handoff for run 43586602355 shows Embree as the longest parallel job at 567 seconds and TD exchange stages at 13.282 seconds Debug and 8.828 seconds Release. The hypothesis was that reusing the face subdivision in the existing geometry path and bounding solid edge matching would preserve existing runtime. Two alternating local repetitions of three existing geometry tests measured 2.285 and 1.854 seconds at baseline and 1.771 and 1.683 seconds on the candidate, including interpreter startup. The small sample does not establish a hosted speedup. No coverage, compiler settings, or performance baseline changed.",
-    "holds": ["RcPolygon and unsupported legacy revisions", "Original legacy, quadratic solid and TdMesherVA drawing fixtures", "Native Discovery importer identification and licensed CAD synchronization and regeneration captures"],
+    "holds": ["Original drawings for the reviewed legacy, quadratic solid and TdMesherVA layouts", "Native Discovery importer identification and licensed CAD synchronization and regeneration captures"],
+    "qualified": false
+  },
+  "original_drawing_and_case_dependency_follow_up": {
+    "local_native_class_screen": {"distinct_ac1032_drawings": 30, "td_sc_importer": 4, "target_legacy_quadratic_mesher_and_conic_instances": 0},
+    "spaceclaim_saved_state_control": {"nodes": 29, "elements": 106, "source_node_assignments_equal": true},
+    "case_manager_control": {"manager_version": 12, "first_case_version": 78, "declared_cases": 4, "decoded_headers": 1},
+    "acceptance": "Existing frozen cases exercise expected stored mesh transitions, thermal node renumbering, safe relative run directories, generated-deck INSERT traversal and opaque case tails.",
+    "holds": ["Original layout comparisons for the required classes", "Licensed native Discovery and SpaceClaim synchronization and mesh regeneration", "Full case, physics, SINDA and reverse export semantics"],
     "qualified": false
   }
 }

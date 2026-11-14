@@ -103,7 +103,8 @@ def orbit_filer(version=35):
     return f
 
 
-def case_filer(orbit_name='TEST ORBIT', *, run_directory=0, constraint_count=0, solver_version=6):
+def case_filer(orbit_name='TEST ORBIT', *, run_directory=0, run_path='run', constraint_count=0,
+               solver_version=6, manager_version=11, case_version=73):
     f = FilerWriter()
     b = f.data
 
@@ -116,7 +117,7 @@ def case_filer(orbit_name='TEST ORBIT', *, run_directory=0, constraint_count=0, 
             else:
                 {'i': b.bl, 'd': b.bd, 't': f.text}[kind]('' if kind == 't' else 0)
 
-    for value in (11, 0, 0, 1, 73):
+    for value in (manager_version, 0, 0, 1, case_version):
         b.bl(value)
     f.text('Synthetic case')
     zeros('i')
@@ -189,7 +190,7 @@ def case_filer(orbit_name='TEST ORBIT', *, run_directory=0, constraint_count=0, 
         return f
     zeros('iiiiittiiiiit')
     b.bl(run_directory)
-    f.text('run' if run_directory else '')
+    f.text(run_path if run_directory else '')
     f.text('Results\\initial.sav')
     zeros('i' * 8 + 'tt' + 'iitdddeee' + 'i' * 14)
     b.bl(9)
@@ -264,7 +265,7 @@ class TdProjectInventoryTests(unittest.TestCase):
             self.assertEqual(orbit['settings']['inclination'], 37.5)
             self.assertEqual(orbit['settings']['times'], (120,))
             self.assertEqual(orbit['settings']['sun_vectors'], ((0, 1, 0),))
-            self.assertEqual(report['companion_inventory']['resolution_counts'], {'resolved': 2, 'missing': 3})
+            self.assertEqual(report['companion_inventory']['resolution_counts'], {'resolved': 2, 'missing': 4})
             self.assertFalse(report['full_model_dependency_closure'])
             self.assertFalse(report['native_ready'])
             (root / ENTRY).write_bytes(b'AC1032 stale fixture')
@@ -316,6 +317,11 @@ class TdProjectInventoryTests(unittest.TestCase):
                 'model/decks/next deck.sin': b"HEADER SOURCE DATA, OWNED\nINSERT start.inc\nINSERT ../outside.inc\n"
                                             b"INSERT missing.inc\nINSERT\t'unterminated\n",
                 'model/outside.inc': b'CALL MUST_STAY_INERT\n',
+                'model/Run/results/previous.sav': b'owned alternate results',
+                'model/Run/decks/start.inc': b"INSERT 'nested.inc'\n",
+                'model/Run/decks/nested.inc': b'HEADER NODE DATA, OWNED\n',
+                'model/Run/generated.inp': b"HEADER NODE DATA, OWNED\nINSERT 'generated.cc'\n",
+                'model/Run/generated.cc': b'HEADER CONDUCTOR DATA, OWNED\n',
             }
             for name, raw in files.items():
                 path = root / name
@@ -325,9 +331,9 @@ class TdProjectInventoryTests(unittest.TestCase):
             with patch('subprocess.Popen', side_effect=AssertionError('source must remain inert')):
                 report = inspect_project(DwgPreview(original, project_snapshot()))
             companions = report['companion_inventory']
-            self.assertEqual(companions['resolution_counts'], {'resolved': 3, 'missing': 2})
+            self.assertEqual(companions['resolution_counts'], {'resolved': 3, 'missing': 3})
             self.assertEqual([r.get('member') for r in companions['declared_inputs'][2:]],
-                             ['model/results/PREVIOUS.sav', 'model/decks/start.inc', 'model/decks/start.inc'])
+                             [None, 'model/results/PREVIOUS.sav', 'model/decks/start.inc', 'model/decks/start.inc'])
             graph = companions['sinda_includes']
             self.assertEqual(graph['roots'], ['model/decks/start.inc'])
             self.assertEqual([edge['status'] for edge in graph['edges']],
@@ -339,8 +345,20 @@ class TdProjectInventoryTests(unittest.TestCase):
 
             alternate = inspect_project(DwgPreview(original, project_snapshot(run_directory=1)))
             self.assertEqual(alternate['companion_inventory']['resolution_counts'],
-                             {'missing': 2, 'run-directory-unmapped': 3})
-            self.assertEqual(alternate['companion_inventory']['sinda_includes']['edges'], [])
+                             {'missing': 2, 'resolved': 4})
+            self.assertEqual(alternate['companion_inventory']['sinda_includes']['roots'],
+                             ['model/Run/decks/start.inc', 'model/Run/generated.inp'])
+            self.assertEqual([edge['member'] for edge in alternate['companion_inventory']['sinda_includes']['edges']],
+                             ['model/Run/decks/nested.inc', 'model/Run/generated.cc'])
+            for selector, path, diagnostic in ((1, '../outside', 'run-directory-external-or-unsafe'),
+                                                (1, 'C:/elsewhere', 'run-directory-external-or-unsafe'),
+                                                (1, '//server/share', 'run-directory-external-or-unsafe'),
+                                                (2, 'run', 'run-directory-unmapped')):
+                with self.subTest(selector=selector, path=path):
+                    snapshot = project_snapshot(run_directory=selector, run_path=path)
+                    result = inspect_project(DwgPreview(original, snapshot))['companion_inventory']
+                    self.assertEqual(result['resolution_counts'], {'missing': 2, diagnostic: 4})
+                    self.assertEqual(result['sinda_includes']['edges'], [])
             partial = inspect_project(DwgPreview(original, project_snapshot(constraint_count=1)))
             case = partial['configuration'][0]
             self.assertEqual(case['limitations'], ['td_case_solver_constraints_unmapped'])
@@ -350,6 +368,13 @@ class TdProjectInventoryTests(unittest.TestCase):
             self.assertEqual(case['limitations'], ['td_case_nested_version_unmapped'])
             self.assertEqual(case['settings']['cases'][0]['source_sections']['operations'], 'synthetic operations')
             self.assertEqual(len(future['companion_inventory']['declared_inputs']), 2)
+            v78 = inspect_project(DwgPreview(original, project_snapshot(manager_version=12, case_version=78)))
+            case = v78['configuration'][0]
+            self.assertEqual((case['payload_version'], case['settings']['cases'][0]['payload_version']), (12, 78))
+            self.assertEqual(case['limitations'], ['td_case_v78_settings_unmapped'])
+            self.assertGreater(case['remaining_bits']['data'], 0)
+            self.assertEqual(v78['companion_inventory']['resolution_counts'], {'run-directory-unmapped': 1})
+            self.assertFalse(v78['native_ready'])
 
     def test_symbol_manager_requires_exact_payload_and_preview_reuses_thermal_decode(self):
         f = FilerWriter()

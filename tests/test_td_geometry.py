@@ -775,7 +775,7 @@ class TdGeometryTests(unittest.TestCase):
         shell.data.put(0, 1)
         shell.data.bl(1)
 
-        def state(directory, *, mesh, first=101, cad=b'owned CAD'):
+        def state(directory, *, mesh, first=101, cad=b'owned CAD', first_id=1):
             directory.mkdir()
             (directory / 'owned.dwg').write_bytes(b'AC1032-owned')
             if cad is not None:
@@ -789,7 +789,9 @@ class TdGeometryTests(unittest.TestCase):
             importer.text('Owned.DSCO')
             importer.data.bl(0)
             importer.references.append(5)
-            snapshot = drawing([*nodes, shell.result(22), variant.result(20), importer.result(21)],
+            state_nodes = nodes if first_id == 1 else [node_payload('OWNED', i, 300, 1, 'capacitive')
+                                                       for i in range(first_id, first_id + 3)]
+            snapshot = drawing([*state_nodes, shell.result(22), variant.result(20), importer.result(21)],
                                handles=list(range(first, first + 6)), geometry_classes=classes,
                                reference_codes={4: (5,), 5: (4,)})
             return DwgPreview(capture_project(directory, 'owned.dwg'), snapshot)
@@ -799,6 +801,7 @@ class TdGeometryTests(unittest.TestCase):
             before = state(root / 'before', mesh=False)
             after = state(root / 'after', mesh=True, cad=b'edited CAD')
             reused = state(root / 'reused', mesh=True, first=301, cad=b'edited CAD')
+            renumbered = state(root / 'renumbered', mesh=True, cad=b'edited CAD', first_id=10)
             missing = state(root / 'missing', mesh=True, cad=None)
             report = compare_mesh_states(before, after, 106, 106)
             self.assertTrue(report['mesh_changed'])
@@ -809,6 +812,10 @@ class TdGeometryTests(unittest.TestCase):
             report = compare_mesh_states(after, reused, 106, 306)
             self.assertFalse(report['mesh_changed'])
             self.assertFalse(report['companion_changed'])
+            self.assertFalse(report['source_node_assignments_changed'])
+            report = compare_mesh_states(after, renumbered, 106, 106)
+            self.assertFalse(report['mesh_changed'])
+            self.assertTrue(report['source_node_assignments_changed'])
             declared, = inspect_project(after)['companion_inventory']['declared_inputs']
             self.assertEqual((declared['role'], declared['status']), ('td-designer-document', 'resolved'))
             with self.assertRaisesRegex(ExchangeError, 'companion_unresolved'):
@@ -821,12 +828,20 @@ class TdGeometryTests(unittest.TestCase):
             args = parser.parse_args(['td-compare-mesh-states', str(before.original.root), 'owned.dwg',
                                       str(after.original.root), 'owned.dwg', str(output),
                                       '--before-handle', '106', '--after-handle', '106',
-                                      '--backend', 'unused.json', '--work', str(root / 'work')])
+                                      '--backend', 'unused.json', '--work', str(root / 'work'), '--expect', 'initial'])
             runtime = NativeRuntime(root / 'backend.exe', 'b' * 64, PATCH)
             with patch.object(NativeRuntime, 'from_receipt', return_value=runtime), patch.object(
                     NativeRuntime, 'run', side_effect=[(before.snapshot, None, {}), (after.snapshot, None, {})]):
                 self.assertEqual(execute(args)['status'], 'compared')
             self.assertTrue(json.loads(output.read_bytes())['mesh_changed'])
+            self.assertEqual(json.loads(output.read_bytes())['expected_transition'], 'initial')
+            wrong_output = root / 'mismatch.json'
+            args.output, args.expect = wrong_output, 'unchanged'
+            with patch.object(NativeRuntime, 'from_receipt', return_value=runtime), patch.object(
+                    NativeRuntime, 'run', side_effect=[(before.snapshot, None, {}), (after.snapshot, None, {})]):
+                with self.assertRaisesRegex(ExchangeError, 'td_mesh_state_expectation'):
+                    execute(args)
+            self.assertFalse(wrong_output.exists())
 
     def test_curved_dwg_profiles_export_valid_disks_cylinders_and_spheres(self):
         from collections import Counter

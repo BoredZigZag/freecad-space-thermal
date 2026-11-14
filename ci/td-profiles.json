@@ -16,7 +16,7 @@
       "product_import_export": false
     }
   ],
-  "unimplemented_version_profiles": [
+  "optional_unimplemented_version_profiles": [
     "2025 R2",
     "2026 R1"
   ],

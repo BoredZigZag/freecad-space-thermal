@@ -21,7 +21,7 @@ def _configuration_bindings(configuration, graph, objects):
             orbits.setdefault(entry['key'].casefold(), set()).add(entry['target'])
     for record in configuration:
         for case in record.get('settings', {}).get('cases', ()):
-            for task in case['radiation_tasks']:
+            for task in case.get('radiation_tasks', ()):
                 name = task['orbit']
                 if name:
                     targets = sorted(orbits.get(name.casefold(), ()), key=int)

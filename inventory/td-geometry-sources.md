@@ -20,6 +20,7 @@ pages. All four archive downloads matched their pinned upstream Git blobs.
 | [2024 R2 OpenTDv242Demos01.zip](https://github.com/ansys/DevRelPublic/blob/74a15b6e2c9da75fb8b3bff99ad5e88f5038a99f/Downloads/Thermal-Desktop-OpenTD/2024R2/OpenTDv242Demos01.zip) | The same ten drawings under `model/`. Each DWG matches its 2026 R1 archive copies byte for byte. Use one copy per drawing. | `e2d589b13040e170ff9b4d39df15013aae59ffb46a9e06db1111a3c5e728ee87` |
 | [2025R2-Net4.zip](https://github.com/ansys/DevRelPublic/blob/74a15b6e2c9da75fb8b3bff99ad5e88f5038a99f/Downloads/Thermal-Desktop-OpenTD/2025R2-Net4.zip) | C# demo source, SINDA input decks and 17 SAV files. Zero DWG, TDP or RCO members. | `d6520c75a6e6285c0251126fd047cbd8bc8de970a0ab26bdc97b47d6283e82bb` |
 | [92.0.0.0 OpenTDv92000-Demos01.zip](https://github.com/ansys/DevRelPublic/blob/74a15b6e2c9da75fb8b3bff99ad5e88f5038a99f/Downloads/Thermal-Desktop-OpenTD/92.0.0.0/OpenTDv92000-Demos01.zip) | C# demo source, SINDA input decks and 17 SAV files. Zero DWG, TDP or RCO members. | `6523156c80e4caf575e346f6c52cd44bc7b9b9b60f313aa1c4fe41afba480f76` |
+| [2027 R1 OpenTD2027R1Demos01.zip](https://github.com/ansys/DevRelPublic/blob/efc18d7c7b303696069e0dbeee3a40beb357c15c/Downloads/Thermal-Desktop-OpenTD/2027.R1.SP00/OpenTD2027R1Demos01.zip) | Public development branch. Verified all 11 AC1032 DWG members. Ten are byte-identical to the corresponding 2024 R2 drawings. The eleventh, `model/reducedModelDemo_reduced.dwg`, duplicates `model/reducedModelDemo.dwg`. There are zero new DWG byte streams and zero active `RcPolygon`, legacy linear FE, quadratic-solid or `TdMesherVA` instances. | `2083787ac70018c82e78dc546d5c94039d43a3ff7e8dbc671a7544c0586e1bb7` |
 
 The following member paths are relative to `model/` in the 2024 R2 archive.
 AC1032 identifies the DWG container. The Thermal Desktop writer release and
@@ -44,8 +45,8 @@ SINDA/FLUINT examples under `model/controlSindaFluint/` (`control.inp`,
 `control.cc`, `justRun.inp`, `justRun.cc`). Use those for the deck path.
 Their relationship to any DWG must be established separately.
 
-The seven public commits affecting the [OpenTD downloads directory](https://github.com/ansys/DevRelPublic/commits/main/Downloads/Thermal-Desktop-OpenTD)
-add no distinct demo archive beyond the four above. The older
+The seven public commits affecting the [OpenTD downloads directory on main](https://github.com/ansys/DevRelPublic/commits/main/Downloads/Thermal-Desktop-OpenTD)
+add no distinct demo archive beyond the four main-branch downloads above. The older
 `2024R2/OpenTD_92_0_0_0_Demos01.zip` has the same Git blob as
 `92.0.0.0/OpenTDv92000-Demos01.zip`. One additional historical ZIP is an
 HTML API class reference. The public [ModelCenter plug-in example ZIP](https://ansyshelp.ansys.com/public/Views/Secured/Doc_Assets/Static/ModelCenter_Plugins_example_files.zip)
@@ -83,6 +84,7 @@ the vendor installation for local work.
 | UC Davis contact and thermal examples | [`Contactor-Completed.zip`](https://github.com/Space-and-Satellite-Systems-UC-Davis/Structure-Thermal-Desktop/blob/c7424e7e9be0b40527c69f84800ef6c691fc73dc/Reference%20Files%20and%20Tutorials/CRTech%20Tutorials/8.%20Contactor_63/Contactor-Completed.zip) contains `Contactor-Completed/Contactor.dwg` and `TdThermo.tdp`. [`DynamicSinda-Complete.zip`](https://github.com/Space-and-Satellite-Systems-UC-Davis/Structure-Thermal-Desktop/blob/c7424e7e9be0b40527c69f84800ef6c691fc73dc/Reference%20Files%20and%20Tutorials/CRTech%20Tutorials/10.%20DynamicSindaRadCAD_63/DynamicSinda-Complete.zip) contains `DynamicSinda-Complete/dynamic.dwg`, `RcOptics.rco` and `TdThermo.tdp`. The former has disks, a cylinder, a brick and a rectangle. The latter has seven rectangles, a cylinder and two disks. Both are candidates for checking geometry-attached physics after a reference run. |
 | UC Davis transient and version leads | [`11. TransientDLC_61/Transient/`](https://github.com/Space-and-Satellite-Systems-UC-Davis/Structure-Thermal-Desktop/tree/c7424e7e9be0b40527c69f84800ef6c691fc73dc/Reference%20Files%20and%20Tutorials/CRTech%20Tutorials/11.%20TransientDLC_61/Transient) has `barDemo-01.dwg`, `RcOptics.rco` and `TdThermo.tdp` in both the starting directory and `completed/`. Each drawing has one decodable FD brick. [`ThermalDesktop63Patch22_Thermal_Template.dwg`](https://github.com/Space-and-Satellite-Systems-UC-Davis/Structure-Thermal-Desktop/blob/c7424e7e9be0b40527c69f84800ef6c691fc73dc/Reference%20Files%20and%20Tutorials/ThermalDesktop63Patch22_Thermal_Template.dwg) is labeled in the filename and has no active catalog geometry. The folder and filename labels do not establish the save build. |
 | pyopentd example and results | [`sample/td_model/`](https://github.com/nishitomo206/pyopentd/tree/70aac5572bdf1b48d04dfcdb70838493df947ef7/sample/td_model) contains `sample.dwg`, `RcOptics.rco` and `TdThermo.tdp`. The [sample notebook](https://github.com/nishitomo206/pyopentd/blob/70aac5572bdf1b48d04dfcdb70838493df947ef7/sample/sample.ipynb) opens that DWG, runs a case and exports temperature and heat-rate data to [`sample/sample_output.csv`](https://github.com/nishitomo206/pyopentd/blob/70aac5572bdf1b48d04dfcdb70838493df947ef7/sample/sample_output.csv). The CSV has 85 rows and 161 columns. The DWG has six FD bricks, one cylinder and two disks whose records hit unsupported filer or surface revisions. The notebook establishes the intended association. Reproducing its run remains necessary for numerical acceptance. |
+| pyopentd fork drawing | The fork's [`sample.dwg`](https://github.com/kai0722/pyopentd/blob/666c3b029b537ab1b6b5bc29d4791d859ec3f285/sample/td_model/sample.dwg) is a distinct 88,063-byte AC1032 drawing. Git blob `0708d6717b24767977678c408fe01babbe601c6d`, SHA-256 `404c129dcd68d7816ecf07e1f917abfa11d65f28ebbd2e06f55236bdb3658237`. It has 75 nodes, six FD bricks, two disks and one cylinder. The active-class scan found zero legacy linear FE, quadratic-solid, `RcPolygon`, `TdMesherVA` or CAD importer records. The fork's `ThermalDesktop62Patch14_sample.dwg` matches the upstream `sample.dwg` Git blob. Its filename gives a version lead for that file. The distinct fork drawing's writer build and association with the upstream CSV remain unverified. |
 
 The selected university and pyopentd files matched pinned upstream Git blobs.
 The two Nastran decks contain 103 and 260 `CQUAD4` elements, respectively.
@@ -282,6 +284,88 @@ and missing-companion handling. The local runtime probe found no licensed
 AutoCAD host, so no vendor sync or mesh generation was run. See the
 [command and scope](../docs/td-sinda.md#geometry-and-remaining-format-evidence).
 
+### Original drawings for polygon and layout validation
+
+The public downloads inspected in this search yielded zero drawings with
+the required active classes. A class-table name alone cannot establish
+that a drawing contains a matching object. Confirm the C++ and DXF class
+pair and a nonzero instance count on the untouched drawing or DWG-format
+backup before opening or resaving it in Thermal Desktop.
+
+| Target | Source and exact artifact to acquire | Public evidence checked |
+| --- | --- | --- |
+| Legacy FE | Request the original TD 5.3 **Automated Aerobraking** example DWG described in Appendix H and the exact build and companion files. For a second independent case, request the original TD mirror-assembly drawing and matching Nastran bulk data from the 2001 NGST finite-element study. The 2003 C&R class solids exercises are a lead for tetrahedron, wedge and brick drawings. | The aerobraking assessment identifies the converted all-TD model in Appendix D. The linked conference paper and the mirror-assembly paper had no embedded files or model links. The mirror paper documents a Nastran import with node and element correspondence. Actual element classes and original filenames remain unverified. [Aerobraking study](https://ntrs.nasa.gov/citations/20100030599), [NASA assessment, Appendix D](https://ntrs.nasa.gov/api/citations/20120001988/downloads/20120001988.pdf), [NGST mirror study](https://ntrs.nasa.gov/citations/20020050386), [C&R class slides 42–44](https://tfaws.nasa.gov/TFAWS03/software_training/thermal_desktop.pdf#page=42) |
+| Quadratic solids | Request the Thermal Desktop DWG and source CAD from the Ansys 2025 R2 **Quadratic thermal elements** release demonstration. Ask for four small saved DWGs, or a single mixed drawing containing the 10-, 13-, 15- and 20-node solids, with the corresponding OpenTD node and element exports. Use the pinned PAT and VTU files above as geometry inputs for a vendor-written reference if individual solids are missing. | The release article illustrates the feature and gives the customer download route. It supplies no native model link. In the 2027 R1 demo archive, `FEMeshExample/FEMeshExample.cs` and `FeMeshSpiral/FeMeshSpiralDialog.cs` build meshes in-session. The archive yielded no native quadratic-solid examples. [Ansys 2025 R2 release demonstration](https://ansys.synopsys.com/blog/whats-new-ansys-fluids-2025-r2), [OpenTD creation methods](https://developer.synopsys.com/docs/opentd-reference-2026-r1/net8-reference/OpenTD.ThermalDesktop.md) |
+| `TdMesherVA` and Discovery importer | Request a saved TD example with a confirmed `TdMesherVA` instance (DXF name `TDMESHERVA`), CAD input and generated mesh. For Discovery, prioritize the `FinDiode.zip` pair above and a DWG saved after first synchronization with its matching `.dsco`. | The public 2008 TDMesh guide establishes the preview and generated workflow. The 2026 R1 tutorial PDFs name the Discovery files. The checked public routes yielded no matching original model pair. [TDMesh guide, §6](https://manualzilla.com/doc/5951221/thermal-desktop-advanced-modeling-techniques), [TD Designer Fin Diode tutorial](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_Tutorials.pdf#page=71) |
+
+### Historical polygon sources
+
+The historical `RcPolygon` C++ class is optional for WP-08. An original
+saved DWG or BAK from the 2003 C&R Polygon exercise would support a
+separate compatibility extension. Preserve the original drawing and its
+companion property files if acquired.
+
+The oldest source located that explicitly describes the Thermal Desktop
+**Polygon** surface is the 2002 Swales paper. The earliest verified
+documentation for single-face `MeshFD` polygons is the installed
+`OpenTD 61 Class Reference.chm`, SHA-256
+`3cf7bb96c7c4bade06e7aa5a2e84f2a4303f02175bfa35f3e0ba2268b0101c5a`.
+Its `OpenTDv61.ThermalDesktop.CreatePolygon` and
+`OpenTDv61.RadCAD.Polygon` topics identify the single-face representation.
+C&R announced 6.1 on April 24, 2019. The exact first release of that
+representation and any earlier native `RcPolygon` class remain unverified.
+[C&R release archive](https://www.crtech.com/news/news-archive/all/201904)
+
+| Date and source | Evidence and acquisition lead |
+| --- | --- |
+| 2000 NASA/JPL STEP-TAS pilot | The proceedings identify the TD 3.3 beta and report that C&R implemented triangle and quadrilateral exchange. Look for the original TD pilot and primitive-test drawings and their STEP-TAS counterparts. The report describes exchange shapes and provides an excerpt of a STEP file. The native classes and DWG filenames are unverified. [Pilot proceedings, printed p. 219](https://tfaws.nasa.gov/TFAWS00/CP-2002-211486.pdf#page=225) |
+| 2002 Swales TSS geometry conversion | Table 2 identifies a point-defined Thermal Desktop Polygon and says triangles and quads can be represented by the polygon entity type. The companion ESA presentation repeats the comparison. The public proceedings provide the paper and slides. Seek a period TD drawing with the corresponding TSS geometry if a polygon conversion case survives. [TFAWS paper, table 2](https://tfaws.nasa.gov/TFAWS02/Data/Thermal/Peabody.pdf#page=4), [ESA slides, Geometric Shapes](https://exchange.esa.int/download/thermal-workshop/workshop2002/viewgraphs/swales/peabody/tss-neutral.pdf#page=5) |
+| 2003 C&R Thermal Desktop/RadCAD hands-on course | Strongest early polygon lead. The handout lists **Polygon** and **From AutoCAD Surface** separately. Request the pre-upgrade Polygon exercise with its property files, plus the separate worked mesh conversion drawing if available. The public archive links the class PDF and supplies no native class data. [Course listing](https://tfaws.nasa.gov/TFAWS03/software_courses.html), [class materials](https://tfaws.nasa.gov/TFAWS03/tfaws03_events.html), [slides 36–37](https://tfaws.nasa.gov/TFAWS03/software_training/thermal_desktop.pdf#page=36) |
+| 2005 C&R hands-on course and non-grey radiation examples | The course outline identifies the finite-difference and RadCAD sessions. The separate non-grey slides name `thermal48.dwg` and `ShieldsSimple.dwg` and show TD 4.8 Beta 4. The slides describe rectangles and spherical shields, so these filenames are leads for the period exercise archive and comparison drawings. Request any explicit Polygon exercise from the hands-on pack. No model download was located on the checked course pages. [Course outline](https://tfaws.nasa.gov/TFAWS05/Website/cr_t_t_d.htm), [non-grey short course](https://tfaws.nasa.gov/TFAWS05/Website/files/Non-Grey%20Radiation%20Short%20Course.pdf) |
+| 2006 CRaTER reduced thermal model archive | Table 1 names `CRaTER_B00H_051506`, `CRaTER_B90C_SS_051506` and `CRaTER_B90C_SUR_051506` as native TD model basenames. A screenshot shows TD 4.7 Patch 44. The report also specifies the TSS geometry export `CRaTER_NA_EXT_051706.tssgm` and lists companion optics and materials. These are leads for a paired native and neutral-format case. The model bytes and polygon contents were unverified. [CRaTER model report, table 1 and §3.3](https://snebulos.mit.edu/projects/crater/file_cabinet/0/04017/04017_02_r02.pdf) |
+| 2007 C&R/ESA STEP-TAS test suite | The TD 5.1 presentation names the ESA primitive test suite and demonstrates `rcWriteTAS` and `rcReadTAS`. Request the original native test drawings and corresponding STEP-TAS inputs, especially triangles or quads. The presentation gives no native download or polygon class names. ESA's later converter packages postdate the 6.1 bound and use OpenTD. [2007 workshop slides](https://tfaws.nasa.gov/TFAWS07/Proceedings/TFAWS07-1011.pdf#page=15), [ESA converter release information](https://exchange.esa.int/restricted/tasverter/) |
+| 2012 and 2018 NASA GSFC conversion references | The 2012 short course lists Polygon among the surfaces stored in a TD DWG. The 2018 paper describes the TSS triangle-fan representation and how a four-sided case can be nonplanar. Request a small original TD DWG and its matching TSS export from that workflow, with the writer build. The public conversion report lists only its PDF. [2012 short course](https://ntrs.nasa.gov/api/citations/20120013640/downloads/20120013640.pdf), [2018 converter paper](https://ntrs.nasa.gov/citations/20180004561) |
+
+The C&R [Tutorials](https://www.crtech.com/forum/1764) and
+[Sample Models and Applications](https://www.crtech.com/forum/1775) forums
+require sign-in. The [product download guidance](https://www.crtech.com/news-items/product-updates)
+also requires sign-in. An authorized TD 3.x–5.x installer, manual or
+exercise pack would let us check version-matched class registration and
+an original polygon example. The Wayback and Common Crawl index queries
+were unavailable during this search. No public native polygon drawing
+from before 6.1 was recovered.
+
+The installed `beercan.bak` was checked as an additional local control.
+It is a 65,809-byte AC1027 DWG with one disk, eight linear triangles,
+40 linear quads, 32 linear wedges and 32 linear bricks. Its class table
+and active records contain zero `RcPolygon` or `RcMeshFD` instances.
+SHA-256
+`6ba8037a6c7a1870ca8be1ead4f0ecfd782ca0d7000addde35a353ec02df0d79`.
+The DWG container version leaves the Thermal Desktop writer build open.
+
+For an acquired DWG, record the C++ class, DXF name, active instance count
+and original hash before upgrading. FCST accepts `RCPOLYGON` as a DXF
+name for C++ class `RcMeshFD`, so a DXF name alone cannot establish an
+`RcPolygon` instance. Keep any TSS export for comparison of ordered
+vertices, nodalization and optical assignments. For the modern control,
+the current `CreatePolygon` API yields a single-face `MeshFD`. The 2027 R1
+archive's `Comprehensive/Comprehensive.cs` calls it and saves a drawing at
+runtime. The saved output is absent from the archive.
+[FCST class mapping](../python/fcst_exchange/td_decode.py),
+[OpenTD polygon documentation](https://developer.synopsys.com/docs/opentd-reference-2026-r1/net8-reference/OpenTD.ThermalDesktop.md)
+
+### Original drawing checks for the 6.3 profile
+
+A deduplicated rescreen of 30 AC1032 drawings with retained native inventories
+found four active `TdScImporter` records. It found zero instances of the
+target legacy FE wrappers, quadratic solids, `TdMesherVA`, ogive, scarfed
+surfaces or solid ellipsoid. That leaves the original layout comparisons
+open. The CMU SpaceClaim pair passed the unchanged saved-mesh check with
+29 nodes, 106 elements and matching source node assignments. This is a
+same-drawing control. The historical UC Davis CubeSat drawing contains a
+v12 case manager advertising four cases. The reader recovered the first
+v78 case header and preserved the remaining fields as opaque.
+
 ## Files still needed for full coverage
 
 The names below are proposed for new test fixtures. The inspected drawings
@@ -293,15 +377,16 @@ vendor examples.
 | --- | --- |
 | `td-conics.dwg` | `RcOgive` with full and partial sweeps, `RcScarfedCone` and `RcScarfedCylinder` with nonzero scarf angles of both signs, and `RcFdSolidEllipsoid` with independently trimmed, nonproportional inner and outer walls. Include source boundary coordinates, areas and solid volume where applicable. |
 | `td-fe-orders.dwg` | Quadratic triangle, quadrilateral, tetrahedron, pyramid, wedge and brick with displaced midside nodes, plus linear counterparts including pyramid. The PAT and VTU inputs above supply independent connectivity. Verify active `RcQuadraticTet`, `RcQuadraticPyramid`, `RcQuadraticWedge` and `RcQuadraticBrick` records and capture TD's ordered source nodes, edge and face connectivity and curved boundary coordinates. |
-| `td-fe-legacy.dwg` | Original `RcLinearTri`, `RcLinearQuad`, `RcLinearTet`, `RcLinearWedge`, `RcLinearBrick` and `RcPolygon` class instances. Preserve the pre-upgrade originals and record the writer build for both originals and any separately saved upgraded copies. |
+| `td-fe-legacy.dwg` | Original `RcLinearTri`, `RcLinearQuad`, `RcLinearTet`, `RcLinearWedge` and `RcLinearBrick` class instances. Preserve the pre-upgrade originals and record the writer build for both originals and any separately saved upgraded copies. |
 | `td-mesher-before.dwg`, `td-mesher-generated.dwg` and source CAD companion | Start with the public `TdMesher` and TD Direct importer examples above. Acquire a drawing with an active `TdMesherVA` instance, its input geometry and any preview and generated states. Record the writer build, class ID and object links. |
 | Linked CAD synchronization and regeneration states | Use the CMU pair and TD Direct tutorials for SpaceClaim, and the Fin Diode tutorial for Discovery. For each host, retain matching DWG and companion copies from before sync, after first mesh, and after one controlled CAD or mesh-control change. Include an unchanged sync or reuse control and capture the geometry, tags and connectivity needed to check regeneration. |
 | `td-geometry-physics.dwg` with case files | Use the FE conduction/radiation, contact and result samples above as starting points. Acquire property databases, actual generated SINDA deck and all includes, case settings, node/face IDs, areas and volumes, and saved results or a bounded export. Cover geometry-derived conductance and capacity, layering and orientation, optical properties, radiation groups, contactors, and surface or volume loads. |
 
-For release comparison, acquire or generate matching cases in TD 6.3.022,
-2025 R2 and 2026 R1. Record the exact writer build and original file hash,
-and retain the generated decks and results with the version that produced
-them. The [2025 R2 OpenTD API](https://developer.synopsys.com/docs/opentd-net8-reference-2025-r2/class_open_t_d_1_1_thermal_desktop.xhtml)
+For required profile validation, acquire or generate matching cases in
+TD 6.3.022. Record the exact writer build and original file hash, and
+retain the generated decks and results with the version that produced them.
+Additional serialization revisions, including 2025 R2 and 2026 R1, are
+optional. The [2025 R2 OpenTD API](https://developer.synopsys.com/docs/opentd-net8-reference-2025-r2/class_open_t_d_1_1_thermal_desktop.xhtml)
 and [2026 R1 OpenTD API](https://developer.synopsys.com/docs/opentd-reference-2026-r1/net8-reference/OpenTD.ThermalDesktop.md)
 document geometry creation, including ogive, scarfed surfaces and quadratic
 elements. They provide a way to generate fresh reference cases on a licensed

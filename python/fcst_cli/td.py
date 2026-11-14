@@ -59,6 +59,8 @@ def parsers(commands):
     mesh_states.add_argument('output', type=Path)
     mesh_states.add_argument('--before-handle', required=True)
     mesh_states.add_argument('--after-handle', required=True)
+    mesh_states.add_argument('--expect', choices=('initial', 'changed', 'unchanged'),
+                             help='Require the expected stored-mesh transition before saving the report')
     mesh_states.add_argument('--backend', required=True)
     mesh_states.add_argument('--work', required=True)
     for name in ('td-prepare-transient', 'sinda-prepare-transient'):
@@ -286,6 +288,19 @@ def execute(args):
             before = adapter.preview(roots[0], args.before_entry, workdirs[0])
             after = adapter.preview(roots[1], args.after_entry, workdirs[1])
             report = compare_mesh_states(before, after, *handles)
+            if args.expect:
+                was_meshed = report['before']['elements'] > 0
+                is_meshed = report['after']['elements'] > 0
+                changed = report['mesh_changed']
+                observed = {
+                    'initial': not was_meshed and is_meshed,
+                    'changed': was_meshed and is_meshed and changed,
+                    'unchanged': (was_meshed and is_meshed and not changed
+                                  and not report['source_node_assignments_changed']),
+                }
+                if not observed[args.expect]:
+                    reject('td_mesh_state_expectation')
+                report['expected_transition'] = args.expect
             _write_new_output(args.output, encode(report))
             return {'operation': args.command, 'status': 'compared', **report}
         if args.command == 'td-inspect-project':

@@ -726,12 +726,15 @@ The [source inventory](../inventory/td-geometry-sources.md) supplies additional
 AC1027 inspection fixtures and AC1032 wire revisions for FD solids, rectangles,
 linear solid elements, conductors and expressions. Read-only inspection and
 static boundary export now cover the reviewed cases, including marker-56
-surfaces and linked stored meshes. The next geometry gaps are legacy and
-quadratic-solid wire layouts, native source comparisons for the new conics,
-CAD importer synchronization and regeneration from CAD. Geometry-attached
-thermal physics remains open.
-Unrepresented modes and additional source versions need verified format evidence,
-while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.
+surfaces and linked stored meshes. The reviewed legacy FE and quadratic-solid
+layouts have owned fixtures. Original DWG comparisons for these layouts and
+the new conics, CAD importer synchronization, regeneration and geometry-attached
+thermal physics remain open.
+WP-08 validation targets the required TD 6.3 profile, including the
+`RcMeshFD` polygon representation. The historical `RcPolygon` C++ class and
+additional serialization revisions beyond the required profile are optional
+extensions. This includes 2025 R2 and 2026 R1. Owned-engine and paired ESA
+comparisons remain qualification dependencies. WP-08 stays in progress.
 
 1. Retain the corrected independent LibreDWG 0.14 native component, locked source,
    compiler, preservation patch and GPL notices. Its implementation fixes observed
@@ -760,8 +763,8 @@ while owned-engine and paired ESA comparisons remain later qualification depende
 7. Compare owned-engine thermal/radiation/environment results with analytic and
    independently obtained source baselines. Optional licensed reference runners
    supply additional evidence only; never an installed-product dependency.
-8. Include the required paired ESA qualification and remaining source-version/
-   feature coverage in Q1/Q2 completion, with explicit unresolved fidelity holds.
+8. Include the required paired ESA qualification and TD 6.3 feature coverage
+   in Q1 completion. Record unresolved fidelity gaps within the required profile.
 
 **Outputs:** independent TD/SINDA codecs and writers, vendor-absent acceptance,
 optional external reference harnesses and paired evidence. **Completion:** every

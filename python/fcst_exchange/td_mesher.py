@@ -125,7 +125,11 @@ def compare_mesh_states(before, after, before_handle, after_handle):
             reject('td_element_missing_node')
         if any(any(node['offsets']) for node in nodes.values()):
             reject('td_element_node_offset_unmapped')
-        ordered = sorted(nodes, key=lambda h: (nodes[h]['basis'][0], nodes[h]['submodel'], nodes[h]['identifier'], h))
+        ordered = sorted(nodes, key=lambda h: (nodes[h]['basis'][0], nodes[h]['submodel'].casefold(),
+                                               nodes[h]['identifier'], h))
+        source_ids = [(nodes[h]['submodel'].casefold(), nodes[h]['identifier']) for h in ordered]
+        if len(set(source_ids)) != len(source_ids):
+            reject('td_mesh_state_node_identity_collision')
         indices = {handle: i for i, handle in enumerate(ordered)}
         cells = []
         for element in elements:
@@ -136,7 +140,8 @@ def compare_mesh_states(before, after, before_handle, after_handle):
         topology = {'points': [nodes[h]['basis'][0] for h in ordered], 'cells': sorted(cells)}
         return {'drawing_sha256': original.drawing_hash, 'manager_class': name, 'companion': companion,
                 'nodes': len(nodes), 'elements': len(cells),
-                'ordered_mesh_sha256': sha256(encode(topology)).hexdigest()}
+                'ordered_mesh_sha256': sha256(encode(topology)).hexdigest(),
+                'source_node_assignment_sha256': sha256(encode(source_ids)).hexdigest()}
 
     first = capture(before, before_handle)
     second = capture(after, after_handle)
@@ -152,4 +157,5 @@ def compare_mesh_states(before, after, before_handle, after_handle):
     return {'profile': 'td-stored-mesh-comparison/1', 'before': first, 'after': second,
             'companion_changed': first['companion'] != second['companion'],
             'mesh_changed': first['ordered_mesh_sha256'] != second['ordered_mesh_sha256'],
+            'source_node_assignments_changed': first['source_node_assignment_sha256'] != second['source_node_assignment_sha256'],
             'vendor_runtime_required': False, 'qualified': False}

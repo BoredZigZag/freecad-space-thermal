@@ -69,7 +69,8 @@ def main():
     report={'schema_version':1,'work_package':'WP-08','candidate':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
             'gate':evaluate(expected,records),'cases':records,'input_sha256':{p:sha256((ROOT/p).read_bytes()).hexdigest() for p in paths},
             'scope':'Independent TD/SINDA exchange, TD project inventory, native time-power inputs, material laws and static conduction meshes; full-model qualification pending',
-            'qualified':False,'qualification_holds':manifest['qualification_holds']}
+            'qualified':False,'qualification_holds':manifest['qualification_holds'],
+            'optional_coverage':manifest['optional_coverage']}
     args.report.parent.mkdir(parents=True,exist_ok=True);args.report.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(report['gate']));return 0 if report['gate']['status']=='passed' else 1
 

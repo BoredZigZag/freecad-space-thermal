@@ -8,7 +8,7 @@ from .td_project_graph import field, reference_target
 # The class identifier, DXF name, object kind and payload version all matter.
 # AutoCAD's AC1032 container marker does not select a TD object layout.
 PROJECT_CLASSES = {
-    'CaseSetManager': ('RCCASESET', 11, 'cases'),
+    'CaseSetManager': ('RCCASESET', (11, 12), 'cases'),
     'RcDbSymbolManager': ('RCDBSYMBOLMANAGER', 7, 'symbols'),
     'RcDbLogicManager': ('RCLOGIC', 4, 'logic'),
     'RcOrbit': ('RCORBIT', 35, 'orbit'),
@@ -179,24 +179,34 @@ def _case_controls(filer, case):
     return 'td_case_settings_unmapped'
 
 
-def _cases(filer):
+def _cases(filer, manager_version):
     b = filer.data
     options = (b.bl(), b.bl())
     count = filer.count()
     fields = {'manager_options': options, 'case_count': count, 'cases': []}
     references = []
     if not count:
+        if manager_version == 12:
+            return fields, references, 'td_case_manager_trailer_unmapped'
         fields['controls'] = _case_manager_trailer(filer)
         return fields, references, None
 
-    filer.version(73)
-    case = {'payload_version': 73, 'name': filer.text(), 'legacy_id': b.bl(),
+    case_version = filer.version(73 if manager_version == 11 else 78)
+    case = {'payload_version': case_version, 'name': filer.text(), 'legacy_id': b.bl(),
             'steady': b.bl(), 'transient': b.bl(), 'sinda_output': filer.text(),
             'output_selectors': tuple(b.bl() for _ in range(8)),
             'legacy_analysis_count': b.bl(), 'radiation_task_count': filer.count()}
     if case['steady'] not in (0, 1) or case['transient'] not in (0, 1):
         reject('td_case_solution_selector')
     fields['cases'].append(case)
+    if case_version == 78:
+        # The observed v78 header matches through the radiation task count.
+        # Its nested settings and run directory may differ. Preserve those
+        # bytes and resolve the named generated deck as a separate observation.
+        if case['sinda_output']:
+            references.append({'case_index': 0, 'role': 'sinda-deck', 'path': case['sinda_output'],
+                               'run_directory_selector': None})
+        return fields, references, 'td_case_v78_settings_unmapped'
     case['radiation_tasks'] = tuple(_radiation_task(filer) for _ in range(case['radiation_task_count']))
     selectors = (b.bl(), b.bl())
     property_roles = (('optical', 'optical-library'), ('thermophysical', 'thermophysical-library'))
@@ -223,12 +233,24 @@ def _cases(filer):
             stream.position = position
         return fields, references, 'td_case_nested_version_unmapped'
     case.update(controls)
+    if 'run_directory' not in case:
+        return fields, references, limitation
+    run_directory = case['run_directory']
+    run_reference = {'case_index': 0, 'run_directory_selector': run_directory['selector']}
+    if run_directory['selector'] == 1:
+        run_reference['run_directory'] = run_directory['path']
+    if case['sinda_output']:
+        # This is a generated artifact. Inspect its dependencies only when the
+        # explicitly named deck already exists in the captured tree.
+        name = case['sinda_output']
+        basename = name.replace('\\', '/').rsplit('/', 1)[-1]
+        if '.' not in basename:
+            name += '.inp'
+        references.append({**run_reference, 'role': 'sinda-deck', 'path': name})
     if case['restart']['selector'] == 1 and 'path' in case['restart']:
-        references.append({'case_index': 0, 'role': 'sinda-restart', 'path': case['restart']['path'],
-                           'run_directory_selector': case['run_directory']['selector']})
+        references.append({**run_reference, 'role': 'sinda-restart', 'path': case['restart']['path']})
     for path in case.get('insert_files', ()):
-        references.append({'case_index': 0, 'role': 'sinda-include', 'path': path,
-                           'run_directory_selector': case['run_directory']['selector']})
+        references.append({**run_reference, 'role': 'sinda-include', 'path': path})
     if case['restart']['selector'] not in (0, 1):
         return fields, references, 'td_case_restart_mode_unmapped'
     return fields, references, limitation
@@ -338,7 +360,7 @@ def _viewport_data(filer):
     return {'viewport_count': count}, [], 'td_viewport_records_unmapped' if count else None
 
 
-READERS = {'cases': _cases, 'symbols': _symbols, 'logic': _logic, 'orbit': _orbit,
+READERS = {'symbols': _symbols, 'logic': _logic, 'orbit': _orbit,
            'orbit-units': _orbit_units, 'submodel-comments': _comments, 'analysis-control': _analysis_control,
            'graphics-settings': _graphics_settings, 'viewport-data': _viewport_data}
 
@@ -350,8 +372,12 @@ def decode_project_record(row, standard, identity):
         reject('td_project_class_identity')
     filer = Filer(row)
     links = object_handles(filer, standard)
-    filer.version(version)
-    fields, references, limitation = READERS[role](filer)
+    if role == 'cases':
+        version = filer.version_one_of(*version)
+        fields, references, limitation = _cases(filer, version)
+    else:
+        filer.version(version)
+        fields, references, limitation = READERS[role](filer)
     if limitation is None:
         filer.finish()
     return {

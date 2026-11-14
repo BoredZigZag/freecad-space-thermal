@@ -17,14 +17,15 @@ qualification remains open.** The user authorized pushing this tested delivery
 with the dependent qualification holds retained. No licensed AutoCAD host is
 available on the development machine. Owned-engine thermal/radiation/environment
 comparisons and paired ESATAN qualification remain WP-11/WP-12 and WP-09 work.
-Required source semantics and other target versions still need qualification.
+Required source semantics for TD 6.3 still need qualification.
 
 `ci/td-profiles.json` freezes the observed Thermal Desktop **6.3.022**,
 SINDA/FLUINT **6.3.15**, OpenTD assembly **6.3.0.0** and its exact SHA-256.
 The actual assembly targets **.NET Framework 4.6**. The owned C# sidecar builds
 with the Windows x64 Framework compiler against the separately installed assembly;
-it does not redistribute vendor DLLs. 2025 R2 and 2026 R1 profiles are explicitly
-unimplemented. An absent or mismatched profile fails before source mutation.
+it does not redistribute vendor DLLs. The unimplemented 2025 R2 and 2026 R1
+profiles are optional extensions. An absent or mismatched runtime for an
+explicitly selected reference profile fails before source mutation.
 
 ## Independent DWG profiles and exports
 
@@ -54,13 +55,15 @@ orbit-unit selectors. It also covers the v7 symbol manager, the empty v4 logic
 manager, submodel comments, analysis controls, graphics settings and empty
 viewport data. Source values and expressions remain inert.
 
-For the default run directory, the inventory resolves direct INSERT paths and
-the active restart SAVE file relative to the drawing. It inventories nested
-INSERT edges relative to their containing files in the captured tree and reports
-cycles, unsafe paths, malformed directives and missing members. Repeated
-references remain visible and each captured include is parsed once. Custom run
-directories and CSR restart layouts remain unresolved. The SAVE payload is
-retained as an opaque companion.
+The inventory resolves direct INSERT paths, the named generated SINDA deck
+when present, and the active restart SAVE file. It uses the drawing directory
+by default and supports an explicit safe relative run directory. It inventories
+nested INSERT edges relative to their containing files and reports cycles,
+unsafe paths, malformed directives and missing members. Repeated references
+remain visible and each captured file is parsed once. The SAVE payload is
+retained as an opaque companion. The v12 manager with v78 cases exposes the
+first case header and advertised case count. Its run directory, nested controls,
+subsequent cases and CSR restart semantics still need decoding.
 
 The report leaves model readiness held. Remaining work includes subsequent
 case records and the case trailer, complete case dependency closure, active
@@ -387,7 +390,7 @@ The `.dsco` binding applies when the document is named by the supported
 `TdScImporter` v6 layout. Native Discovery-generated DWG samples are pending.
 
 ```text
-fcst td-compare-mesh-states before network.dwg after network.dwg comparison.json --before-handle 106 --after-handle 208 --backend RECEIPT --work WORK
+fcst td-compare-mesh-states before network.dwg after network.dwg comparison.json --before-handle 106 --after-handle 208 --backend RECEIPT --work WORK --expect changed
 ```
 
 Select the same logical importer or mesher in both captures. The command
@@ -395,7 +398,12 @@ reports drawing and linked CAD hashes, node and element counts, and whether an
 ordered connectivity and coordinate fingerprint changed. It allows an empty
 starting mesh. Use paired initial-sync, parameter-change and reuse captures
 with the same drawing units. DWG handle renumbering alone does not change the
-fingerprint for distinct coordinates. The comparison covers saved FE geometry.
+fingerprint for distinct coordinates. The report also fingerprints the source
+submodel and node number assignments. Use `--expect initial` for an empty-to-meshed
+transition, `--expect changed` for changed geometry between populated meshes,
+or `--expect unchanged` for matching populated geometry and node assignments.
+A failed expectation leaves the output path untouched. Companion changes are
+reported separately.
 Native synchronization, geometry generation, mesh controls, and tag transfer
 still need licensed execution and paired reference evidence.
 
@@ -420,8 +428,8 @@ produce diagnostics.
 | Scarfed cone and cylinder | Static boundary export with either sign of scarf angle where the trim plane intersects every generator above the base. |
 | Ogive | Static circular-profile boundary with full or partial sweep. |
 | FD brick, solid cone, cylinder, sphere and ellipsoid | Static boundary export. Hollow ellipsoids support strictly nested full-sweep cavities with independent trims, plus proportional walls with matching normalized trims. |
-| Polygon and FD mesh | Ordered connectivity and boundary export for reviewed `RcMeshFD` revisions, including marker 56. The `RcPolygon` C++ class remains held. |
-| Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundaries. Bounded legacy triangle, quadrilateral, tetrahedron, wedge and brick wrappers are covered by owned fixtures. Other legacy revisions and unmapped node selectors remain held. |
+| Polygon and FD mesh | Ordered connectivity and boundary export for reviewed `RcMeshFD` revisions, including marker 56. The historical `RcPolygon` C++ class is optional extended coverage. |
+| Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundaries. Owned fixtures cover bounded legacy triangle, quadrilateral, tetrahedron, wedge and brick wrappers. Additional legacy serialization revisions are optional. Unmapped node selectors for required layouts remain open. |
 | Quadratic triangle and quadrilateral | Four-face display tessellation through stored midside points where the edge assignment is unambiguous. The stored node order is preserved in the inventory. |
 | Quadratic tetrahedron, pyramid, wedge and brick | Bounded wrapped solid layout, ordered source connectivity and a closed display boundary through stored midside points when each edge can be associated unambiguously. |
 | Automatic mesh and CAD importer entities | Stored links for the reviewed profiles, including `TdMesherVA`, and saved-state mesh comparison. |
@@ -479,10 +487,12 @@ The owned DWG reader and the FCST worker require no vendor runtime or license.
 Remaining independent implementation includes further surface, solid and mesh
 classes, automatic mesh regeneration, complete material and optical assignments,
 source geometry-to-node and face coupling, additional material-derived node
-modes, and case, orbit/environment and dynamic source constructs. Additional
-serialization versions, including the planned
-2025 R2/2026 R1 coverage, need suitable format/fixture evidence. Required unknown
-objects still prevent importing the entire available example as a native model.
+modes, and case, orbit/environment and dynamic source constructs. Unknown fields
+and objects required by the 6.3 profile still prevent full native import of the
+available example. Optional serialization revisions and the historical
+`RcPolygon` class need their own format and fixture evidence for any future
+coverage claim. A drawing that depends on an unsupported object still receives
+an unsupported or partial-conversion diagnostic.
 The closed-network, property, array and preservation work above does not depend
 on WP-09/WP-11/WP-12. Their paired ESATAN and owned-engine comparisons remain
 separate Q1 completion dependencies. No user-executed acceptance is required.
