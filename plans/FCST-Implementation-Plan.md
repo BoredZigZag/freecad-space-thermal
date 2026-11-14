@@ -699,8 +699,9 @@ isotropic and orthotropic TDP temperature laws to transformed material axes
 and supports constant, axis-aligned laminates and series/parallel aggregates
 of basic materials. The input uses generated FCST nodes and disconnected bodies.
 Finite-difference source numbering, native curved and finite-element physics,
-automatic mesh regeneration, multilayer assignments, and coupling to source
-contacts, loads, optical properties, radiation and case controls remain open.
+independent regeneration from TD drawing geometry, multilayer assignments, and
+coupling to source contacts, loads, optical properties, radiation and case
+controls remain open.
 Basic isotropic TDP temperature tables now bind to native thermal inputs with
 explicit intervals, interpolation, extrapolation and optional node masses. The
 binding reads the active specific-heat and conductivity laws and exercises
@@ -730,8 +731,11 @@ surfaces and linked stored meshes. The reviewed legacy FE and quadratic-solid
 layouts have owned fixtures. The user conditionally accepted the DWG layout
 validation on that evidence because no available original drawing contains
 the target instances. Retain original comparisons for when suitable files
-become available. Native CAD importer synchronization and geometry-attached
-thermal physics remain open.
+become available. The user also conditionally accepted native TD Direct and TD
+Designer synchronization and mesh regeneration because a licensed Thermal
+Desktop host is unavailable. The independent FreeCAD/Gmsh remeshing and saved
+DWG comparisons support that decision. Live vendor execution and paired DWG/CAD
+captures are deferred. Geometry-attached thermal physics remains open.
 WP-08 validation targets the required TD 6.3 profile, including the
 `RcMeshFD` polygon representation. The historical `RcPolygon` C++ class and
 additional serialization revisions beyond the required profile are optional

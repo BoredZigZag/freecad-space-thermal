@@ -407,8 +407,10 @@ and group memberships. Use `--expect retagged` for changed group memberships
 on matching geometry and node assignments.
 A failed expectation leaves the output path untouched. Companion changes are
 reported separately.
-Native synchronization, geometry generation, mesh controls, and tag transfer
-still need licensed execution and paired reference evidence.
+The user conditionally accepted native TD Direct and TD Designer synchronization
+and mesh regeneration because a licensed Thermal Desktop host is unavailable.
+Live tests of initial synchronization, reuse, regeneration after edits and
+thermal tag transfer are deferred with their paired DWG/CAD captures.
 
 The exporter applies the drawing origin and right-handed basis, the local
 translation and ordered rotations, and the stored normalized subdivision
@@ -469,8 +471,9 @@ change requires a `region_map` covering all old and new regions one-to-one and
 a `face_map` matching every previously assigned face to a distinct new face.
 A total-power boundary keeps its integrated power on the regenerated facets.
 The new package contains recalculated conduction inputs. Previous solver
-results remain in the source package. Native TD Direct and TD Designer action
-scripts, proprietary CAD data and DWG regeneration remain open.
+results remain in the source package. Verification of native TD Direct and TD
+Designer actions and DWG regeneration falls under the conditional acceptance
+above.
 
 ### Prepare a native conduction mesh
 

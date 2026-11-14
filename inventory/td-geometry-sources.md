@@ -374,8 +374,10 @@ v78 case header and preserved the remaining fields as opaque.
 The names below are proposed for new test fixtures. The inspected drawings
 supply mesher and importer records and linear-element examples. The conic,
 element-order, legacy FE and `TdMesherVA` layout comparisons are deferred
-under the conditional acceptance. The linked CAD states and geometry physics
-files still support open acceptance work.
+under the DWG layout conditional acceptance. The linked CAD states are deferred
+under the native synchronization and remeshing conditional acceptance because
+a licensed Thermal Desktop host is unavailable. The geometry physics files
+still support open acceptance work.
 
 | Proposed fixture | Required contents |
 | --- | --- |

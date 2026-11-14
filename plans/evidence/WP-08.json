@@ -261,7 +261,7 @@
     "catalog": "Versioned conic, finite-difference solid, polygon mesh, linear and quadratic element classes",
     "acceptance": "ci/td-acceptance.json exercises owned records, analytic bounds and volumes, source-node connectivity, and unsupported-class diagnostics",
     "remaining": [
-      "Automatic mesh regeneration and vendor synchronization comparisons",
+      "Independent regeneration from TD drawing geometry and thermal attachments",
       "Native geometry-to-physics reconstruction and independent vendor reference evidence"
     ],
     "qualified": false
@@ -283,7 +283,7 @@
       "additional_static_primitive_boundaries": 87,
       "ac1027_example_element_boundaries": 106
     },
-    "holds": ["TD Direct/Designer synchronization and mesh regeneration", "Geometry-attached thermal physics and source solver parity"],
+    "holds": ["Geometry-attached thermal physics and source solver parity"],
     "qualified": false
   },
   "dwg_geometry_and_stored_meshes": {
@@ -291,14 +291,12 @@
     "marker_56_geometry_records": 6213,
     "independent_nastran_comparison": {"nodes": 127, "quad_connectivities": 103},
     "stored_mesh_elements": {"td_direct_example": 106, "largest_opentd_example": 7705, "heating_coil_per_case": 12900},
-    "holds": ["CAD synchronization and regeneration after changes"],
     "qualified": false
   },
   "dwg_legacy_quadratic_and_cad_mesh_comparison": {
     "coverage": "Legacy triangle, quad, tet, wedge and brick wrappers. Quadratic tet, pyramid, wedge and brick wrappers and display boundaries. TdMesherVA v43 stored links and TdScImporter v6 CAD companion binding.",
     "acceptance": "Owned records verify ordered nodes, wrapper closure, moved midsides, watertight boundaries, linked Discovery companion hashes and initial versus reused stored mesh states through the comparison CLI.",
     "timing_review": "The warm Foundation handoff for run 43586602355 shows Embree as the longest parallel job at 567 seconds and TD exchange stages at 13.282 seconds Debug and 8.828 seconds Release. The hypothesis was that reusing the face subdivision in the existing geometry path and bounding solid edge matching would preserve existing runtime. Two alternating local repetitions of three existing geometry tests measured 2.285 and 1.854 seconds at baseline and 1.771 and 1.683 seconds on the candidate, including interpreter startup. The small sample does not establish a hosted speedup. No coverage, compiler settings, or performance baseline changed.",
-    "holds": ["Native Discovery importer identification and licensed CAD synchronization and regeneration captures"],
     "qualified": false
   },
   "original_drawing_and_case_dependency_follow_up": {
@@ -306,7 +304,7 @@
     "spaceclaim_saved_state_control": {"nodes": 29, "elements": 106, "mesh_groups": 3, "source_node_assignments_equal": true, "mesh_group_memberships_equal": true},
     "case_manager_control": {"manager_version": 12, "first_case_version": 78, "declared_cases": 4, "decoded_headers": 1},
     "acceptance": "Existing frozen cases exercise expected stored mesh transitions, thermal node renumbering, safe relative run directories, generated-deck INSERT traversal and opaque case tails.",
-    "holds": ["Licensed native Discovery and SpaceClaim synchronization and mesh regeneration", "Full case, physics, SINDA and reverse export semantics"],
+    "holds": ["Full case, physics, SINDA and reverse export semantics"],
     "qualified": false
   },
   "dwg_layout_validation_disposition": {
@@ -316,10 +314,13 @@
     "qualified": false
   },
   "cad_synchronization_follow_up": {
+    "status": "conditionally_accepted",
+    "scope": "Native TD Direct/SpaceClaim and TD Designer/Discovery synchronization and mesh regeneration",
+    "basis": "A licensed Thermal Desktop host is unavailable. The user accepted this scope on the available independent CAD remeshing and saved DWG evidence.",
     "coverage": "Saved mesh group membership fingerprints and tag-only comparison. FreeCAD/Gmsh regeneration transfers compatible material and face assignments to a new FCST project with explicit maps for geometry changes.",
     "acceptance": "The host acceptance remeshes the existing three box refinements. Owned standalone cases verify unchanged reuse, assignment transfer, explicit reassignment, and atomic portable output.",
     "timing_review": "Foundation run 43619023291 measured TD exchange at 18.687 seconds Debug and 12.453 seconds Release and host acceptance at 184.062 and 140.390 seconds. Debug was on the hosted critical path at 570 seconds. The candidate reuses the three existing box refinements to exercise synchronization without adding Gmsh launches or changing the solver comparisons. Coverage and performance baselines are unchanged.",
-    "holds": ["Native TD Designer tutorial captures and licensed Thermal Desktop sync execution", "Native importer control and action semantics, proprietary CAD regeneration and parity"],
+    "deferred": ["Live Thermal Desktop synchronization and TD Designer importer identification", "Paired DWG and CAD captures for initial mesh generation, reuse, and CAD or mesh-control changes", "Native importer actions, connectivity and thermal tag transfer parity"],
     "qualified": false
   }
 }
