@@ -2,7 +2,7 @@
 
 Baseline `online-examples-2026-10-27-r2` contains 55 original files from four pinned public repositories, grouped into six model/example cases. It maps 21 feature groups and all 12 proposed compatibility profiles. This is the user-approved completed WP-01 baseline. No profile is qualified and the complete compatibility corpus remains later-package work.
 
-The [WP-08 geometry and physics source inventory](td-geometry-sources.md) records later research, verified drawing members and remaining fixture needs.
+The [WP-08 geometry and physics source inventory](td-geometry-sources.md) records later research, verified drawing members and remaining fixture needs. It includes [quadratic mesh reference inputs](td-geometry-sources.md#downloaded-inputs-for-generating-and-checking-reference-fixtures), [TD Designer and TD Direct tutorial archives and capture points](td-geometry-sources.md#ansys-2026-r1-cad-synchronization-and-regeneration-tutorials), and [native DWG acquisition gaps](td-geometry-sources.md#files-still-needed-for-full-coverage).
 
 | Source | Acquired material | Rights/publication disposition |
 |---|---|---|

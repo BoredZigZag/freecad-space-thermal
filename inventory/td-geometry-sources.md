@@ -1,6 +1,6 @@
 # WP-08 Thermal Desktop geometry and physics sources
 
-Checked online and through public repository history on 2026-11-13 against the [geometry support matrix](../docs/td-sinda.md) and
+Checked online and through public repository history on 2026-11-13 and 2026-11-14 against the [geometry support matrix](../docs/td-sinda.md) and
 [WP-08 acceptance evidence](../plans/evidence/WP-08.json). The inventory records
 public filenames, immutable upstream locations and read-only observations.
 Active class counts come from object records matched to the DWG class table.
@@ -111,6 +111,19 @@ including the historical backup. It yielded no active ogive, scarfed surface,
 solid ellipsoid, quadratic element, older FE or polygon class, or `TdMesherVa`
 instance. The AC1027 UC Davis model adds a container case for simpler FD geometry.
 
+### HSFL Artemis drawing history
+
+The two public commits touching the [Artemis thermal directory](https://github.com/hsfl/artemis-hardware/commits/bcc649cf7932dcc410f8a594213383fb84e68d47/Thermal/)
+preserve the same DWG and backup blobs. The separately acquired
+[`artemis_thermal_lab.bak`](https://github.com/hsfl/artemis-hardware/blob/bcc649cf7932dcc410f8a594213383fb84e68d47/Thermal/artemis_thermal_lab.bak)
+is a distinct 259,773-byte AC1032 drawing with 918 `RcNode` records, 16
+`RcRectangle` records and two `RcFdBrick` records. The active-class scan found
+zero legacy or quadratic FE classes, `RcPolygon`, `TdMesherVa` or mesh importers.
+Its Git blob is `e268da964685b87940bbd256ef7282c32dc91904` and its SHA-256 is
+`47fdc2180a1d4f44367576d7700f19ca81a2f726a8df9ca991fd3c85f28ab343`.
+The backup and the baseline drawing lack a documented mesh regeneration
+sequence. The repository also carries CAD lock files, which were excluded.
+
 ### NASA GSFC course drawings and postprocessed results
 
 The [NASA course record](https://ntrs.nasa.gov/citations/20220017174) distributes
@@ -144,7 +157,56 @@ class identity, node order and payload layout.
 | [Abaqus NAFEMS T3 transient benchmark](https://docs.software.vt.edu/abaqusv2025/English/SIMACAEBMKRefMap/simabmk-c-t3.htm) | Downloaded and checked `nt3xx26f.inp` and `nt3xx28f.inp` for DC2D6 and DC2D8. These supply independent transient conduction cases when reconstructing equivalent boundary conditions and material properties. |
 | [Ansys layered PCB CAD pair](https://github.com/ansys/example-data/tree/380b0e7a8a89f96fe248358559854b1a4e971968/pyprimemesh/multi_layer_quad_mesh_pcb) and [`blockswithparameters.dsco`](https://github.com/ansys/pyansys-geometry/blob/d947036c49d69dedf6f8aa7a86d654d797fa046a/tests/integration/files/blockswithparameters.dsco) | Downloaded `multi_layer_quad_mesh_pcb.scdoc`, `multi_layer_quad_mesh_pcb.dsco` and the parameterized Discovery model. These can seed equivalent SpaceClaim and Discovery importer cases for layered interfaces and dimension-driven remeshing. The sources supply CAD geometry. TD importer links, thermal tags and synchronization results need to be authored and captured. |
 | [pyNastran `models/msc/single_element-3d/static.bdf`](https://github.com/SteveDoyle2/pyNastran/blob/a310a8a7c7c8525b8f7045f4b98d93e04a0bf2be/models/msc/single_element-3d/static.bdf) | Downloaded and checked the single 20-node `CHEXA`. Use as an input for testing whether the TD Nastran import path retains high-order connectivity. Confirm the active DWG class and node order after import. |
+| [meshio++ `quadratic.pat`](https://github.com/loumalouomega/meshioplusplus/blob/4f5e80dd6241cfe3a02e847cc173ee164eae7c81/tests/python/meshes/patran/quadratic.pat) | Downloaded and verified 75 point records and one element each with 10 (tetrahedron), 13 (pyramid), 15 (wedge) and 20 (brick) nodes, plus 6-node triangle and 8-node quad controls and a 3-node line. Each listed connectivity ID resolves to a point. Use the coordinates and topology to author individual OpenTD cases, mapping each format's corner and midside order explicitly. |
+| [Gmsh `vtk_pyramids_order2.vtu`](https://github.com/live-clones/gmsh/blob/02d93b3425f21473b4114b5c26b74229465fad67/benchmarks/io_vtk/vtk_pyramids_order2.vtu) | Downloaded and decoded 153 points, 48 cells of VTK type 27 and 13 connectivity entries per cell. Use as a second pyramid connectivity and shared-node reference. |
 | [Ansys lunar lander comparison files](https://github.com/ansys/example-data/tree/380b0e7a8a89f96fe248358559854b1a4e971968/pyfluent/lunar_lander_thermal) | Downloaded and verified `lander_geom.scdoc`, the Git LFS object `lander_mesh.msh.h5` and `apollo17_temp_data.csv`. The mesh is HDF5 and matches its LFS SHA-256. The Fluent example adapts a published Thermal Desktop study. Use the files for independent radiation, shell conduction and transient temperature comparisons. The source paper provides the TD model description and numerical comparisons. Its online record does not supply the native model. [Ansys example](https://examples.fluent.docs.pyansys.com/version/dev/examples/00-released_examples/06-lunar_lander_thermal.html), [Original study](https://doi.org/10.1155/2018/4236396) |
+
+| Download | Bytes | Verified Git blob | SHA-256 |
+| --- | ---: | --- | --- |
+| `quadratic.pat` | 13,236 | `cf5a138b83dae2a67da66c7e8b32d3b998889ac7` | `f6322ffb2e42b6390aa12f6969ef0fd0469e1daf55fd9cd9d0c1fc74f9ee1cb0` |
+| `vtk_pyramids_order2.vtu` | 13,292 | `d7c221537986acd0e9912c7281f4fca9cefbcf70` | `74dd557d2f07f3cc9b6d2a2a3639f58f1c82e62c7f5634c3613fee95371fbb6f` |
+
+The [2026 R1 Thermal Desktop User's Manual, §18.2.3.5](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/Thermal_Desktop_Users_Manual.pdf#page=929)
+lists high-order `CTETRA`, `CPENTA` and `CHEXA` support for the TD Nastran
+import path. Its supported-card list omits `CPYRAM`. Use the documented
+`CreateQuadraticPyramid` method to author that DWG case and keep the Nastran
+conversion as a separate compatibility check. Test the active DWG class and
+ordered node handles after save and reopen for each solid type.
+[OpenTD 2026 R1 class reference](https://developer.synopsys.com/docs/opentd-reference-2026-r1/net8-reference/OpenTD.ThermalDesktop.md)
+
+## Ansys 2026 R1 CAD synchronization and regeneration tutorials
+
+Downloaded and inspected the public PDF editions. Both tutorial PDFs list
+model archives by name. Their link annotations and embedded-file tables
+yielded no archive download URL or attached model bytes. The Ansys Help
+index's public tutorial HTML URLs returned 404 and the corresponding
+authenticated routes returned 401 without sign-in. Checks of the documented
+filenames on the public Ansys Help attachment and Ansys storage routes did not
+return an archive. The table identifies the release-matched files to retrieve
+through the tutorial portal or sample distribution.
+[Ansys 2026 R1 documentation index](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/ai_sinfo/td_intro.html)
+
+| Public PDF | Bytes | SHA-256 |
+| --- | ---: | --- |
+| [TD Designer Tutorials](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_Tutorials.pdf) | 27,863,581 | `60304258ed5a47f3f9b18ad6efb83b7ae77a6a9b657725904d0568d3740d7d85` |
+| [TD Designer User Manual](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_User_Manual.pdf) | 5,251,738 | `14fe70f1b86725d8f33b59b89ae6f2a788d52700a46526c115a6df855cc1d533` |
+| [Thermal Desktop Tutorials](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/Thermal_Desktop_Tutorials.pdf) | 28,569,421 | `a31a306579a89317fd5772a6a1b07440814673aaa3a4f93241178e712d645027` |
+
+| Archive or procedure | Files and reference states to acquire |
+| --- | --- |
+| TD Designer `FinDiode.zip`, §§2.1–2.5 | `Heatsink_2.1.dwg`, `HeatSink_2.1.dsco`, `Diode.dsco` and the accompanying properties. Capture the starter DWG before linking, the first `Generate Finite Element Mesh` sync and the second sync after changing mesh controls. Capture domain tags and matched interfaces after adding the diode. Section 2.5 drives the `Fin_height` CAD parameter from the DWG symbol `FinHeight`. Save the dimension-driven update and an unchanged-dimension `Reuse Mesh` control with their DSCOs. [Initial sync and remesh](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_Tutorials.pdf#page=75), [Driving Dimensions](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_Tutorials.pdf#page=107) |
+| TD Designer `SplitMesh.zip` and `SweptMesh.zip`, §§3.1 and 4.1 | `HeatSink_micro_split.dsco` and `HeatSink_micro_swept.dsco`, respectively. Generate and save linked DWGs with the shared interface split tag and the swept source/target selections. The guide names the DSCO starters. Whether the archives supply any matching DWGs is unverified. [Split Mesh](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_Tutorials.pdf#page=113), [Swept Mesh](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_Tutorials.pdf#page=121) |
+| Thermal Desktop `compartments.zip`, §2.1 | `Compartment_Tutorial.dwg` from the archive and `Comp_Tank.scdoc` authored earlier in the TD Direct tutorial. Save the drawing and SCDOC around the FE-only synchronization. The procedure uses Curved Control Volume and a matched-mesh interface. The `Compartment.dwg` in the OpenTD demos has separate provenance. [Basic Compartments with TD Direct](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/Thermal_Desktop_Tutorials.pdf#page=115) |
+| Thermal Desktop `FEMWalledPipe.zip`, §2.7 | `pipeDuctWall.dwg` starts with a previously generated pipe-wall FE model. Retrieve its companions and screen the active element classes. The manual supplies neither a writer-build identifier for the starter nor its FE payload layout. [FEM Walled Pipe](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/Thermal_Desktop_Tutorials.pdf#page=258) |
+
+For Discovery coverage, record the `TDDHOST` selection, the linked document,
+the importer class and the selected import modes. Capture CAD-only and FE-only
+states as well as the synchronized mesh. Record geometry and face IDs, driving
+dimensions, mesh settings, domain tags, and ordered nodes and elements for
+each state. The user manual treats Curved Control Volume and Quadratic
+Control Volume as distinct mesh methods. Capture and inspect both when
+looking for explicit midside-node records.
+[TD Designer User Manual, §§2.2 and 4.3.1.3](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_User_Manual.pdf)
 
 ## Vendor and training files to acquire
 
@@ -155,8 +217,10 @@ class identity, node order and payload layout.
 | CRTech OpenTD Project Hub | The official hub links `CRTest`, a utility for running drawings and comparing results. Ask for any distributable sample scripts with their DWGs, expected results and producing release. Public access to the linked attachment was unverified. [CRTech hub](https://www.crtech.com/news-items/opentd-project-hub), [CRTest topic](https://www.crtech.com/forum/topic/crtest-write-scripts-run-models-and-compare-results), [CRTech workshop description](https://tfaws.nasa.gov/wp-content/uploads/TFAWS2022-OpenTD-Tour.pdf) |
 | CRTech samples and tutorials | Request a curved high-order mesh with its original DWG and CAD companion, and paired generated states. The published complex-cross-section heatpipe example is a candidate for shell-to-FE coupling. Its attachments and class counts remain unverified. [Sample Models and Applications forum](https://www.crtech.com/forum/1775), [CRTech access information](https://www.crtech.com/getting-started), [Heatpipe example](https://www.crtech.com/news-items/heatpipes-complex-cross-sections) |
 | CRTech thermoelectric examples | The application page describes a curved single-stage FE module and a matched two-stage TD Direct example. The sample link points to forum topic 1675 and returned HTTP 403 on the production site. The attached filenames, element order and relationship to both illustrated examples remain unverified. [Thermoelectrics application](https://stagingsite.crtech.com/applications/thermoelectrics), [sample topic](https://www.crtech.com/forum/viewtopic.php?t=1675) |
-| Ansys 2025 R2 and 2026 R1 tutorials | Retrieve the native files through the release-matched Thermal Desktop/TD Direct or TD Designer tutorial guide or installed examples. The public documentation index lists the guides. The checked public tutorial links did not deliver the model archives. The 2026 R1 release notes describe the transition to TD Designer, so record the importer family when collecting that release. [2025 R2 documentation](https://ansyshelp.ansys.com/public/Views/Secured/corp/v252/en/ai_sinfo/td_intro.html), [2026 R1 documentation](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/ai_sinfo/td_intro.html), [2026 R1 release notes](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/Ansys_Release_Notes.pdf) |
-| NASA legacy model archive | Appendix H lists historical models and release conditions. It directs readers to the agency archive and model custodians. The guidebook provides provenance leads for an original pre-upgrade TD file. No candidate from that archive was acquired. [NASA Passive Thermal Control Engineering Guidebook, Appendix H](https://ntrs.nasa.gov/citations/20220006584) |
+| Ansys release-matched tutorial distributions | Use the [2026 R1 archive and member list above](#ansys-2026-r1-cad-synchronization-and-regeneration-tutorials) and request the corresponding 2025 R2 TD Direct starters and checkpoints. Record the importer family when collecting each release. [2025 R2 documentation](https://ansyshelp.ansys.com/public/Views/Secured/corp/v252/en/ai_sinfo/td_intro.html), [2026 R1 release notes](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/Ansys_Release_Notes.pdf) |
+| NASA legacy model archive | Appendix H of revision 5.1 lists Automated Aerobraking (2010, TD 5.3) as an open example model and identifies older open cases for Mars Odyssey, Mars Global Surveyor and Mars Reconnaissance Orbiter. The latter projects pair TD orbital or radiation models with Patran thermal models. Ask for the original, releasable TD 5.3 example drawing first and screen it for active legacy classes. The public guidebook and the three linked NTRS study records list PDF downloads only. The native archive filenames and DWG classes remain unverified. [NASA guidebook, pp. 192–193](https://ntrs.nasa.gov/api/citations/20220006584/downloads/NASAPassiveThermalGuidebookv5%201Public.pdf#page=192), [Mars Odyssey record](https://ntrs.nasa.gov/citations/20030065626), [Mars Global Surveyor record](https://ntrs.nasa.gov/citations/20030066233), [Mars Reconnaissance Orbiter record](https://ntrs.nasa.gov/citations/20070030304) |
+| ESA standalone Thermal Desktop converters and test cases | ESA lists `td_tas_converters_beta_2019-08-09.zip` and `td_tas_converters_beta_2020-09-15.zip` and describes a separate test suite that includes real models. The later archive's download page requests contact details. Ask for releasable original test DWGs, exact writer builds and any paired exchange data. The public listing leaves archive membership and the target classes unverified. [ESA release and download list](https://exchange.esa.int/restricted/tasverter-2022/), [TASverter Thermal Desktop format notes](https://exchange.esa.int/download/tasverter/TASverter-r2022-12-20/doc/thermal_desktop.html) |
+| Historical Thermal Desktop FE and native mesher examples | The vendor's early FE white paper and the 2008 TD 5.2 guide give leads for a pre-upgrade FE example and a native TDMesh controller. The guide describes CAD input, preview and generated FEM stages. Ask for the matching original DWGs and CAD files. Public searches for exact legacy class names and `TdMesherVa` yielded no confirmed active instances. The historical workflow name gives no on-disk class ID. [Vendor FEM white paper](https://stagingsite.crtech.com/finite-element-method-and-thermal-desktop), [Thermal Desktop 5.2 Advanced Modeling Techniques, §6](https://manualzilla.com/doc/5951221/thermal-desktop-advanced-modeling-techniques) |
 
 The [TD Direct training slides](https://www.crtech.com/sites/default/files/files/Training_Tutorials/TD%20Direct/TDDirect_V61.pdf)
 describe curved geometry with the same thermal node count as straight elements.
@@ -211,9 +275,10 @@ vendor examples.
 | Proposed fixture | Required contents |
 | --- | --- |
 | `td-conics.dwg` | `RcOgive` with full and partial sweeps, `RcScarfedCone` and `RcScarfedCylinder` with nonzero scarf angles of both signs, and `RcFdSolidEllipsoid` with independently trimmed, nonproportional inner and outer walls. Include source boundary coordinates, areas and solid volume where applicable. |
-| `td-fe-orders.dwg` | Quadratic triangle, quadrilateral, tetrahedron, pyramid, wedge and brick with displaced midside nodes, plus linear counterparts including pyramid. Capture TD's ordered source nodes, edge and face connectivity and curved boundary coordinates. |
+| `td-fe-orders.dwg` | Quadratic triangle, quadrilateral, tetrahedron, pyramid, wedge and brick with displaced midside nodes, plus linear counterparts including pyramid. The PAT and VTU inputs above supply independent connectivity. Verify active `RcQuadraticTet`, `RcQuadraticPyramid`, `RcQuadraticWedge` and `RcQuadraticBrick` records and capture TD's ordered source nodes, edge and face connectivity and curved boundary coordinates. |
 | `td-fe-legacy.dwg` | Original `RcLinearTri`, `RcLinearQuad`, `RcLinearTet`, `RcLinearWedge`, `RcLinearBrick` and `RcPolygon` class instances. Preserve the pre-upgrade originals and record the writer build for both originals and any separately saved upgraded copies. |
-| `td-mesher-before.dwg`, `td-mesher-generated.dwg` and source CAD companion | Start with the public `TdMesher` and TD Direct importer examples above. Add a confirmed `TdMesherVa` case, and capture the same model before and after mesh generation and a controlled parameter change. Include CAD face identifiers, controls and tags, source node and element maps, and the companion document used by that importer. |
+| `td-mesher-before.dwg`, `td-mesher-generated.dwg` and source CAD companion | Start with the public `TdMesher` and TD Direct importer examples above. Acquire a drawing with an active `TdMesherVa` instance, its input geometry and any preview and generated states. Record the writer build, class ID and object links. |
+| Linked CAD synchronization and regeneration states | Use the CMU pair and TD Direct tutorials for SpaceClaim, and the Fin Diode tutorial for Discovery. For each host, retain matching DWG and companion copies from before sync, after first mesh, and after one controlled CAD or mesh-control change. Include an unchanged sync or reuse control and capture the geometry, tags and connectivity needed to check regeneration. |
 | `td-geometry-physics.dwg` with case files | Use the FE conduction/radiation, contact and result samples above as starting points. Acquire property databases, actual generated SINDA deck and all includes, case settings, node/face IDs, areas and volumes, and saved results or a bounded export. Cover geometry-derived conductance and capacity, layering and orientation, optical properties, radiation groups, contactors, and surface or volume loads. |
 
 For release comparison, acquire or generate matching cases in TD 6.3.022,
@@ -227,7 +292,7 @@ installation. The [SolidEllipsoid class reference](https://developer.synopsys.co
 documents separate inner and outer X/Y/Z radii and min/max height fields.
 For legacy fixtures, record active DWG class IDs before upgrading. For
 TD Designer synchronization, preserve the `.dsco` companion and capture
-the linked drawing on both sides of the edit. [TD Designer user manual](https://ansyshelp.ansys.com/public/Views/Secured/corp/v252/en/pdf/TD_Designer_User_Manual.pdf)
+the linked drawing on both sides of the edit. [TD Designer user manual](https://ansyshelp.ansys.com/public/Views/Secured/corp/v261/en/pdf/TD_Designer_User_Manual.pdf)
 
 Downloaded samples and raw read outputs are retained in ignored
 `.local/wp08-online-geometry-sources/`. Keep original third-party and
