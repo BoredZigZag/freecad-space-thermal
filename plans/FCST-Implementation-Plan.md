@@ -97,6 +97,18 @@ sensitive patterns/budgets and rejects binary disguises. Preserve GPL attributio
 and scan exact build configuration, patch pre/post hashes and provenance alongside
 the source. WP-09 independent ESATAN plans/fixtures/evidence use the same TST-021
 rule; documentation does not qualify an unimplemented converter.
+The WP-08 native material binding runs `tools/check_td.py` for source, binding,
+and output-publication regressions and `td-material-storage` in `tools/check_thermal.py`
+for an analytic temperature and enthalpy comparison in both Windows configurations.
+The independent DWG gate creates an owned material-node drawing, checks both
+mass and volume conversion, and reopens a guarded mass edit through the CLI.
+It also checks geometry-only OBJ conversion of rotated rectangle and brick
+fixtures before and after source-size edits. Restricted OBJ meshes, source
+drawings and raw format research remain local.
+TST-021 scans exact adapter and CLI code, synthetic fixture bytes, bounded verdicts,
+scalar timings, outgoing history, approved metadata and any final GitHub prose.
+TDP originals, bindings, prepared models and raw worker results remain local.
+
 WP-09 now applies TST-021 to exact owned codecs, CLI, acquisition/profile locks,
 synthetic D-deck/TMD/XML fixtures, bounded `esatan.json` summaries and final GitHub
 prose. Both Windows drivers execute the frozen unattended cases and clear the
@@ -429,6 +441,11 @@ original projects/decks/property databases/results, private runner profiles,
 compiled sidecars/vendor DLLs and raw logs stay local. Required staged-byte and
 outgoing-history scans may run separately; neither scope may be skipped. Q1 holds
 are recorded explicitly and are not replaced with parser or external-run success.
+The case dependency extension runs the owned v73 case, nested INSERT graph,
+restart binding and inert source-block checks through `tools/check_td.py`.
+TST-021 clears the exact adapter and fixture sources, source locks, bounded
+verdicts and timing evidence, outgoing history, identities and final PR prose.
+Captured SAVE files, includes, decoded case records and raw diagnostics stay local.
 The independent property-law slice adds owned synthetic orthotropic, variable
 table/grid, two-band optical and composite-definition fixtures. TST-021 acceptance
 includes their unattended unit cases, fresh-process vendor-free CLI roundtrips,
@@ -444,8 +461,49 @@ native source-free generation, compressed parameter edits and fresh reopen. Scan
 the exact codecs, bridge, synthetic fixtures and `td.json`/`dwg-backend.json`, plus
 staged bytes, outgoing history/identity and final publication text. Original
 geometry, decoded fields, source handles, generated containers and raw research/
-build/CLI diagnostics remain local. Structural decoding cannot qualify physical
-geometry or mesh regeneration; original dynamic geometry edits remain held.
+build/CLI diagnostics remain local. The static conduction slice adds an owned
+DWG/TDP material mesh reopen in `tools/build_independent_dwg.py`, binding and
+rejection cases in `tools/check_td.py`, and native flux and capacity checks in
+`tools/check_discretization.py` for both Windows configurations. Scan the exact
+bridge, fixture, pins, bounded DWG/TD/spatial verdicts, scalar timings, outgoing
+history, approved identities and final GitHub prose. Original DWG/TDP bytes,
+derived meshes, source identifiers and raw results remain local.
+The extended TD geometry and material slice uses owned wire fixtures for curved
+primitives and linear solid elements. The existing native DWG workflow exercises
+temperature tables through the CLI. Both Windows spatial drivers check rotated
+flux, conservation, capacity and enthalpy. TST-021 scans the exact changed
+sources, fixtures, source locks, bounded reports, scalar timings, outgoing
+history, approved author metadata and final GitHub prose. Original drawings,
+decoded attributes, node coordinates, derived OBJ files and raw outputs stay local.
+The geometry-class regression checks the shared conic filer, solid boundaries,
+finite-element connectivity and known unsupported classes. It uses owned wire
+fixtures in both Windows TD acceptance stages. TST-021 checks exact sources,
+fixtures, locks, bounded verdicts and timing summaries. The underlying drawing
+raw drawing files and decoded values stay local.
+The source-inventory follow-up checks AC1027 inspection and byte-exact copying
+in `tools/build_independent_dwg.py`. Both Windows TD stages exercise expanded
+wire profiles, exact stream consumption, source-node boundaries and preservation
+of unsupported attributes. TST-021 scans the exact source inventory, owned
+fixtures, locks, bounded verdicts, scalar timings, staged bytes and outgoing
+history and identities. Original models and raw probes remain in local storage.
+The DWG geometry and stored-mesh follow-up adds marker-56 fixtures, analytic
+shape checks, quadratic-shell display tessellation and mesher/importer link
+regressions in both Windows TD stages. TST-021 scans exact code, synthetic
+fixtures, inventory prose, source pins, bounded verdicts, timing summaries,
+outgoing history and approved identities. Acquired CAD, DWGs and OBJ stay local.
+Dynamic power acceptance adds owned RcHeatLoad v17, SINDA TVS and zero-phase
+PER fixtures. Run `tools/check_td.py`, vendor-free fresh CLI preparation in
+`tools/build_independent_dwg.py`, and the native interpolation, cycle reset,
+checkpoint and energy checks in `tools/check_thermal.py` in Debug and Release.
+Scan exact bridge and engine sources, pins, bounded verdicts, scalar timings,
+staged bytes, outgoing history and approved identities. Original drawings and
+decks, decoded tables, prepared requests and worker results remain local.
+The TD project inventory adds synthetic dictionary, case/radiation, orbit and
+file-reference tests to `tools/check_td.py` and a fresh `td-inspect-project`
+invocation to `tools/build_independent_dwg.py`. TST-021 scans exact staged
+sources, the owned fixture, pins, outgoing history, approved identity, bounded
+verdicts, scalar timings and final GitHub prose. Captured drawings, companion
+files, detailed project inventories and raw CLI diagnostics stay local.
 
 FEM reuse work applies TST-021 to exact outgoing decision/assessment text, upstream attribution/license manifests, synthetic fixtures, bounded host/mesh/comparison reports and final issue/PR prose. Run `python -S tools/check_security.py` and `python tools/publication_preflight.py --staged --revision HEAD` before commit/push; scan each final generated report or post with `--file` before upload. Generated FreeCAD documents, raw solver decks, screenshots, mesh/result containers and logs stay local unless separately sanitized and cleared. Use synthetic inputs for public tests, preserve authorized originals unchanged, and do not weaken privacy policy to admit upstream examples or generated diagnostics.
 
@@ -626,10 +684,63 @@ The declared closed constant-network profile now supports canonical import, port
 `.fcst` storage and canonical scalar export/reopen. Constant original property
 documents and owned property libraries have independent conversion paths; static
 SINDA arrays/intrinsics have bounded readers. Complete rectangle/brick wire
-profiles have owned readers/writers and guarded constant-parameter source edits;
-physical geometry/mesh binding and regeneration remain unimplemented.
-Unrepresented modes and additional source versions need verified format evidence,
-while owned-engine and paired ESA comparisons remain later qualification dependencies. WP-08 stays in progress; historical evidence retains its scope.
+profiles have owned readers/writers and guarded constant-size source edits.
+`td-export-geometry` maps verified sizes, frames, local transforms and literal
+subdivisions to OBJ boundaries. Reviewed layouts cover rectangles, bricks,
+disks, solid cylinders, solid spheres and linear finite-element bricks and wedges.
+Finite-element export resolves the source node handles. Extended geometry
+coverage includes conic shells, solid cones and ellipsoids, linear triangle,
+quadrilateral, tetrahedron and pyramid layouts, and polygon meshes. The
+[geometry coverage table](../docs/td-sinda.md#geometry-and-remaining-format-evidence)
+records the remaining shape modes and element layouts.
+`td-prepare-spatial` reconstructs quad4 single-layer rectangles and hex8
+homogeneous bricks with volume-weighted nodal capacity. It binds basic
+isotropic and orthotropic TDP temperature laws to transformed material axes
+and supports constant, axis-aligned laminates and series/parallel aggregates
+of basic materials. The input uses generated FCST nodes and disconnected bodies.
+Finite-difference source numbering, native curved and finite-element physics,
+independent regeneration from TD drawing geometry, multilayer assignments, and
+coupling to source contacts, loads, optical properties, radiation and case
+controls remain open.
+Basic isotropic TDP temperature tables now bind to native thermal inputs with
+explicit intervals, interpolation, extrapolation and optional node masses. The
+binding reads the active specific-heat and conductivity laws and exercises
+material-based storage against an analytic transient oracle.
+`td-prepare-drawing` derives those bindings from closed RcNode v22 networks and
+a single TDP companion, using the verified mass/volume selector and explicit
+units. Dynamic modes and other companion layouts remain open.
+`td-prepare-transient` and `sinda-prepare-transient` bind reviewed literal
+single-node time-power tables and SINDA TVS/PER declarations to the owned
+worker. The supported transient path covers linear interpolation, clamping
+and zero-phase cycles with explicit reset handling. Temperature-dependent
+sources, nonzero phase, procedural logic, source-run settings and other
+unmapped modes remain held.
+`td-inspect-project` inventories the DWG named dictionary, versioned project
+records, captured companions and declared property-library overrides. The
+bounded case reader exposes steady/transient selectors and radiation jobs,
+including named links to decoded orbit records. It inventories inert submodel
+source blocks, solver controls, stored INSERT roots and an active restart SAVE
+path for the first v73 case. The captured tree supports bounded nested INSERT
+discovery. Remaining case settings, runtime dependency closure, orbit/environment
+physics bindings and full-drawing native reconstruction remain open.
+The [source inventory](../inventory/td-geometry-sources.md) supplies additional
+AC1027 inspection fixtures and AC1032 wire revisions for FD solids, rectangles,
+linear solid elements, conductors and expressions. Read-only inspection and
+static boundary export now cover the reviewed cases, including marker-56
+surfaces and linked stored meshes. The reviewed legacy FE and quadratic-solid
+layouts have owned fixtures. The user conditionally accepted the DWG layout
+validation on that evidence because no available original drawing contains
+the target instances. Retain original comparisons for when suitable files
+become available. The user also conditionally accepted native TD Direct and TD
+Designer synchronization and mesh regeneration because a licensed Thermal
+Desktop host is unavailable. The independent FreeCAD/Gmsh remeshing and saved
+DWG comparisons support that decision. Live vendor execution and paired DWG/CAD
+captures are deferred. Geometry-attached thermal physics remains open.
+WP-08 validation targets the required TD 6.3 profile, including the
+`RcMeshFD` polygon representation. The historical `RcPolygon` C++ class and
+additional serialization revisions beyond the required profile are optional
+extensions. This includes 2025 R2 and 2026 R1. Owned-engine and paired ESA
+comparisons remain qualification dependencies. WP-08 stays in progress.
 
 1. Retain the corrected independent LibreDWG 0.14 native component, locked source,
    compiler, preservation patch and GPL notices. Its implementation fixes observed
@@ -658,8 +769,8 @@ while owned-engine and paired ESA comparisons remain later qualification depende
 7. Compare owned-engine thermal/radiation/environment results with analytic and
    independently obtained source baselines. Optional licensed reference runners
    supply additional evidence only; never an installed-product dependency.
-8. Include the required paired ESA qualification and remaining source-version/
-   feature coverage in Q1/Q2 completion, with explicit unresolved fidelity holds.
+8. Include the required paired ESA qualification and TD 6.3 feature coverage
+   in Q1 completion. Record unresolved fidelity gaps within the required profile.
 
 **Outputs:** independent TD/SINDA codecs and writers, vendor-absent acceptance,
 optional external reference harnesses and paired evidence. **Completion:** every

@@ -15,11 +15,12 @@ from .vendor_paths import checked_path
 from .export import rename_new
 
 
-def _values(entry,kind):
+def _values(entry,kind,*,allow_inactive_aggregate=False):
     allowed=MATERIAL|MATERIAL_FLAGS|MATERIAL_TABLES|{'NAME','TYPE','COLOR','COMMENT_MULTILINE'} if kind=='tdp' else OPTICS|OPTICAL_FLAGS|OPTICAL_TABLES|{'NAME','COMMENT_MULTILINE'}
-    if any(f.depth or f.tag not in allowed for f in entry.fields):reject('td_property_required_fields_unmapped')
     values={}
     for f in entry.fields:
+        if f.depth and allow_inactive_aggregate:continue
+        if f.depth or f.tag not in allowed:reject('td_property_required_fields_unmapped')
         if f.tag in {'NAME','COMMENT_MULTILINE'}:continue
         if f.tag in TABLE_FIELDS:
             f.table();values[f.tag]=0 # Valid but inactive table data is retained in the original.
@@ -27,13 +28,23 @@ def _values(entry,kind):
     return values
 
 
-def material_entity(entry,temperature_range,*,identifier=None,frame_id=None):
+def material_entity(entry,temperature_range,*,identifier=None,frame_id=None,conduction_only=False):
     """The source has no validity interval: callers must declare one in kelvin."""
-    v=_values(entry,'tdp')
+    v=_values(entry,'tdp',allow_inactive_aggregate=conduction_only)
     if (not isinstance(temperature_range,(tuple,list)) or len(temperature_range)!=2
             or any(type(x) not in (int,float) or not math.isfinite(x) for x in temperature_range)
             or not 0<temperature_range[0]<temperature_range[1]):reject('td_property_temperature_interval_required')
-    if v.get('TYPE',0)!=0 or v.get('USEANISO',0) not in (0,1) or v.get('EFFECTIVEEMISS',0)!=0 or any(v.get(k,0)!=0 for k in MATERIAL_FLAGS):reject('td_property_material_mode_unmapped')
+    emissivity=v.get('EFFECTIVEEMISS',0)
+    if (v.get('TYPE',0)!=0 or v.get('USEANISO',0) not in (0,1) or any(v.get(k,0)!=0 for k in MATERIAL_FLAGS)
+            or not 0<=emissivity<=1 or (emissivity and not conduction_only)):
+        reject('td_property_material_mode_unmapped')
+    if conduction_only:
+        if not {'DENSITY','SPECHEAT','CONDUCT'} <= v.keys():reject('td_property_required_fields_unmapped')
+        # Basic entries can retain an inactive aggregate from the source editor.
+        if entry.blocks:
+            from .core import Limits
+            from .td_property_laws import _aggregate,_validate_aggregate
+            _validate_aggregate({'aggregate':_aggregate(entry),'scalars':v},Limits())
     if v.get('USEANISO',0)==1:
         from uuid import UUID
         try:
@@ -97,7 +108,7 @@ def optics_entity(entry,*,identifier=None):
             'solar_absorptivity':v['ALPHA'],'ir_emissivity':v['EMISS'],'specular_fraction':v['SOLSPEC'],'transmissivity':v['SOLTRANS']}
 
 
-def dependency_catalog(snapshot,files):
+def dependency_catalog(snapshot,files,*,inventory=None):
     """Resolve property-name references of decoded objects without guessing others."""
     from .td_decode import decode_drawing
     catalogs={};diagnostics=[];references=[]
@@ -107,7 +118,7 @@ def dependency_catalog(snapshot,files):
         try:doc=parse_properties(raw,kind)
         except ValueError:diagnostics.append({'code':'td_property_dependency_unreadable'});continue
         for entry in doc.entries:catalogs.setdefault((kind,entry.name.casefold()),[]).append((name,entry))
-    for payload in decode_drawing(snapshot).payloads:
+    for payload in (inventory if inventory is not None else decode_drawing(snapshot)).payloads:
         f=payload.fields
         active=f.get('use_material',False) or ('law_selectors' in f and f['law_selectors'][0]!=0 and bool(f['material']))
         if not active:continue

@@ -38,7 +38,10 @@ class DwgPreview:
 
     @property
     def conversion(self):
-        from .td_model import convert_network,restore_annotations
+        return self._conversion()
+
+    def _conversion(self, inventory=None):
+        from .td_model import _convert_network,restore_annotations
         from fcst_contracts import loads,read
         from fcst_app.persistence import encode
         files=dict(self.original.files);holds=[];model=None;receipt=None
@@ -57,7 +60,7 @@ class DwgPreview:
                 try:parse_properties(files[name],Path(name).suffix.lower()[1:])
                 except ExchangeError:holds.append('td_native_property_dependency_unreadable')
             else:holds.append('td_native_companion_unmapped')
-        result=convert_network(self.snapshot,self.units,self.original.source_hash,closure_holds=holds)
+        result=_convert_network(self.snapshot,self.units,self.original.source_hash,closure_holds=holds,inventory=inventory)
         return restore_annotations(result,model,receipt) if model is not None and receipt is not None and not holds else result
 
     @property
@@ -68,16 +71,18 @@ class DwgPreview:
             if Path(name).suffix.lower() in {'.tdp','.rco'}:
                 try:properties.append(parse_properties(raw,Path(name).suffix.lower()[1:]).report)
                 except ExchangeError as error:properties.append({'status':'retained-opaque','limitation':error.code})
-        conversion=self.conversion.report
+        conversion=self._conversion(inventory).report
+        field_edits = self.snapshot.native['version'] == 'AC1032' and any(
+            p.report['payload_decoded'] for p in inventory.payloads)
         from .td_property_model import dependency_catalog
         return {**self.snapshot.report,**conversion,'source_revision':self.original.source_hash,
                 'thermal_mapping':'canonical-constant-network' if conversion['native_ready'] else 'unmapped',
                 'thermal_payloads':inventory.report,'property_databases':properties,
-                'property_dependencies':dependency_catalog(self.snapshot,self.original.files),
+                'property_dependencies':dependency_catalog(self.snapshot,self.original.files,inventory=inventory),
                 'files':len(self.original.files),'directories':len(self.original.directories),
                 'operations':{'inspect':True,'unchanged-source-export':True,
                               'thermal-native-reconstruction':conversion['native_ready'],'thermal-controlled-edit':conversion['native_ready'],
-                              'guarded-source-field-export':any(p.report['payload_decoded'] for p in inventory.payloads) or any('entries' in p for p in properties)},
+                              'guarded-source-field-export':field_edits or any('entries' in p for p in properties)},
                 'limitations':[] if conversion['native_ready'] else ['required_td_class_semantics_incomplete','semantic_dependency_closure_unqualified']}
 
     def require_native(self):
@@ -183,6 +188,8 @@ class IndependentTdAdapter:
         for edit in edits:
             if not isinstance(edit,dict):reject('td_source_edit_shape')
             if set(edit)=={'handle','changes'}:
+                if staged.snapshot.native['version'] != 'AC1032':
+                    reject('independent_dwg_container_profile')
                 handle=source_edit_handle(edit['handle'])
                 if handle not in payloads or handle in seen:reject('td_source_edit_handle')
                 seen.add(handle);payload=payloads[handle]

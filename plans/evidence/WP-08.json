@@ -3,7 +3,7 @@
   "status": "in_progress",
   "implementation_delivery": "implemented_and_tested_unqualified",
   "verification_base_revision": "9b71634a4f08ad382f1b79b357c0e86de63e50ec",
-  "verification_identity": "Exact implementation input hashes below; final candidate-bound Windows reports and CI must pass before push",
+  "verification_identity": "Historical implementation input hashes for the verification base revision. Candidate-bound Windows reports record the current inputs.",
   "input_sha256": {
     "ci/td-acceptance.json": "d09c92f989d1a374354c3844381b46944d0cce45e9e8f4c6549790923208c344",
     "ci/td-profiles.json": "e5b3a9af9dae1a6cd3563ddc87a3c48268143a28c1712aba1e84e509938b5981",
@@ -129,8 +129,11 @@
     "source_tool_reopen_run_unqualified",
     "owned_engine_WP11_WP12_comparisons_pending",
     "paired_ESATAN_WP09_qualification_pending",
-    "2025_R2_and_2026_R1_profiles_not_implemented",
     "full_required_source_semantics_not_qualified"
+  ],
+  "optional_coverage": [
+    "Historical RcPolygon C++ class",
+    "Additional TD serialization revisions outside the required 6.3 profile, including other legacy revisions and 2025 R2 and 2026 R1"
   ],
   "publication": {
     "policy_version": 4,
@@ -166,7 +169,7 @@
       "Material-derived node and dynamic source modes",
       "Canonical variable/composite/spectral bindings and effective composite physics",
       "Case/manager/orbit/environment formats",
-      "Remaining SINDA control/radiation constructs and additional source versions"
+      "Remaining SINDA control/radiation constructs for the required profile"
     ],
     "vendor_runtime_required": false,
     "qualified": false,
@@ -195,5 +198,129 @@
       "Canonical variable/composite bindings and composite physics"
     ],
     "privacy": "Publish independently owned synthetic fixtures and bounded verdicts only; originals decoded structures identities containers and raw research logs remain local"
+  },
+  "material_node_network": {
+    "operation": "td-prepare-drawing",
+    "scope": "Closed network with standalone RcNode v22 material-based storage, a single TDP library, and explicit source mass and volume units",
+    "source_observation": "Static 6.3 code analysis distinguishes the material-use selector, the user-override flag, and the mass/volume selector. Owned synthetic records exercise both mass and volume.",
+    "acceptance": [
+      "tools/check_td.py checks source identity, both modes, dependency ambiguity, unsupported fields and stale sources",
+      "material-node-drawing-cli-and-reopen creates an owned DWG, converts both modes through the CLI, and reopens a guarded mass edit with the original TDP bytes preserved",
+      "td-material-storage checks transient temperature and enthalpy against an analytic oracle in both Windows configurations"
+    ],
+    "qualified": false,
+    "vendor_runtime_required": false,
+    "privacy": "Owned synthetic fixtures and bounded verdicts only. Source binaries, decompiled evidence, original models, prepared inputs and raw results remain local."
+  },
+  "geometry_boundary_mesh": {
+    "operation": "td-export-geometry",
+    "scope": "Geometry-only boundary quads for RcRectangle v7 and RcFdBrick v21 with constant sizes and transforms and literal normalized subdivisions",
+    "acceptance": [
+      "tools/check_td.py checks rotated coordinates, nonuniform partitions, closed outward winding, physical size edits, and dynamic or malformed input holds",
+      "geometry-boundary-obj-and-size-edit-reopen creates owned DWGs, exports OBJ, edits sizes, and checks fresh OBJ bounds, indices and original bytes"
+    ],
+    "qualified": false,
+    "vendor_runtime_required": false,
+    "privacy": "Owned fixtures and bounded verdicts only. Restricted drawing bytes, derived geometry and format research remain local."
+  },
+  "case_source_dependencies": {
+    "operation": "td-inspect-project",
+    "scope": "First v73 case source blocks and controls, stored SINDA INSERT paths with bounded captured-tree traversal, and active restart SAVE binding",
+    "acceptance": "tools/check_td.py checks inert submodel source, duplicate roots, nested INSERTs, unsafe and missing targets, cycles, malformed directives, future control versions, and restart resolution",
+    "remaining": "Subsequent cases, complete case records, unsupported run-directory modes, CSR restart data, source execution and full-model dependency closure",
+    "vendor_runtime_required": false,
+    "qualified": false,
+    "privacy": "Owned fixtures and bounded verdicts only. Captured cases, companion files and detailed inventory remain local."
+  },
+  "td_geometry_and_spatial_materials": {
+    "implementation_delivery": "partial",
+    "geometry": [
+      "Disk v7 with attributes 55, solid cylinder and sphere v23, and linear brick and wedge v5 with attributes v13",
+      "Tessellated curved boundaries and ordered finite-element node connectivity with resolved source references"
+    ],
+    "spatial": [
+      "Rotated orthotropic and isotropic temperature-dependent conductivity and specific heat for Cartesian primitives",
+      "Constant axis-aligned laminates and series/parallel aggregates of basic materials"
+    ],
+    "acceptance": [
+      "Owned geometry fixtures check stream closure, seam and pole handling, positive signed volume and invalid node references",
+      "The fresh independent DWG workflow checks a synthetic TDP law binding through the CLI",
+      "The native spatial driver checks flux, conservation, capacity and integrated enthalpy"
+    ],
+    "remaining": [
+      "Additional geometry codecs, automatic mesh regeneration and finite-difference source node numbering",
+      "Curved and finite-element thermal regeneration, active layering, material orienters, optical bands and geometry-attached physics",
+      "Complete source contacts, loads, radiation and case bindings with independent comparison"
+    ],
+    "qualified": false,
+    "vendor_runtime_required": false,
+    "privacy": "Owned fixtures and bounded verdicts only. Original models, decoded fields, source identities, derived meshes and raw output remain local."
+  },
+  "td_geometry_class_coverage": {
+    "implementation_delivery": "partial",
+    "catalog": "Versioned conic, finite-difference solid, polygon mesh, linear and quadratic element classes",
+    "acceptance": "ci/td-acceptance.json exercises owned records, analytic bounds and volumes, source-node connectivity, and unsupported-class diagnostics",
+    "remaining": [
+      "Independent regeneration from TD drawing geometry and thermal attachments",
+      "Native geometry-to-physics reconstruction and independent vendor reference evidence"
+    ],
+    "qualified": false
+  },
+  "older_container_observation": {
+    "container": "AC1027",
+    "observed_thermal_payloads": {"RcNode_v22": 86, "RcConductor_v23": 2},
+    "method": "Read-only bounded inventory using the independent DWG library on a temporary local copy",
+    "disposition": "Historical analysis evidence. The source-inventory follow-up implements bounded AC1027 inspection and covers conductor v23. Product release remains unverified."
+  },
+  "source_inventory_follow_up": {
+    "inventory": "inventory/td-geometry-sources.md",
+    "acceptance": "tools/check_td.py and tools/build_independent_dwg.py",
+    "ac1027_scope": "Vendor-free inspection, supported geometry export and byte-exact project copying",
+    "ac1032_scope": "Expression v6, conductor v23 and v24, rectangle marker 55, FD brick v23, and linear solid node v6 and attribute v14",
+    "local_geometry_checks": {
+      "ac1032_drawings": 25,
+      "additional_linear_solid_boundaries": 8948,
+      "additional_static_primitive_boundaries": 87,
+      "ac1027_example_element_boundaries": 106
+    },
+    "holds": ["Geometry-attached thermal physics and source solver parity"],
+    "qualified": false
+  },
+  "dwg_geometry_and_stored_meshes": {
+    "acceptance": "tools/check_td.py tests marker-56 stream closure, analytic conics, closed trimmed cavities, quadratic shell display boundaries and stored mesh and CAD links",
+    "marker_56_geometry_records": 6213,
+    "independent_nastran_comparison": {"nodes": 127, "quad_connectivities": 103},
+    "stored_mesh_elements": {"td_direct_example": 106, "largest_opentd_example": 7705, "heating_coil_per_case": 12900},
+    "qualified": false
+  },
+  "dwg_legacy_quadratic_and_cad_mesh_comparison": {
+    "coverage": "Legacy triangle, quad, tet, wedge and brick wrappers. Quadratic tet, pyramid, wedge and brick wrappers and display boundaries. TdMesherVA v43 stored links and TdScImporter v6 CAD companion binding.",
+    "acceptance": "Owned records verify ordered nodes, wrapper closure, moved midsides, watertight boundaries, linked Discovery companion hashes and initial versus reused stored mesh states through the comparison CLI.",
+    "timing_review": "The warm Foundation handoff for run 43586602355 shows Embree as the longest parallel job at 567 seconds and TD exchange stages at 13.282 seconds Debug and 8.828 seconds Release. The hypothesis was that reusing the face subdivision in the existing geometry path and bounding solid edge matching would preserve existing runtime. Two alternating local repetitions of three existing geometry tests measured 2.285 and 1.854 seconds at baseline and 1.771 and 1.683 seconds on the candidate, including interpreter startup. The small sample does not establish a hosted speedup. No coverage, compiler settings, or performance baseline changed.",
+    "qualified": false
+  },
+  "original_drawing_and_case_dependency_follow_up": {
+    "local_native_class_screen": {"distinct_ac1032_drawings": 30, "td_sc_importer": 4, "target_legacy_quadratic_mesher_and_conic_instances": 0},
+    "spaceclaim_saved_state_control": {"nodes": 29, "elements": 106, "mesh_groups": 3, "source_node_assignments_equal": true, "mesh_group_memberships_equal": true},
+    "case_manager_control": {"manager_version": 12, "first_case_version": 78, "declared_cases": 4, "decoded_headers": 1},
+    "acceptance": "Existing frozen cases exercise expected stored mesh transitions, thermal node renumbering, safe relative run directories, generated-deck INSERT traversal and opaque case tails.",
+    "holds": ["Full case, physics, SINDA and reverse export semantics"],
+    "qualified": false
+  },
+  "dwg_layout_validation_disposition": {
+    "status": "conditionally_accepted",
+    "basis": "The user accepted the available structural and analytic evidence due to lack of original DWGs with the target instances.",
+    "deferred": ["Original DWG comparisons for legacy FE, quadratic solids, TdMesherVA, and the specified conics"],
+    "qualified": false
+  },
+  "cad_synchronization_follow_up": {
+    "status": "conditionally_accepted",
+    "scope": "Native TD Direct/SpaceClaim and TD Designer/Discovery synchronization and mesh regeneration",
+    "basis": "A licensed Thermal Desktop host is unavailable. The user accepted this scope on the available independent CAD remeshing and saved DWG evidence.",
+    "coverage": "Saved mesh group membership fingerprints and tag-only comparison. FreeCAD/Gmsh regeneration transfers compatible material and face assignments to a new FCST project with explicit maps for geometry changes.",
+    "acceptance": "The host acceptance remeshes the existing three box refinements. Owned standalone cases verify unchanged reuse, assignment transfer, explicit reassignment, and atomic portable output.",
+    "timing_review": "Foundation run 43619023291 measured TD exchange at 18.687 seconds Debug and 12.453 seconds Release and host acceptance at 184.062 and 140.390 seconds. Debug was on the hosted critical path at 570 seconds. The candidate reuses the three existing box refinements to exercise synchronization without adding Gmsh launches or changing the solver comparisons. Coverage and performance baselines are unchanged.",
+    "deferred": ["Live Thermal Desktop synchronization and TD Designer importer identification", "Paired DWG and CAD captures for initial mesh generation, reuse, and CAD or mesh-control changes", "Native importer actions, connectivity and thermal tag transfer parity"],
+    "qualified": false
   }
 }

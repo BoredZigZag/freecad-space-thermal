@@ -66,10 +66,13 @@ class NodePayload:
         f=self.fields
         if (not logic_is_empty(f['logic']) or not expression_is_constant(f['temperature_expression'])
                 or not expression_is_constant(f['mass_expression']) or not expression_is_constant(f['selector_expression'])
-                or f['temperature_mode']!=0 or f['time_table']):reject('td_node_dynamic_edit')
+                or f['time_table_mode']!=0 or f['time_table'] or f['use_material'] not in (0,1)):
+            reject('td_node_dynamic_edit')
+        if f['use_material'] and (f['node_type']!=0 or f['user_override'] or f['mass_volume_type'] not in (0,1)):
+            reject('td_node_material_edit_mode')
         for name,value in changes.items():
             if type(value) not in (int,float) or not math.isfinite(value):reject('td_node_edit_range')
-            if name=='mass_value' and value<0:reject('td_node_edit_range')
+            if name=='mass_value' and (value<0 or f['use_material'] and value==0):reject('td_node_edit_range')
             if name=='initial_temperature':
                 from fcst_contracts import BUNDLE
                 if not isinstance(temperature_unit,str) or temperature_unit not in BUNDLE['units'] or BUNDLE['units'][temperature_unit][0]!='temperature':reject('td_node_temperature_unit')
@@ -87,9 +90,9 @@ def decode_node(row,standard):
     filer=Filer(row);b=filer.data;filer.version(22)
     f={'basis':tuple(b.point() for _ in range(4)),'submodel':filer.text(),'identifier':b.bl(),
        'node_type':b.bl(),'mass_value':filer.number('mass_value'),
-       'initial_temperature':filer.number('initial_temperature'),'temperature_mode':b.bl(),'material':filer.text()}
+       'initial_temperature':filer.number('initial_temperature'),'use_material':b.bl(),'material':filer.text()}
     if not f['submodel'] or f['identifier']<=0 or f['node_type'] not in {0,1,2,3}:reject('td_node_identity_or_type')
-    counts=[filer.count()];f['use_material']=bool(b.take(1));counts.append(filer.count())
+    counts=[filer.count()];f['user_override']=bool(b.take(1));counts.append(filer.count())
     # These three serialized switches are retained without inventing meanings
     # from one observed drawing. They are not accepted as native solver policy.
     f['source_switches']=tuple(bool(b.take(1)) for _ in range(3))

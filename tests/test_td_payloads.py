@@ -25,6 +25,47 @@ def records():
 
 
 class TdPayloadTests(unittest.TestCase):
+    def test_conductor_v23_and_v24_preserve_connectivity_and_new_flags(self):
+        from fcst_exchange.dwg_bits import Bits
+        from fcst_exchange.dwg_native import Fields
+        from fcst_exchange.td_conductor import decode_conductor
+        from fcst_exchange.td_writer import FilerWriter
+
+        owned = conductor_payload('OWNED', 7, 2.5, 1, 2)
+        for version, flag in ((23, False), (24, False), (24, True), (25, False)):
+            writer = FilerWriter()
+            writer.data.bl(version)
+            data = Bits(owned.data, 0, owned.data_bits)
+            self.assertEqual(data.bl(), 22)
+            while data.position < data.end:
+                width = min(data.end - data.position, 64)
+                writer.data.put(data.take(width), width)
+            if version == 24:
+                writer.data.put(int(flag), 1)
+            strings = Bits(owned.strings, 0, owned.string_bits)
+            while strings.position < strings.end:
+                width = min(strings.end - strings.position, 64)
+                writer.strings.put(strings.take(width), width)
+            writer.references.extend(owned.references)
+            row, standard = envelope(writer.result(2), targets=(201, 202))
+            standard = Fields(standard.items())
+            if version == 25:
+                with self.assertRaisesRegex(ExchangeError, 'filer_version'):
+                    decode_conductor(row, standard)
+                continue
+            payload = decode_conductor(row, standard)
+            self.assertEqual(payload.fields['wire_version'], version)
+            self.assertEqual(payload.fields.get('additional_flag', False), flag)
+            self.assertEqual(payload.fields['from'][0]['reference']['target'], 201)
+            self.assertEqual(payload.fields['to'][0]['reference']['target'], 202)
+            if flag:
+                with self.assertRaisesRegex(ExchangeError, 'dynamic_or_nonconstant_law'):
+                    payload.edited_record({'value': 3.5})
+            else:
+                replacement, report = payload.edited_record({'value': 3.5})
+                self.assertEqual(decode_conductor(replacement, standard).fields, {**payload.fields, 'value': 3.5})
+                self.assertIn(f'v{version}', report['profile'])
+
     def test_bit_primitives_use_independent_known_vectors_and_reject_bad_tags(self):
         self.assertEqual(Bits(bytes.fromhex('8000'),0,2).bl(),0)
         self.assertEqual(Bits(bytes.fromhex('4040'),0,10).bl(),1)

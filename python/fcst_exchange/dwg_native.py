@@ -21,6 +21,8 @@ from .tools import Tool, ToolRunner, Authorization
 from fcst_app.persistence import is_link
 
 PROTOCOL='fcst-dwg-native/2'
+WRITABLE_DWG = b'AC1032'
+INSPECTABLE_DWG = (WRITABLE_DWG, b'AC1027')
 
 
 class Fields(list):
@@ -89,7 +91,7 @@ class NativeSnapshot:
 def snapshot(native_raw,standard_raw,patch_sha256,*,limits=DwgAuditLimits()):
     native=_load(native_raw,limits=limits);standard=_load(standard_raw,True,limits)
     if (not isinstance(native,dict) or set(native)!={'protocol','patch_sha256','version','opaque_encoding','read_errors','classes','objects','opaque_sections'}
-            or native['protocol']!=PROTOCOL or native['version']!='AC1032'
+            or native['protocol']!=PROTOCOL or native['version'] not in ('AC1032', 'AC1027')
             or native.get('opaque_encoding')!='msb-first-final-byte/1'
             or native['patch_sha256']!=patch_sha256 or not re.fullmatch('[0-9a-f]{64}',patch_sha256)
             or not _integer(native['read_errors'],127)):
@@ -127,7 +129,7 @@ def snapshot(native_raw,standard_raw,patch_sha256,*,limits=DwgAuditLimits()):
             reject('native_dwg_section')
         section_ids.add(row['name']);row['data']=_bytes(row['data'],row['byte_length']);total+=row['byte_length']
     if total>16777216:reject('native_dwg_opaque_limit')
-    if _one(_one(standard,'FILEHEADER'),'version')!='AC1032':reject('native_dwg_version')
+    if _one(_one(standard,'FILEHEADER'),'version')!=native['version']:reject('native_dwg_version')
     root_keys=[key for key,_ in standard]
     if len(set(root_keys))!=len(root_keys):reject('native_dwg_duplicate_section')
     standard_objects=_one(standard,'OBJECTS');standard_classes=_one(standard,'CLASSES')
@@ -233,13 +235,15 @@ class NativeRuntime:
     patch_sha256:str
 
     def run(self,operation,raw,work,*,edits=None):
-        if operation not in {'inspect','rewrite','rewrite-edited','fixture','create-network'}:reject('native_dwg_operation')
+        fixtures = {'fixture', 'fixture-ac1027'}
+        if operation not in {'inspect','rewrite','rewrite-edited','create-network'} | fixtures:reject('native_dwg_operation')
         if edits is not None and operation!='rewrite-edited':reject('native_dwg_edit_operation')
         if not re.fullmatch('[0-9a-f]{64}',self.patch_sha256):reject('native_dwg_patch')
-        if operation not in {'fixture','create-network'} and (not isinstance(raw,bytes) or not raw.startswith(b'AC1032') or len(raw)>67108864):
+        signatures = INSPECTABLE_DWG if operation == 'inspect' else (WRITABLE_DWG,)
+        if operation not in fixtures | {'create-network'} and (not isinstance(raw,bytes) or not raw.startswith(signatures) or len(raw)>67108864):
             reject('independent_dwg_container_profile')
-        outputs=('source.dwg',) if operation=='fixture' else ('native.json','standard.json')+(('derived.dwg',) if operation in {'rewrite','rewrite-edited'} else ())
-        inputs={'fixture.json':b'{"kind":"fcst-owned-container-fixture/1"}'} if operation=='fixture' else {'source.dwg':raw}
+        outputs=('source.dwg',) if operation in fixtures else ('native.json','standard.json')+(('derived.dwg',) if operation in {'rewrite','rewrite-edited'} else ())
+        inputs={'fixture.json':b'{"kind":"fcst-owned-container-fixture/1"}'} if operation in fixtures else {'source.dwg':raw}
         if operation=='create-network':
             if not isinstance(raw,bytes) or not raw.startswith(b'FCSTNEW2') or len(raw)>16777216:reject('native_dwg_new_network_packet')
             inputs={'network.bin':raw};outputs=('derived.dwg',)
@@ -249,8 +253,9 @@ class NativeRuntime:
         result,receipt=ToolRunner([tool]).run(profile,Path(work).absolute(),inputs,outputs,
                                             Authorization(profile,'convert','independent-container-v1'),
                                             limits=Limits(files=16,file_bytes=67108864,total_bytes=268435456))
-        if operation in {'fixture','create-network'}:return result,receipt
+        if operation in fixtures | {'create-network'}:return result,receipt
         decoded=snapshot(result['native.json'],result['standard.json'],self.patch_sha256)
+        if decoded.native['version'].encode('ascii') != raw[:6]:reject('native_dwg_version')
         return decoded,result.get('derived.dwg'),receipt
 
     @classmethod

@@ -12,6 +12,7 @@ from fcst_contracts import ContractError,loads,read
 from fcst_app.persistence import encode
 from .core import ExchangeError,reject,target_id
 from .sinda import SindaUnits
+from .td_filer import expression_is_constant
 from .td_node import _one
 from .td_decode import decode_drawing
 from .td_writer import node_payload,conductor_payload,load_payload,template_fields
@@ -80,10 +81,17 @@ def _profile_equal(actual,expected):
 
 
 def convert_network(snapshot,units,source_revision,*,closure_holds=()):
+    return _convert_network(snapshot,units,source_revision,closure_holds)
+
+
+def _convert_network(snapshot,units,source_revision,closure_holds=(),*,material_nodes=None,time_loads=None,inventory=None):
     diagnostics=[{'code':code} for code in closure_holds];identities=[];entities=[];entries=[]
     if not isinstance(units,SindaUnits):
         return Conversion(None,(),tuple(diagnostics+[{'code':'td_native_explicit_units_required'}]))
-    inventory=decode_drawing(snapshot);payloads=sorted((p for p in inventory.payloads if p.report['payload_decoded']),key=lambda p:p.record['handle'])
+    if snapshot.native['version'] != 'AC1032':
+        return Conversion(None, (), tuple(diagnostics + [{'code': 'td_native_container_version_unmapped'}]))
+    inventory=inventory if inventory is not None else decode_drawing(snapshot)
+    payloads=sorted((p for p in inventory.payloads if p.report['payload_decoded']),key=lambda p:p.record['handle'])
     decoded={p.record['handle'] for p in payloads};all_handles={r['handle'] for r in snapshot.native['objects']}
     classes={c['number']:c for c in snapshot.native['classes']}
     standards={_one(row,'handle')[2]:row for row in _one(snapshot.standard,'OBJECTS')}
@@ -111,6 +119,7 @@ def convert_network(snapshot,units,source_revision,*,closure_holds=()):
             groups[name]=add('submodel',digest,{'label':name},{'submodel':name})
     for p in payloads:
         f=p.fields;h=p.record['handle']
+        table=None
         try:
             if p.report.get('thermal_semantics_decoded') is False:reject('td_native_geometry_semantics_unmapped')
             if any(v['target'] and v['target'] not in all_handles for values in f['common_handles'].values() for v in values):reject('td_native_common_reference_closure')
@@ -120,11 +129,30 @@ def convert_network(snapshot,units,source_revision,*,closure_holds=()):
                 key=(f['submodel'].casefold(),f['identifier'])
                 if key in node_keys:reject('td_native_node_identity_collision')
                 node_keys.add(key);classification={0:'capacitive',1:'algebraic',2:'prescribed'}[f['node_type']]
-                expected=node_payload(f['submodel'],f['identifier'],f['initial_temperature'],f['mass_value'],classification,f['comment'])
-                _profile_equal(f,template_fields(expected,handles,handle=h))
+                material=None
+                capacity=units.quantity(f['mass_value'],'capacity')
+                if f['use_material']:
+                    if material_nodes is None:
+                        reject('td_native_nonconstant_or_unmapped_fields')
+                    if (f['use_material']!=1 or classification!='capacitive' or not f['material']
+                            or f['mass_volume_type'] not in (0,1) or f['mass_value']<=0
+                            or not expression_is_constant(f['mass_expression'])):
+                        reject('td_native_material_node_mode')
+                    material=(f['material'],f['mass_volume_type'])
+                    # Only the private thermal-input path can create this intermediate model.
+                    # Its material binder replaces the required positive capacity before output.
+                    capacity={'value':1,'unit':'J/K'}
+                expected=node_payload(f['submodel'],f['identifier'],f['initial_temperature'],f['mass_value'],
+                                      classification,f['comment'],material=material)
+                fields=template_fields(expected,handles,handle=h)
+                if material is not None:
+                    fields['mass_expression']=f['mass_expression']
+                _profile_equal(f,fields)
+                if material is not None:
+                    material_nodes[node_ids[h]]=(f['material'],f['mass_volume_type'],f['mass_value'])
                 values={'submodel_id':groups[f['submodel']],'classification':classification,
                         'temperature':units.quantity(f['initial_temperature'],'temperature'),
-                        'capacity':units.quantity(f['mass_value'],'capacity')}
+                        'capacity':capacity}
                 kind='node'
             elif 'from' in f:
                 a,b=(_connection(f[k],nodes) for k in ('from','to'))
@@ -138,18 +166,25 @@ def convert_network(snapshot,units,source_revision,*,closure_holds=()):
             else:
                 a=_connection(f['connections'],nodes);expected=load_payload(f['value'],indexes[a],f['comment'])
                 wanted=template_fields(expected,handles,handle=h);wanted['name']=f['name']
+                if time_loads is not None and f['selectors_a'][3]==1:
+                    from .td_load import load_time_table
+                    table=load_time_table(f,wanted,units)
                 _profile_equal(f,wanted);kind='load'
-                values={'node_id':node_ids[a],'power':units.quantity(f['value'],'power')}
+                values={'node_id':node_ids[a],'power':units.quantity(0 if table is not None else f['value'],'power')}
             label=f['comment'] or (f['name'] if kind=='load' else '')
             if label:values['label']=label
-            add(kind,h,values,{'handle':h})
+            identifier=add(kind,h,values,{'handle':h})
+            if table is not None:time_loads[identifier]=table
         except ExchangeError as error:diagnostics.append({'code':error.code,'handle':h})
     if not nodes:diagnostics.append({'code':'td_native_network_required'})
     model={'contract_version':'1.0.0','minimum_reader':'1.0.0','project_id':target_id((PROFILE,'project',source_revision)),
            'revision':0,'entities':entities,'source_maps':[{'id':target_id((PROFILE,'map',source_revision)),
            'version':'1.0.0','source_revision':source_revision,'source_tool':'Thermal Desktop DWG',
            'source_version':'RcNode22-RcConductor22-RcHeatLoad17; product release unknown','entries':entries}],
-           'mappings':[],'attachments':[],'assumptions':['Explicit source units; closed constant-network serialization profiles'],
+           'mappings':[],'attachments':[],'assumptions':[
+               'Explicit source units; closed network with time-dependent power' if time_loads
+               else 'Explicit source units; closed network with material-based node storage' if material_nodes
+               else 'Explicit source units; closed constant-network serialization profiles'],
            'limitations':['Full TD/source-version, owned-engine and paired ESATAN qualification pending'],
            'audit':{'timestamp':'source-import'},'gui':{'selection':[]}}
     if not diagnostics:

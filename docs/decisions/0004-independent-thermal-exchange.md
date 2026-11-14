@@ -189,6 +189,9 @@ WP-08 remains in progress. Deliver these slices in order:
    independently authored fixtures. Start with nodes, linear conductors and
    scalar loads, then required geometry/material/optical/case/logic classes.
    Retain versioned opaque regions and refuse unsupported required semantics.
+   WP-08 validates the required TD 6.3 profile. The historical `RcPolygon`
+   C++ class and additional serialization revisions outside that profile are
+   optional extensions.
 3. Read/write each required companion format directly, preserving source
    identity and dependency closure; never guess private database schemas.
 4. Map decoded data into canonical FCST entities and implement the reverse

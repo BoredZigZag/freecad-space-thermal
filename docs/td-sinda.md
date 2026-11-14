@@ -17,16 +17,62 @@ qualification remains open.** The user authorized pushing this tested delivery
 with the dependent qualification holds retained. No licensed AutoCAD host is
 available on the development machine. Owned-engine thermal/radiation/environment
 comparisons and paired ESATAN qualification remain WP-11/WP-12 and WP-09 work.
-Required source semantics and other target versions still need qualification.
+Required source semantics for TD 6.3 still need qualification.
 
 `ci/td-profiles.json` freezes the observed Thermal Desktop **6.3.022**,
 SINDA/FLUINT **6.3.15**, OpenTD assembly **6.3.0.0** and its exact SHA-256.
 The actual assembly targets **.NET Framework 4.6**. The owned C# sidecar builds
 with the Windows x64 Framework compiler against the separately installed assembly;
-it does not redistribute vendor DLLs. 2025 R2 and 2026 R1 profiles are explicitly
-unimplemented. An absent or mismatched profile fails before source mutation.
+it does not redistribute vendor DLLs. The unimplemented 2025 R2 and 2026 R1
+profiles are optional extensions. An absent or mismatched runtime for an
+explicitly selected reference profile fails before source mutation.
 
 ## Independent DWG profiles and exports
+
+### Inspect the complete drawing and its project files
+
+```powershell
+fcst td-inspect-project source main.dwg .local/project-inventory.json --backend .local/dwg-backend/install/backend.json --work .local/project-inventory-work
+```
+
+The command captures the drawing tree and walks the DWG named-object
+dictionary, including nested entries and their resolved handles. It inventories
+the versioned TD records, retains opaque classes in the report, and lists
+captured companions by file role. Case property overrides resolve against the
+captured tree relative to the drawing. Unsafe, missing and wrong-role inputs
+stay explicit. The report carries source handles as strings to preserve their
+full width. The file inventory recognizes SpaceClaim (`.scdoc`), TD Designer
+(`.dsco`) and CoSolver settings (`.scp`). It resolves the stored SpaceClaim
+path from reviewed `TdScImporter` v6 records against the captured tree and
+lists linked drawing objects. Synchronization and generator controls remain open.
+
+The supported case-manager layout inventories the first v73 case through its
+steady/transient selectors, v36 radiation tasks, property overrides, thermal
+and fluid submodel source blocks, solver controls, restart path and stored
+SINDA INSERT list. Radiation tasks identify named orbit links and
+object references. The reader checks the full v35 orbit payload and the stored
+orbit-unit selectors. It also covers the v7 symbol manager, the empty v4 logic
+manager, submodel comments, analysis controls, graphics settings and empty
+viewport data. Source values and expressions remain inert.
+
+The inventory resolves direct INSERT paths, the named generated SINDA deck
+when present, and the active restart SAVE file. It uses the drawing directory
+by default and supports an explicit safe relative run directory. It inventories
+nested INSERT edges relative to their containing files and reports cycles,
+unsafe paths, malformed directives and missing members. Repeated references
+remain visible and each captured file is parsed once. The SAVE payload is
+retained as an opaque companion. The v12 manager with v78 cases exposes the
+first case header and advertised case count. Its run directory, nested controls,
+subsequent cases and CSR restart semantics still need decoding.
+
+The report leaves model readiness held. Remaining work includes subsequent
+case records and the case trailer, complete case dependency closure, active
+manager and logic records, environment-to-physics mapping, and native
+reconstruction and solver verification for the complete drawing. Keep the
+inventory and working directory local because they can contain source names,
+paths, settings and expressions.
+
+### Preview, edit and export a drawing
 
 `python tools/build_independent_dwg.py` builds the locked separate GPL backend
 and runs the frozen unattended native checks, including the actual vendor-free CLI,
@@ -45,8 +91,14 @@ prior vendor conversion or service. Original files remain immutable. Exports
 publish a new tree atomically after validation; existing destinations, source/work
 overlap, stale sources and unrequested changes reject.
 
-The declared binary payload profiles are **RcNode v22**, **RcConductor v22** and
-**RcHeatLoad v17**. These are serialization versions, not TD release claims.
+The backend supports AC1032 inspection and guarded writes. AC1027 supports
+inspection, geometry export for decoded records and byte-exact source copying.
+Native thermal conversion, DWG rewrite and edited drawing export require AC1032.
+
+The binary payload readers cover **RcNode v22**, **RcConductor v22–v24** and
+**RcHeatLoad v17**, including v5 and v6 expressions. Closed-network reconstruction
+uses the original validated conductor v22 profile. These wire versions do not
+identify TD releases.
 Readers consume the entire data, separate UCS-2 text and reference streams;
 unsupported versions remain opaque with an explicit diagnostic. They inventory
 source expressions, tables, logic and unresolved selectors without executing or
@@ -228,6 +280,61 @@ using `{entry, field, values}`, or an existing component number using
 `{entry, component, field, value}` with a zero-based component index. Counts,
 references and modes remain fixed; all unselected source bytes are preserved.
 
+## Prepare native temperature-dependent material input
+
+`fcst td-prepare-materials ROOT materials.tdp model.json bindings.json thermal-input.json`
+reads an independent TDP library and an existing canonical network. The TDP,
+model, and bindings paths are relative to `ROOT`. The command writes a new
+thermal-input v1 file for the native worker or, for case-free networks,
+`fcst spatial-solve`. The converter reads files directly and requires no
+external engine, vendor installation, or license. The
+binding JSON has four required fields.
+
+- `materials` maps exact TDP entry names to `minimum_K`, `maximum_K`, and
+  `reference_K`. The reference temperature determines the nominal values shown
+  on the canonical material. The worker receives the complete active tables.
+- `node_storage` maps existing capacitive node UUIDs to `entry` and `mass_kg`.
+  A node can supply `volume_m3` in place of `mass_kg`, using the material's
+  constant density to derive mass. The map can be empty. Bound nodes derive initial capacity from mass and specific
+  heat at their initial temperature. The worker integrates the resulting
+  temperature-dependent heat storage during a transient solve.
+- `interpolation` is `linear` or `previous`. In `previous` mode the preparation
+  records every changed knot as a discontinuity.
+- `extrapolation` is `error` or `clamp`. With `error`, each active table must span
+  exactly the declared interval. With `clamp`, endpoints extend within the
+  declared interval.
+
+Supply `case_id` for a model with cases. The profile rejects a selected case
+that overrides a bound node's initial temperature. It accepts basic
+isotropic materials with constant density and constant or one-dimensional
+temperature-dependent specific heat and conductivity. Composite, orthotropic,
+pressure-dependent, and effective-emissivity modes remain outside this profile.
+The source map binds the original TDP hash to each imported material. The
+[synthetic fixture](../tests/fixtures/thermal/td-material-input.json) includes
+a complete binding example. Full TD and source-version qualification remains open.
+
+### Prepare a DWG with material-derived nodes
+
+`fcst td-prepare-drawing ROOT network.dwg thermal-input.json` takes the same
+material and interpolation policy, supplied through `--bindings` without
+`node_storage`. It derives the node bindings from the DWG records. Supply the
+FCST `--backend` receipt and `--work` directory, all five network unit options
+used by `td-package`, plus `--mass-unit` (`kg`, `g`, or `lbm`) and
+`--volume-unit` (`m3`, `cm3`, `mm3`, `in3`, or `ft3`). The bindings file and
+output belong outside the captured source tree. The tree contains the drawing
+and one TDP library, and the policy covers exactly the names referenced by
+material-based nodes.
+
+Static analysis of the 6.3 serialization and node export logic distinguishes
+the material-use selector from the user-override flag. The mass/volume
+selector identifies whether the same numeric field is a mass or a volume.
+The reader applies this mapping to standalone capacitive `RcNode` v22
+records with constant source inputs. The owned DWG workflow exercises both
+selectors, changes a mass field, and reopens the edited drawing and unchanged
+library through the conversion CLI. Other companion layouts, dynamic node
+logic, overrides, and geometry-based assignments remain held. The prepared
+thermal input carries both source maps and the full storage and material laws.
+
 ## Geometry and remaining format evidence
 
 The complete RcRectangle v7/attribute-marker-54 and RcFdBrick v21 profiles now
@@ -240,6 +347,11 @@ nodes/conductors/loads this covers 996 complete payloads. Unknown rectangle
 attribute revisions retain a partial envelope; unsupported solids retain opaque
 bytes. Neither status grants physical reconstruction.
 
+Rectangle markers 55 and 56 and FD brick v23 support complete decoding and static
+boundary export. Their additional attributes are retained. Serialized size
+edits and thermal material assignment use the earlier validated rectangle and
+brick layouts.
+
 Owned `rectangle_payload`/`brick_payload` writers create those complete records
 without an imported drawing or vendor template. The native factory writes their
 actual class identities (`RCRECTANGLE`/`RcRectangle` and
@@ -250,24 +362,162 @@ the declared constant guard; every other bit/field and source file is checked.
 Zero/one compression can expand by up to 128 bits. JSON source handles accept
 safe integral numbers or decimal strings for uint64 identities; rounded numeric
 aliases, booleans and duplicate identities reject. This interface edits serialized
-parameters, not canonical dimensions, and performs no mesh regeneration.
+source slots. A fresh geometry export uses the edited dimensions.
 
-The original geometry objects currently fail the expression guard and remain
-ineligible for parameter edits. Their complete structures and exact bytes can be
-read and preserved. Parameter-unit/selector interpretation, material/optical and
-mesh assignments, expression evaluation and regeneration still need independent
-semantic mappings. Complete structural decoding explicitly reports
+The reviewed two-expression rectangle and three-expression brick layouts allow
+size edits through `serialized_parameters`. The positive X and Y sizes occupy
+the first two values. A brick adds its Z size as the third value. Constant
+expressions are required and other slots in these layouts are preserved.
+Complete structural decoding explicitly reports
 `thermal_semantics_decoded=false` and cannot promote a drawing to a native
-constant network. No units or thermal physics are guessed from display geometry.
+constant network.
 
-Remaining independent implementation needs verified layouts/semantics for complete
-additional surface/solid/mesh classes and physical bindings, material-derived node modes, canonical variable/composite and
-spectral bindings, composite effective physics, case/manager, orbit/environment
-and dynamic source constructs. Those
-fields cannot be reconstructed by guessing from display geometry or neutral
-selector numbers. Additional serialization versions, including the planned
-2025 R2/2026 R1 coverage, need suitable format/fixture evidence. Required unknown
-objects still prevent importing the entire available example as a native model.
+`fcst td-export-geometry ROOT network.dwg output.obj --backend RECEIPT --work WORK --length-unit mm`
+exports geometry using the declared drawing length unit. OBJ coordinates are
+in metres. Repeat
+`--handle` with decimal DWG handles to select specific objects. With no handles,
+the command checks all recognized geometry records, including known classes
+whose layouts are still held. The OBJ object names retain source handles.
+Keep derived geometry from restricted drawings local.
+
+Pass a `TdMesher` or `TdMesherVA` v43, `TdFiniteElementMeshImporter` v39 or `TdScImporter` v6
+handle to export its linked, already generated geometry. The export follows
+declared drawing references and retains the linked element handles in OBJ.
+Explicit generator selections allow up to 100,000 faces and all exports are
+bounded to 16 MiB. The importer settings stay opaque. Project inspection
+resolves declared `.scdoc` and `.dsco` paths inside the captured source tree.
+The `.dsco` binding applies when the document is named by the supported
+`TdScImporter` v6 layout. Native Discovery-generated DWG samples are pending.
+
+```text
+fcst td-compare-mesh-states before network.dwg after network.dwg comparison.json --before-handle 106 --after-handle 208 --backend RECEIPT --work WORK --expect changed
+```
+
+Select the same logical importer or mesher in both captures. The command
+reports drawing and linked CAD hashes, node and element counts, and whether an
+ordered connectivity and coordinate fingerprint changed. It allows an empty
+starting mesh. Use paired initial-sync, parameter-change and reuse captures
+with the same drawing units. DWG handle renumbering alone does not change the
+fingerprint for distinct coordinates. The report also fingerprints named
+DWG groups that contain selected nodes or elements and the source
+submodel and node number assignments. Use `--expect initial` for an empty-to-meshed
+transition, `--expect changed` for changed geometry between populated meshes,
+or `--expect unchanged` for matching populated geometry, node assignments
+and group memberships. Use `--expect retagged` for changed group memberships
+on matching geometry and node assignments.
+A failed expectation leaves the output path untouched. Companion changes are
+reported separately.
+The user conditionally accepted native TD Direct and TD Designer synchronization
+and mesh regeneration because a licensed Thermal Desktop host is unavailable.
+Live tests of initial synchronization, reuse, regeneration after edits and
+thermal tag transfer are deferred with their paired DWG/CAD captures.
+
+The exporter applies the drawing origin and right-handed basis, the local
+translation and ordered rotations, and the stored normalized subdivision
+boundaries. Static 6.3 code analysis establishes the size and transform layout.
+The local rotation axes use the right-hand rule, and the translation occupies
+the translation column of the local affine transform. [ObjectARX transform methods](https://help.autodesk.com/cloudhelp/2019/ENU/OARX-RefGuide/files/OREF-__MEMBERTYPE_Methods_AcGeMatrix3d.html)
+The exported solid mesh covers its exterior. For disks, cylinders and spheres,
+the exporter retains the literal partition boundaries and adds angular samples
+at most 22.5 degrees apart. It joins the full-revolution seam and merges the
+collapsed axis or pole vertices. The curved boundary is a tessellation for
+display. Finite-element boundaries use the ordered source node coordinates.
+Missing or unsupported node targets, nonzero node offsets, invalid element
+geometry and dynamic primitive size, transform or subdivision expressions
+produce diagnostics.
+
+| TD geometry family | AC1032 coverage |
+| --- | --- |
+| Rectangle, disk, ellipse, cone, cylinder, sphere, ellipsoid, elliptic cone and cylinder | Static boundary export |
+| Parabolic trough, paraboloid, offset paraboloid, torus | Static boundary export |
+| Scarfed cone and cylinder | Static boundary export with either sign of scarf angle where the trim plane intersects every generator above the base. |
+| Ogive | Static circular-profile boundary with full or partial sweep. |
+| FD brick, solid cone, cylinder, sphere and ellipsoid | Static boundary export. Hollow ellipsoids support strictly nested full-sweep cavities with independent trims, plus proportional walls with matching normalized trims. |
+| Polygon and FD mesh | Ordered connectivity and boundary export for reviewed `RcMeshFD` revisions, including marker 56. The historical `RcPolygon` C++ class is optional extended coverage. |
+| Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundaries. Owned fixtures cover bounded legacy triangle, quadrilateral, tetrahedron, wedge and brick wrappers. Additional legacy serialization revisions are optional. Unmapped node selectors for required layouts remain open. |
+| Quadratic triangle and quadrilateral | Four-face display tessellation through stored midside points where the edge assignment is unambiguous. The stored node order is preserved in the inventory. |
+| Quadratic tetrahedron, pyramid, wedge and brick | Bounded wrapped solid layout, ordered source connectivity and a closed display boundary through stored midside points when each edge can be associated unambiguously. |
+| Automatic mesh and CAD importer entities | Stored links for the reviewed profiles, including `TdMesherVA`, and saved-state mesh comparison. |
+
+The conic and high-order boundaries are tested against analytic or synthetic
+geometry. The legacy and quadratic-solid wrappers and the `TdMesherVA`
+registration were reviewed against the installed reader and tested with owned
+records. The user conditionally accepted layout validation based on this
+evidence. The source inventory preserves the deferred original comparisons.
+
+The catalog includes the geometry families exposed by TD's API. The class
+catalog describes the product surface across releases. Serialized layout
+support is tied to explicit wire versions and tested separately.
+[OpenTD 2025 R2](https://developer.synopsys.com/docs/opentd-net8-reference-2025-r2/class_open_t_d_1_1_thermal_desktop.xhtml)
+[OpenTD 2026 R1](https://developer.synopsys.com/docs/opentd-reference-2026-r1/net8-reference/OpenTD.ThermalDesktop.md)
+
+The [WP-08 source inventory](../inventory/td-geometry-sources.md) records the
+local drawing checks and the fixtures needed for additional geometry and
+thermal coverage.
+
+### Regenerate an FCST CAD project
+
+```text
+fcst td-sync-cad-mesh original.fcst edited-mesh.json edited.brep regenerated.fcst --mapping assignments.json
+```
+
+This command takes a fresh mesh from the pinned FreeCAD/Gmsh path and a
+matching BREP. It writes a new FCST package and keeps the original package
+intact. The host `fcst_host.cad_mesher.regenerate` entry point runs the pinned
+mesher asynchronously and prepares the same portable output in memory.
+With unchanged geometry and region names, it reapplies the accepted material
+and boundary settings and reuses an identical saved mesh. A geometry or region
+change requires a `region_map` covering all old and new regions one-to-one and
+a `face_map` matching every previously assigned face to a distinct new face.
+A total-power boundary keeps its integrated power on the regenerated facets.
+The new package contains recalculated conduction inputs. Previous solver
+results remain in the source package. Verification of native TD Direct and TD
+Designer actions and DWG regeneration falls under the conditional acceptance
+above.
+
+### Prepare a native conduction mesh
+
+```text
+fcst td-prepare-spatial ROOT network.dwg thermal.json --backend RECEIPT --work WORK --properties materials.tdp --length-unit mm --temperature 300 --temperature-min 250 --temperature-max 450
+fcst spatial-solve thermal.json --worker WORKER --mode transient --end 60 --output result.json
+```
+
+The converter uses the DWG subdivision and transform to build quad4 cells
+for single-layer rectangles and interior hex8 cells for homogeneous bricks.
+It reads the rectangle's top material and thickness and the brick's assigned
+material. `--properties` names the TDP companion inside the captured source
+tree. Material names match case-insensitively and density, specific heat and
+conductivity must be present. The length unit applies to geometry and
+thickness. Initial temperature and the material validity interval are in
+kelvin. The output records the source revisions and maps each DWG handle to
+its generated submodel.
+
+The mesh uses FCST-generated nodes with volume-weighted thermal capacity.
+Bodies are independent and have insulated boundaries. Basic material
+conductivity can be isotropic or orthotropic. Orthotropic axes follow the
+transformed primitive axes. The converter binds active temperature-only
+conductivity and specific-heat tables using piecewise-linear interpolation on
+the declared interval. Every active table must cover that interval. The
+converter also supports constant, axis-aligned laminates of basic materials and
+constant basic-material aggregates with exact series or parallel weighting per
+axis. The volumetric heat capacity accounts for the mass of each constituent.
+Pressure-dependent tables, variable composites, active layering, advection and
+dynamic geometry remain held. Curved and finite-element bodies have geometry
+export support. Their native thermal reconstruction, source node numbering on
+finite-difference primitives, contacts, loads, radiation and case settings
+remain open. Use repeated `--handle` arguments to select bodies when the complete
+selection exceeds the 1 MiB spatial input limit.
+The owned DWG reader and the FCST worker require no vendor runtime or license.
+
+Remaining independent implementation includes further surface, solid and mesh
+classes, automatic mesh regeneration, complete material and optical assignments,
+source geometry-to-node and face coupling, additional material-derived node
+modes, and case, orbit/environment and dynamic source constructs. Unknown fields
+and objects required by the 6.3 profile still prevent full native import of the
+available example. Optional serialization revisions and the historical
+`RcPolygon` class need their own format and fixture evidence for any future
+coverage claim. A drawing that depends on an unsupported object still receives
+an unsupported or partial-conversion diagnostic.
 The closed-network, property, array and preservation work above does not depend
 on WP-09/WP-11/WP-12. Their paired ESATAN and owned-engine comparisons remain
 separate Q1 completion dependencies. No user-executed acceptance is required.
@@ -330,7 +580,7 @@ and size/depth/entity budget overruns fail closed. Default limits reuse WP-07's
 Noncomment data after `END OF DATA`, ambiguous terminators inside INSERT files
 and data headers without an explicit submodel also reject native reconstruction.
 
-Active property-array consumers, runtime controls/cases, dynamic registers, unreviewed procedures,
+Other property-array consumers, runtime controls/cases, dynamic registers, unreviewed procedures,
 advanced radiation/fluid constructs and unknown syntax remain inert, with explicit
 source locations and fidelity limits. This profile does not claim complete SINDA
 language execution. Unsupported required semantics block native readiness and
@@ -340,6 +590,32 @@ The parser maps its reviewed subset into the frozen canonical model, with stable
 submodel/node/conductor/load identities and dimension/temperature checks. Per-record
 and per-operation reports use the shared fidelity schema. Static parsing cannot
 qualify source execution, editing, the native solver or an entire compatibility profile.
+
+### Prepare time-dependent point loads
+
+`fcst sinda-prepare-transient ROOT network.sin request.json --temperature-unit K --capacity-unit J/K --conductance-unit W/K --power-unit W --time-unit s --end 120`
+binds the documented `TVS node, time-array, power-array, factor` and
+`PER node, time-array, power-array, factor, phase, period` source declarations.
+The paired arrays must have real storage, equal lengths, and the same submodel.
+References can be local or submodel-qualified. Factors and periods can use the
+supported immutable registers. This profile supports one source declaration per
+node and zero phase displacement for `PER`.
+
+`fcst td-prepare-transient ROOT network.dwg request.json --backend RECEIPT --work WORK --temperature-unit K --capacity-unit J/K --conductance-unit W/K --power-unit W --time-unit s --end 120`
+reads a closed DWG point network with literal, single-node RcHeatLoad v17 time
+tables. The active time mode selects the table, the stored multiplier scales
+its power, and the final time defines its cycle period. TD steady-only
+selection stays out of the transient request.
+
+Both commands accept `--samples` and write a bounded JSON request outside the
+source tree. The run starts at zero and `--end` is in seconds. Pass the request
+to `fcst-worker --thermal-transient` on standard input. The worker interpolates
+linearly, clamps nonperiodic loads outside their tables, and clips steps at
+table knots. At cycle resets it integrates the left limit and reports the
+right-hand power at the reset time. Dropping the time tables prevents execution.
+Source procedures, temperature-dependent sources and unsupported control or
+geometry modes remain held. This covers native power-law execution for the
+declared subset. SINDA timestep parity and full TD/SINDA qualification remain open.
 
 ## Source export and portable packages
 
@@ -478,3 +754,7 @@ private originals, decoded structures, source-handle maps, generated DWG files a
 raw reference/build/CLI logs stay local. Public evidence includes profile counts,
 hashes and verdicts only. TST-021 executes `tests/test_td_geometry.py`, the frozen
 native fresh-process workflows and exact staged/history/report/prose preflight.
+The curved and finite-element geometry tests use owned wire fixtures. The
+variable-material acceptance uses an owned DWG/TDP pair and checks native flux,
+conservation, heat capacity and integrated enthalpy in both Windows presets.
+Scan these sources, pins and bounded verdicts under TST-021 before publication.

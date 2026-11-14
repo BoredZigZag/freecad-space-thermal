@@ -133,7 +133,7 @@ def parse(path,raw,limits=Limits(),initial=("","MAIN")):
                     if section in {'NODE DATA','CONDUCTOR DATA','SOURCE DATA','ARRAY DATA'} and header[2] is None:code='sinda_submodel_required'
                 elif include:
                     kind="INCLUDE";value={"path":next(x for x in include.groups() if x is not None).replace('\\','/'),"section":section,"submodel":submodel}
-                elif text.upper().startswith('INSERT '):
+                elif re.match(r'INSERT(?:\s|$)', text, re.I):
                     kind="INCLUDE";code="malformed_insert"
                 elif re.fullmatch(r'END\s+OF\s+DATA',text,re.I):kind="END";value={};ended=True
                 else:
@@ -210,7 +210,35 @@ def expanded_fields(kind,text,registers,limit):
     return [[str(start+i*step),str(fs+i*fi),str(ts+i*ti),fields[-1]] for i in range(count)]
 
 
-def _convert(sources,graph,errors,units,limits):
+def _time_source(fields, submodel, arrays, registers, units):
+    from .time_loads import time_table
+
+    option, number = fields[0].split()
+    if len(fields) != (4 if option == 'TVS' else 6):
+        reject('sinda_time_source_fields')
+    selected = []
+    for reference in fields[1:3]:
+        match = re.fullmatch(r'(?:(?P<submodel>[A-Z][A-Z0-9_]{0,31})\.)?A(?P<number>\d{1,8})',
+                             reference.upper())
+        if not match:
+            reject('sinda_time_source_array_reference')
+        key = (match['submodel'] or submodel, int(match['number']))
+        if key not in arrays or arrays[key].storage != 'real':
+            reject('sinda_time_source_array_reference')
+        selected.append(arrays[key])
+    time, power = selected
+    if time.submodel != power.submodel or len(time.values) != len(power.values):
+        reject('sinda_time_source_array_pair')
+    period = None
+    if option == 'PER':
+        if scalar(fields[4], registers) != 0:
+            reject('sinda_time_source_phase_unmapped')
+        period = scalar(fields[5], registers)
+    return number, time_table(list(zip(time.values, power.values)), units,
+                              scalar(fields[3], registers), period=period)
+
+
+def _convert(sources,graph,errors,units,limits,*,time_loads=None):
     records=[r for s in sources for r in s.records if r.kind!='COMMENT']
     rows=[];registers={};pending={};entities=[];entries=[];ids={};submodels={}
     def source_key(submodel,handle):return ("SINDA63."+submodel,str(handle))
@@ -258,7 +286,17 @@ def _convert(sources,graph,errors,units,limits):
                 name=next((n for n,(_,r) in pending.items() if r.source_id==record.source_id),None)
                 if name is None or name in unresolved:reject("unresolved_or_dynamic_register")
             elif record.kind in {'NODE','CONDUCTOR','LOAD'}:
-                expanded=expanded_fields(record.kind,value['text'],registers,limits.records)
+                time_source = record.kind=='LOAD' and re.match(r'^(?:TVS|PER)\s', value['text'], re.I)
+                table = None
+                if time_source:
+                    if time_loads is None:reject('sinda_time_load_requires_transient')
+                    fields = split_fields(value['text'].upper())
+                    if not re.fullmatch(r'(?:TVS|PER)\s+[1-9]\d{0,9}', fields[0]):
+                        reject('sinda_time_source_node')
+                    number,table = _time_source(fields,value['submodel'],arrays,registers,units)
+                    expanded = [[number,'0']]
+                else:
+                    expanded=expanded_fields(record.kind,value['text'],registers,limits.records)
                 if len(entities)+len(staged)+len(expanded)>limits.records:reject('sinda_gen_limit')
                 for index,fields in enumerate(expanded):
                     required={'NODE':3,'CONDUCTOR':4,'LOAD':2}[record.kind]
@@ -276,7 +314,7 @@ def _convert(sources,graph,errors,units,limits):
                                    "temperature":units.quantity(t,'temperature'),"capacity":units.quantity(c,'capacity')},record)
                         if index==0:target=generated
                     else:
-                        generated=None;staged.append((record,fields,sm,handle,raw_id,source_id))
+                        generated=None;staged.append((record,fields,sm,handle,raw_id,source_id,table))
                     if index:
                         generated_row=fidelity(record,'native-reconstructed',target=generated)
                         generated_row['source_id']=source_id;rows.append(generated_row)
@@ -296,7 +334,7 @@ def _convert(sources,graph,errors,units,limits):
         key=('node',(m[1] or default).upper(),str(int(m[2])))
         if key not in ids:reject("sinda_missing_node")
         return ids[key]
-    for record,fields,sm,handle,raw_id,source_id in staged:
+    for record,fields,sm,handle,raw_id,source_id,table in staged:
         row=by_source[source_id]
         try:
             if record.kind=='CONDUCTOR':
@@ -305,6 +343,7 @@ def _convert(sources,graph,errors,units,limits):
                 target=add('conductor',sm,handle,{"from_node_id":node(fields[1],sm),"to_node_id":node(fields[2],sm),"conductance":units.quantity(value,'conductance')},record)
             else:
                 target=add('load',sm,handle,{"node_id":node(fields[0],sm),"power":units.quantity(scalar(fields[1],registers),'power')},record)
+                if table is not None:time_loads[target]=table
             row['target_id']=target
         except ExchangeError as error:row.update(status='unsupported',limitations=[error.code])
     revision=sha256(encode([{'path':s.path,'sha256':sha256(s.content).hexdigest()} for s in sources])).hexdigest()
@@ -352,6 +391,20 @@ class SindaAdapter:
             for operation in report['operations']:
                 if operation['operation'] in {'unchanged-export','controlled-edit'}:operation.update(supported=False,status='unsupported',limitations=[issue])
         return Preview(Path(root).absolute(),entry,self.profile,sources,encode(report),encode(model) if model is not None else None)
+
+    def prepare_transient(self, root, entry, *, end, samples, limits=Limits()):
+        from .time_loads import transient_request
+
+        root = Path(root).absolute()
+        sources, graph, errors = _resolve(root, entry, limits)
+        time_loads = {}
+        report, model = _convert(sources, graph, errors, self.units, limits, time_loads=time_loads)
+        if not report['runnable']:
+            reject(report['diagnostics'][0]['code'] if report['diagnostics'] else 'sinda_time_load_network')
+        request = transient_request(model, time_loads, end=end, samples=samples)
+        if issue := preservation_check(root, sources, limits):
+            reject(issue)
+        return request
 
     def validate_patch(self,record,replacement,limits):
         if record.kind not in {'NODE','CONDUCTOR','LOAD','REGISTER','ARRAY'}:reject("unsupported_sinda_patch")

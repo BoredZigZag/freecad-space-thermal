@@ -98,16 +98,19 @@ class FilerWriter:
         return EncodedPayload(kind,bytes(self.data.bytes),self.data.count,bytes(self.strings.bytes),self.strings.count,tuple(self.references))
 
 
-def node_payload(submodel,identifier,temperature,capacity,classification,label=''):
+def node_payload(submodel,identifier,temperature,capacity,classification,label='',*,material=None):
     if classification not in {'capacitive','algebraic','prescribed'}:reject('td_writer_node_classification')
+    name,mode=('UNDEFINED',0) if material is None else material
+    if material is not None and (classification!='capacitive' or not name or mode not in (0,1) or capacity<=0):
+        reject('td_writer_node_material')
     f=FilerWriter();b=f.data;b.bl(22)
     for point in ((0,0,0),(1,0,0),(0,1,0),(0,0,1)):b.point(point)
     f.text(submodel);b.bl(identifier);b.bl({'capacitive':0,'algebraic':1,'prescribed':2}[classification])
-    b.bd(capacity);b.bd(temperature);b.bl(0);f.text('UNDEFINED')
+    b.bd(capacity);b.bd(temperature);b.bl(int(material is not None));f.text(name)
     b.bl(0);b.put(0,1);b.bl(0)
     for _ in range(3):b.put(0,1)
     b.bl(0);b.bl(0);b.bl(0);b.bd(-1)
-    f.expression(13);f.expression(4);f.text(label);b.bl(0);b.bl(1);f.expression();b.bl(0);b.put(0,1);f.logic()
+    f.expression(13);f.expression(4);f.text(label);b.bl(mode);b.bl(1);f.expression();b.bl(0);b.put(0,1);f.logic()
     for _ in range(3):b.bd(0)
     f.references.append(0);return f.result(1)
 
@@ -123,16 +126,19 @@ def conductor_payload(submodel,identifier,value,from_index,to_index,label=''):
     b.bl(1);b.bl(0);return f.result(2)
 
 
-def load_payload(value,node_index,label=''):
+def load_payload(value,node_index,label='',*,time_table=(),multiplier=1,steady_mode=0):
     f=FilerWriter();b=f.data;b.bl(17);f.text(label or 'FCST load');f.text(label);b.bd(value)
-    for _ in range(4):b.bl(0)
-    b.bl(0);b.bl(1);f.expression(16);b.bd(1);f.expression();b.bl(0);b.bd(1);f.expression()
+    if len(time_table)>10000:reject('td_filer_array_limit')
+    for selector in (0,0,0,int(bool(time_table))):b.bl(selector)
+    b.bl(len(time_table))
+    for time,power in time_table:b.bd(time);b.bd(power)
+    b.bl(1);f.expression(16);b.bd(multiplier);f.expression();b.bl(0);b.bd(1);f.expression()
     for _ in range(3):b.bl(0)
     b.bl(0);f.text('')
     for value in (0,-1,-1,-1):b.bl(value)
     b.bd(1);f.expression();b.bl(0);b.bl(0);b.bl(0);f.text('')
     for value in (0,-1,-1):b.bl(value)
-    b.bl(1);f.expression();f.connection(node_index);b.bl(0)
+    b.bl(1);f.expression();f.connection(node_index);b.bl(steady_mode)
     for dimension in (2,27,2,4,27,4,27):f.multi_expression(dimension)
     b.bl(0);return f.result(3)
 

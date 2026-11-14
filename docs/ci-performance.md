@@ -708,3 +708,238 @@ first repetition includes SciPy initialization. The warm
 repetitions bound the cost of the expanded checks. The workload
 changed from the previous pass, and these samples do not measure
 a hosted-runner speedup.
+
+## WP-08 TD material binding
+
+The cold [PR #41 baseline run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43036017267)
+took 492 seconds from the first job start through the Foundation gate. Unit
+tests took 88 seconds and the dependent Windows Debug job took 378 seconds,
+including a 326.797-second verification driver with three workers. Embree
+finished 38 seconds before Debug, so eliminating its tail in this observed job
+schedule saves zero seconds. Debug radiation acceptance was the largest stage
+at 167.5 seconds. The Release driver took 290.204 seconds with two workers and
+host acceptance was its largest stage at 139.656 seconds. TD exchange took
+7.000 seconds in Debug and 6.922 seconds in Release. The artifact flagged the
+Debug spatial and Release host stages against the warm baseline. Cache state and
+workload differ, so those timings do not isolate a regression in this change.
+
+The new analytic case reuses the existing thermal stage. The transient worker
+already validates and prepares its input, so a separate preparation launch
+should add latency without changing its numerical result. Five alternating local
+pairs used the same built MSVC worker per configuration, input and criteria,
+with a warm-up and no build or download in the timing. Preparation plus solve
+versus solve alone measured 901.33 ms (814.46–1010.48) versus 460.33 ms
+(409.03–522.24) in Debug and 129.08 ms (123.14–165.23) versus 68.59 ms
+(64.74–69.93) in Release. Every transient model hash and sample matched.
+The new case uses one worker launch. The configured baseline, radiation
+ensemble and scaling workload are retained.
+
+The DWG material-node extension adds its fresh-process source checks to the
+existing independent backend job. In the same baseline run that job finished
+257 seconds before Debug. Shortening it alone would leave the observed gate
+time unchanged. The added case reuses the backend already built by that job
+and shares its fixture and library across conversion, edit and reopen. Five
+alternating local pairs of fresh CLI conversions, after warm-up, used the
+same Release codec and equivalent original and edited owned drawings. The
+original conversion took 0.839 s (0.792–0.920) and the edited conversion took
+0.824 s (0.784–0.850). Each invocation verified both storage bindings. These
+samples measure conversion including process startup and exclude build, edit
+and download time. The ranges overlap and establish no throughput change.
+
+Concurrent local preset startup exposed a shared editable-install failure in
+Debug. The retry began after Release had completed packaging, and both preset
+packaging stages then passed. Hosted matrix jobs each have their own checkout.
+
+The boundary mesh extension adds its source-edit and fresh-export checks to the
+same independent backend job. Debug radiation and Release host acceptance remain
+the largest stages in the latest passing hosted handoff. The new mesh builder
+reuses each transformed vertex across the adjacent quads. In seven alternating
+local pairs after warm-up, the same 1,536-quad owned brick took 21.583 ms
+(20.652–24.619) when recomputing a point on every face and 7.534 ms
+(7.305–7.695) when reusing the transformed points. Every vertex and face matched.
+The timing excludes DWG inspection, build and process startup. It establishes
+the local cost of the mesh loop. The hosted timing baseline remains in place.
+
+The static conduction mesh adds one DWG CLI invocation on the existing
+edited-and-reopened fixture and one FCST worker invocation per Windows preset.
+The last passing hosted handoff, run 43050724552, measured 559.141 s for the
+Debug driver. Radiation was its longest stage at 306.780 s, with spatial
+discretization at 234.560 s. The independent DWG job completed in 191 s and
+ran in parallel with the unit tests and Windows jobs. The hypothesis for this
+slice is that sharing the DWG creation and reopen and keeping the native
+physics assertion inside the existing spatial stage limits added critical-path
+time. Existing solver ensembles and scheduling stay in place.
+
+The common assembler also computes mapping provenance once per cell. Five
+alternating warm pairs on the same 216-cell owned brick measured 202.33 ms
+(194.09–229.04) before and 191.30 ms (184.40–259.98) after. Each pair produced
+identical bytes. The ranges overlap and do not establish a runtime improvement.
+The timing covers Python assembly and validation, excluding DWG inspection,
+process startup and solving. The hosted timing baseline remains in place.
+
+## WP-08 time-dependent power
+
+The latest passing Foundation handoff, run 43050724552, put the 559.141 s
+Debug driver on the critical path after unit tests. Radiation took 306.780 s
+and thermal preparation took 245.340 s, with overlapping stages. The time
+power checks run in that existing thermal stage and the independent DWG job.
+The hypothesis is that preparing the table once and reusing it across
+residual, Jacobian and energy evaluations avoids multiplying work in the
+thermal stage. The verifier retains the existing cases and solver settings.
+
+In seven alternating warm pairs, a local MSVC Release microbenchmark sampled
+the same 1,440-point owned curve 200,000 times. A linear scan took 65.41 ms
+(60.36–84.53) and the native binary lookup took 12.88 ms (12.11–14.61).
+The accumulated results matched in each pair. These timings cover lookup
+and interpolation. The local Release source-to-worker oracle with ten
+invocations took 0.944 s in one smoke run, including process startup.
+The hosted timing baseline remains tied to the passing run.
+
+## WP-08 TD project inventory
+
+Passing Foundation run 43118283732 put the 409.094 s Debug driver on the
+critical path after unit tests. Its largest overlapping stages were radiation
+at 211.953 s and reference comparison at 173.438 s. The independent DWG job
+ran in parallel and completed in 218 s. The new CLI check shares the DWG
+job's existing edited geometry and property library, with the malformed
+project-record cases in the existing unit and TD drivers.
+
+The preview previously decoded the same drawing for the report, conversion
+and property catalog. The candidate shares that inventory across all three.
+Five alternating warm pairs with explicit units used the same captured
+drawing and Python runtime. The previous preview took 3.613 s
+(3.475–3.820) and the shared decode took 2.462 s (2.231–2.536). The preview
+reports matched in every pair. These timings cover preview report generation
+from the in-memory DWG snapshot. They exclude backend startup, DWG decoding
+into the snapshot and CI job setup. The hosted baseline remains in place.
+
+## WP-08 case source dependencies
+
+The cold [passing Foundation handoff](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43122681090)
+put the 564.641 s Debug driver on the critical path after the 92 s unit job.
+The Debug driver used three acceptance workers and Release used two. Release
+took 247.406 s. The independent DWG job finished 501 s before Debug. Debug
+radiation took 307.109 s, including 123.525 s to build the three independent
+million-facet fixtures. The timing report flagged Debug host acceptance and the
+new spatial stage against the warm baseline. Their observed times include a
+different workload and cache state.
+
+The hypothesis was that a 20% reduction in the largest radiation build cost
+would shorten the gate. Replaying the reported stage order and durations with
+three workers and serializing the two shared numerical stages left the modeled
+Debug acceptance span at 517.109 s after removing 24.705 s from radiation. The
+thermal-reference and numerical stages still determined the tail. An idealized
+longest-first dispatch of the same recorded workloads modeled 492.656 s before
+the same reduction and 482.919 s afterward. These single-run simulations assume
+fixed stage durations and exclude runner setup and contention.
+
+The case dependency regression runs in the existing unit and TD drivers. The
+inventory parses each captured include at most once, including duplicate roots
+and cyclic references. Verification retains every existing required case.
+
+## WP-08 TD geometry and spatial materials
+
+The [passing Foundation handoff](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43339181735)
+used cold caches. The Debug driver took 563.187 s with three acceptance
+workers and the Release driver took 280.950 s with two. The Debug job was on
+the critical path after unit tests. Its largest stage was radiation at
+310.140 s, overlapping spatial acceptance at 236.281 s and thermal
+preparation at 254.984 s.
+
+The three required million-facet builds accounted for approximately 124.71 s
+of radiation. A fixed-duration replay with the observed dispatch order and
+the existing shared-stage constraint found that a 20% reduction in those
+builds would leave the 513.281 s acceptance span unchanged. The reference
+comparison and numerical checkpoint determined the tail. Dispatching in
+descending order of the same recorded durations modeled 489.812 s, or
+481.625 s with the hypothetical reduction. The replay covers the acceptance
+stages and assumes fixed durations. The existing hosted baseline remains tied
+to its passing candidate.
+
+The geometry regressions run in the existing unit and TD stages. The new
+native flux and enthalpy checks share the spatial stage, and the property-law
+CLI check reuses the existing synthetic DWG and backend build.
+
+Seven alternating warm pairs each prepared and bound the same owned material
+1,000 times. Re-reading the parsed property entry for every binding took
+240.92 ms (215.23–284.96). Reusing the material profile took 57.98 ms
+(53.16–64.97). The returned bindings matched in each pair. The benchmark
+measures Python property preparation and binding, excluding DWG input, solver
+work and runner setup.
+
+## WP-08 TD geometry classes
+
+The cold Debug and Release drivers took 484.610 s with three acceptance workers
+and 298.422 s with two on the latest passing candidate. The critical path went
+through the 118 s unit job, the 557 s Debug job and the Foundation gate. Debug
+radiation was the largest stage at 246.484 s, with approximately 103.21 s across
+three million-facet builds. Debug spatial and host acceptance triggered the
+warm-baseline timing thresholds. The comparison mixes cache states.
+[Foundation run 43348858606](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43348858606)
+
+A fixed-duration replay preserving the shared reference and checkpoint build
+constraint modeled 438.141 s with the observed order. A 20% decrease in the
+million-facet build times left that span unchanged. Longest-first dispatch of
+the same workloads modeled 417.235 s, or 410.750 s with the hypothetical build
+decrease. The replay covers acceptance stages and excludes setup and contention.
+
+The geometry checks run in the existing unit and TD stages. Seven alternating
+warm pairs each exported the same 2,304-face synthetic torus six times.
+Evaluating coordinates per face took a median 106.12 ms (103.55–148.21).
+Evaluating each lattice position once took 87.38 ms (77.32–139.71) with identical
+ordered face coordinates. The ranges overlap and the benchmark excludes DWG
+inspection, process startup and CI scheduling.
+
+## WP-08 source inventory follow-up
+
+Foundation run 43489369332 used cold download caches. The Debug driver took
+561.312 s with three acceptance workers and Release took 295.375 s with two.
+The job critical path went through unit tests, the 621 s Debug job and the
+Foundation gate. Debug radiation took 305.938 s and host acceptance took
+186.094 s. TD exchange took 12.625 s in Debug and 12.344 s in Release.
+Host and Embree exceeded the warm-baseline warning thresholds. These timings
+mix cache states and do not establish a source-induced regression.
+[Passing Foundation run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43489369332)
+
+A fixed-duration Debug replay tested whether cutting the three million-facet
+builds by 20% could shorten the acceptance span. Keeping the shared numerical
+checkpoint and thermal reference stages serialized, the 24.725 s hypothetical
+reduction left the modeled span at 513.172 s. Longest-first ordering of these
+same durations also modeled 513.172 s. The serialized reference comparison and
+numerical checkpoint determined the tail. The replay excludes runner setup and
+variable contention. The passing timing baseline stays in place.
+
+Decoding all drawing payloads for an explicit OBJ selection would increase
+the cost of newly supported large meshes. Five alternating warm pairs each
+exported the same 32 linear solids from an already inspected drawing. Whole
+drawing decoding took a median 5.420 s (5.200–5.798 s). Decoding selected
+elements and their referenced nodes took 0.080 s (0.074–0.084 s), with identical
+OBJ bytes and verdicts. This measures local Python export and excludes native
+inspection, runner setup and CI scheduling. The existing unit and TD stages
+exercise the selection and wire checks. The AC1027 smoke reuses the DWG job's
+existing compiled backend.
+
+## WP-08 DWG geometry and stored meshes
+
+The passing cold-cache Debug and Release drivers took 575.891 s with three
+acceptance workers and 233.359 s with two. The hosted critical path went
+through the 116 s unit job, the 645 s Debug job and the Foundation gate.
+Debug radiation was the longest acceptance stage at 306.406 s. The separate
+Embree package job took 672 s, including 619.860 s for its package probe.
+The cold hosted and warm baseline timings use different cache states.
+[Passing Foundation run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/43510244665)
+
+A fixed-duration Debug replay tested cutting 20% from the three recorded
+million-facet builds. The existing dispatch modeled 524.578 s with and without
+the reduction because the serialized thermal reference and numerical checkpoint
+stages determined the tail. Longest-first dispatch modeled 495.438 s, or
+487.453 s with the hypothetical reduction. The model excludes setup and
+contention. The workflow, baseline, repetitions and criteria are unchanged.
+
+The implementation reuses selected-record decoding for stored mesh links.
+Five alternating warm pairs exported the same 7,705 linked elements from an
+already inspected drawing. Decoding the complete drawing for each pass took a
+median 14.478 s (14.317–15.051 s). Decoding the selected mesh, its elements and
+their nodes took 3.563 s (3.431–3.913 s). OBJ bytes and receipts matched. This
+is a local Python export measurement. The added tests run in the existing
+unit and TD stages without additional backend builds or corpus downloads.

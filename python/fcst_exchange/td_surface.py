@@ -8,6 +8,8 @@ physical meaning or qualify a thermal model.
 from .core import reject
 
 ATTRIBUTE_REVISION=5.4e22
+EXTENDED_ATTRIBUTE_REVISION=5.5e22
+MESH_ATTRIBUTE_REVISION=5.6e22
 
 
 def _array(value,*,size=None,limit=10000):
@@ -30,6 +32,19 @@ ATTRIBUTE_LAYOUT=(
     ('name_lists','texts',2),('names_i','text',4),('selectors_i','integer',2),
     ('selector_j','integer',1),('expression_j','expression',1),('references_e','handles',1),
     ('flag_j','flag',1))
+
+# Marker 56 keeps the common prefix and most trailing groups, but changes the
+# middle fields and stores a selector where markers 54/55 store a handle count.
+MESH_ATTRIBUTE_LAYOUT = (
+    *ATTRIBUTE_LAYOUT[:6],
+    ('selectors_a', 'integer', 2), ('names_a', 'text', 6),
+    ('indices_a', 'integer', 4), ('source_submodel', 'text', 1),
+    ('selectors_b', 'integer', 8), ('names_b', 'text', 2), ('values_a', 'double', 4),
+    *ATTRIBUTE_LAYOUT[13:15], ('additional_selector_d', 'integer', 1),
+    *ATTRIBUTE_LAYOUT[15:17], ('reference_mode', 'integer', 1),
+    *ATTRIBUTE_LAYOUT[18:24], ('expression_selectors', 'integer', 2),
+    ('expressions_a', 'expression', 5), *ATTRIBUTE_LAYOUT[25:],
+)
 
 
 def read_breakdown(filer):
@@ -62,16 +77,32 @@ def read_value(filer,kind):
     reject('td_surface_field_kind')
 
 
-def read_attributes(filer):
+def read_text_ids(filer):
+    return tuple((filer.text(), filer.data.bl(), filer.data.bl()) for _ in range(filer.count()))
+
+
+def read_attributes(filer, *, revisions=(ATTRIBUTE_REVISION,)):
     b=filer.data
     fields={'groups':tuple((filer.text(),b.bl()) for _ in range(filer.count())),
             'legacy_names':tuple(filer.text() for _ in range(2)),
             'legacy_selectors':tuple(b.bl() for _ in range(2)),
             'names':tuple(filer.text() for _ in range(3))}
-    if b.bd()!=ATTRIBUTE_REVISION:reject('td_surface_attribute_revision')
-    for name,kind,count in ATTRIBUTE_LAYOUT:
+    revision = b.bd()
+    if revision not in revisions:
+        reject('td_surface_attribute_revision')
+    layout = MESH_ATTRIBUTE_LAYOUT if revision == MESH_ATTRIBUTE_REVISION else ATTRIBUTE_LAYOUT
+    for name,kind,count in layout:
         values=tuple(read_value(filer,kind) for _ in range(count))
         fields[name]=values[0] if count==1 else values
+    if revision in (EXTENDED_ATTRIBUTE_REVISION, MESH_ATTRIBUTE_REVISION):
+        fields['wire_revision'] = 56 if revision == MESH_ATTRIBUTE_REVISION else 55
+        fields['extended_attributes'] = {
+            'text_ids': read_text_ids(filer), 'names': (filer.text(), filer.text()),
+            'name_maps': tuple(read_value(filer, 'text_pairs') for _ in range(2)),
+            'name_lists': tuple((filer.text(), filer.texts()) for _ in range(2)),
+        }
+    if revision == MESH_ATTRIBUTE_REVISION:
+        fields['additional_selector'] = b.bl()
     return fields
 
 

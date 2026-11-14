@@ -132,6 +132,9 @@ class OpenTdTests(unittest.TestCase):
         for record in records:
             if record['id'] in FILE_CASES:record['execution_mode']='fcst_independent_file_codec'
         self.assertTrue(assess(records,candidate='candidate')['qualified'])
+        optional = [{'id': name, 'status': 'blocked'} for name in
+                    ('RcPolygon', 'additional_serialization_revisions')]
+        self.assertTrue(assess(records + optional, candidate='candidate')['qualified'])
         for field,value in [('execution_mode','fallback_external'),('fixture_kind','sdk-shim'),('candidate','stale')]:
             changed=deepcopy(records);next(r for r in changed if r['id']=='owned_thermal_comparison')[field]=value
             self.assertFalse(assess(changed,candidate='candidate')['qualified'])

@@ -6,9 +6,9 @@ def check(folder,wait,passed,worker):
     import uuid
     import FreeCAD as App
     import Part
-    from fcst_app.cad_mesh import prepare,validate_receipt,reconcile
+    from fcst_app.cad_mesh import package,prepare,validate_receipt,reconcile
     from fcst_app.discretization import seal
-    from fcst_host.cad_mesher import CadMesher,geometry
+    from fcst_host.cad_mesher import CadMesher,geometry,regenerate
     from fcst_host.controller import Session
     from fcst_host.widgets import NativeJob
     from fcst_host import review
@@ -17,15 +17,22 @@ def check(folder,wait,passed,worker):
     identifier=str(uuid.uuid4());jobs=[]
     card=dict(density=dict(value=2,unit='kg/m3'),specific_heat=dict(value=3,unit='J/(kg*K)'),
         conductivity=dict(value=1,unit='W/(m*K)'),temperature=dict(value=350,unit='K'),thickness=dict(value=10,unit='mm'))
-    def mesh(part,dimension,size):
-        directory=folder/('cad-'+uuid.uuid4().hex);directory.mkdir()
-        job=CadMesher(part,identifier,directory,dimension=dimension,maximum_size_m=size);job.start()
+    def wait_mesh(job):
+        job.start()
         wait(lambda:job.state not in ('prepared','running'),seconds=125)
         assert job.state=='succeeded',(job.state,job.error)
         assert job.process.exitCode()==0
         return job
+
+    def mesh(part,dimension,size,previous=None):
+        directory=folder/('cad-'+uuid.uuid4().hex);directory.mkdir()
+        job=(CadMesher(part,identifier,directory,dimension=dimension,maximum_size_m=size) if previous is None
+             else regenerate(part,previous,directory,maximum_size_m=size))
+        return wait_mesh(job)
+
+    previous=None
     for size in (.5,.25,.125):
-        job=mesh(solid,3,size);jobs.append(job)
+        job=mesh(solid,3,size,previous);jobs.append(job)
         faces=job.source['geometry']['faces']
         # Explicit host FaceN selection; no coordinate-based identity matching.
         left=next(f for f in faces if abs(solid.Shape.getElement(f['ref']).CenterOfMass.x)<1e-8)
@@ -33,6 +40,10 @@ def check(folder,wait,passed,worker):
         boundary=[dict(face_id=left['id'],kind='temperature',value=dict(value=300,unit='K')),
             dict(face_id=right['id'],kind='total_power',value=dict(value=10,unit='W'))]
         value,receipt=prepare(job.source,job.brep,{'Solid1':card},boundary)
+        if previous is not None:
+            assert job.synchronization==dict(status='synchronized',geometry_changed=False,mesh_changed=True)
+            assert job.prepared_project.model==value['model']
+        previous=package(receipt,job.brep) if previous is None else job.prepared_project
         assert abs(receipt['assignments'][0]['integrated_power_W']-10)<1e-12
         output=subprocess.run([worker,'--thermal-steady'],input=json.dumps(seal(value)).encode(),capture_output=True,timeout=30)
         assert output.returncode==0
