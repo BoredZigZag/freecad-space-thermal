@@ -9,7 +9,8 @@ from .core import Limits, reject
 from .td_filer import expression_is_constant
 from .td_geometry import (BrickPayload, ConeSolidPayload, ConicPayload, CurvedSolidPayload, CylinderPayload,
                           DiskPayload, EllipsoidSolidPayload, LinearShellPayload, LinearSolidPayload,
-                          PolygonMeshPayload, RectangleEnvelope, RectanglePayload, SpherePayload)
+                          PolygonMeshPayload, QuadraticSolidPayload, RectangleEnvelope, RectanglePayload,
+                          SpherePayload)
 from .td_node import NodePayload
 
 
@@ -552,18 +553,8 @@ def _quadratic_shell_boundary(points, face_limit):
                          for order in permutations(range(corners, len(points))))
     if not math.isfinite(assignments[0][0]) or math.isclose(assignments[0][0], assignments[1][0], rel_tol=1e-12):
         reject('td_element_midside_order_unmapped')
-    mids = assignments[0][1]
-    if len(points) == 6:
-        first, second, third = mids
-        faces = [(0, first, third), (first, 1, second), (third, second, 2), mids]
-    else:
-        offsets = [_delta(point, points[0]) for point in points]
-        center = tuple(value - sum(offset[i] * 0.25 for offset in offsets[:4])
-                       + sum(offset[i] * 0.5 for offset in offsets[4:]) for i, value in enumerate(points[0]))
-        if not all(math.isfinite(v) for v in center) or center in points:
-            reject('td_geometry_coordinate_precision')
-        points = [*points, center]
-        faces = [(i, mids[i], 8, mids[i - 1]) for i in range(4)]
+    points = list(points)
+    faces = _subdivide_quadratic_face(points, tuple(range(corners)), assignments[0][1])
 
     def normal(a, b, c):
         u, v = _delta(points[b], points[a]), _delta(points[c], points[a])
@@ -579,25 +570,82 @@ def _quadratic_shell_boundary(points, face_limit):
     return points, faces
 
 
-def _linear_solid_boundary(payload, nodes, length_unit, face_limit):
-    template = _LINEAR_SOLID_FACES[payload.shape]
-    if face_limit < len(template):
-        reject('td_geometry_mesh_limit')
-    points = _element_points(payload, nodes, length_unit)
+def _subdivide_quadratic_face(points, corners, mids):
+    if len(corners) == 3:
+        a, b, c = corners
+        first, second, third = mids
+        return [(a, first, third), (first, b, second), (third, second, c), mids]
+    origin = points[corners[0]]
+    corner_offsets = [_delta(points[i], origin) for i in corners]
+    midside_offsets = [_delta(points[i], origin) for i in mids]
+    center = tuple(value - sum(p[i] * .25 for p in corner_offsets) + sum(p[i] * .5 for p in midside_offsets)
+                   for i, value in enumerate(origin))
+    if not all(math.isfinite(v) for v in center) or center in points:
+        reject('td_geometry_coordinate_precision')
+    index = len(points)
+    points.append(center)
+    return [(corner, mids[i], index, mids[i - 1]) for i, corner in enumerate(corners)]
 
-    directions = (1, 3, 4) if payload.shape in ('brick', 'pyramid') else (1, 2, 3)
+
+def _oriented_solid_faces(shape, points):
+    template = _LINEAR_SOLID_FACES[shape]
+    directions = (1, 3, 4) if shape in ('brick', 'pyramid') else (1, 2, 3)
     orientation = determinant(tuple(_delta(points[i], points[0]) for i in directions))
     if not math.isfinite(orientation) or orientation == 0:
         reject('td_linear_solid_invalid_cell')
     faces = [face if orientation > 0 else face[::-1] for face in template]
     offsets = [_delta(point, points[0]) for point in points]
     center = tuple(value + sum(offset[i] / len(points) for offset in offsets) for i, value in enumerate(points[0]))
+    return faces, center
+
+
+def _check_solid_faces(points, faces, center, error):
     for first, *rest in faces:
         for j, k in zip(rest, rest[1:]):
             volume = determinant((_delta(points[first], center), _delta(points[j], center), _delta(points[k], center)))
             if not math.isfinite(volume) or volume <= 0:
-                reject('td_linear_solid_invalid_cell')
+                reject(error)
+
+
+def _linear_solid_boundary(payload, nodes, length_unit, face_limit):
+    if face_limit < len(_LINEAR_SOLID_FACES[payload.shape]):
+        reject('td_geometry_mesh_limit')
+    points = _element_points(payload, nodes, length_unit)
+    faces, center = _oriented_solid_faces(payload.shape, points)
+    _check_solid_faces(points, faces, center, 'td_linear_solid_invalid_cell')
     return points, faces
+
+
+def _face_edges(face):
+    return [tuple(sorted((a, b))) for a, b in zip(face, (*face[1:], face[0]))]
+
+
+def _quadratic_solid_boundary(payload, nodes, length_unit, face_limit):
+    template = _LINEAR_SOLID_FACES[payload.shape]
+    if face_limit < 4 * len(template):
+        reject('td_geometry_mesh_limit')
+    points = _element_points(payload, nodes, length_unit)
+    count = max(max(face) for face in template) + 1
+    faces, center = _oriented_solid_faces(payload.shape, points[:count])
+    _check_solid_faces(points, faces, center, 'td_quadratic_solid_invalid_cell')
+    midsides = {}
+    # Export only when each edge identifies a distinct, unambiguous midside
+    # point. This supports displaced midsides without assuming a foreign order.
+    for edge in sorted({edge for face in faces for edge in _face_edges(face)}):
+        a, b = edge
+        middle = tuple(x * .5 + y * .5 for x, y in zip(points[a], points[b]))
+        distances = sorted((math.dist(middle, points[i]), i) for i in range(count, len(points)))
+        if not math.isfinite(distances[0][0]) or math.isclose(distances[0][0], distances[1][0], rel_tol=1e-12):
+            reject('td_element_midside_order_unmapped')
+        midsides[edge] = distances[0][1]
+    if len(set(midsides.values())) != len(points) - count:
+        reject('td_element_midside_order_unmapped')
+    boundary = []
+    for face in faces:
+        mids = tuple(midsides[edge] for edge in _face_edges(face))
+        boundary.extend(_subdivide_quadratic_face(points, face, mids))
+    _check_solid_faces(points, boundary, center, 'td_quadratic_solid_invalid_cell')
+    return points, boundary
 
 
 def boundary_mesh(payload, length_unit, *, face_limit=Limits().records, nodes=None):
@@ -606,6 +654,8 @@ def boundary_mesh(payload, length_unit, *, face_limit=Limits().records, nodes=No
         return _curved_boundary(payload, length_unit, face_limit)
     if isinstance(payload, ConicPayload):
         return _conic_boundary(payload, length_unit, face_limit)
+    if isinstance(payload, QuadraticSolidPayload):
+        return _quadratic_solid_boundary(payload, nodes, length_unit, face_limit)
     if isinstance(payload, LinearSolidPayload):
         return _linear_solid_boundary(payload, nodes, length_unit, face_limit)
     if isinstance(payload, LinearShellPayload):
@@ -760,7 +810,7 @@ def render_geometry(staged, length_unit, handles=()):
         kind = payload.shape if isinstance(payload, (ConicPayload, CurvedSolidPayload)) else (
             'disk' if isinstance(payload, DiskPayload) else 'brick' if isinstance(payload, BrickPayload)
             else 'polygon_mesh' if isinstance(payload, PolygonMeshPayload)
-            else f'quadratic_{payload.shape}' if isinstance(payload, LinearShellPayload) and payload.order == 2
+            else f'quadratic_{payload.shape}' if isinstance(payload, (LinearShellPayload, LinearSolidPayload)) and payload.order == 2
             else f'linear_{payload.shape}' if isinstance(payload, (LinearShellPayload, LinearSolidPayload)) else 'rectangle')
         body = [f'o td_{kind}_{handle}']
         body.extend('v ' + ' '.join(format(x, '.17g') for x in point) for point in points)

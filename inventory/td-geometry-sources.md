@@ -261,9 +261,26 @@ revolution and closed correctly after angle normalization.
 | OpenTD demo meshers | The two `TdMesher` objects export 1,645 and 7,705 linked elements. The larger export has 27,376 faces. |
 | Installed Heating Coil examples | The mesh-bearing SpaceClaim importer and FE importer each select 12,900 elements per drawing. The second SpaceClaim importer has CAD links only. |
 
-The checks preserve original bytes and use stored nodes and elements. They leave
-mesh settings, CAD synchronization, generated-state comparison and solver
-qualification open. Raw model, CAD, mesh and result files remain local.
+The checks preserve original bytes and use stored nodes and elements.
+Mesh settings, live CAD synchronization and solver qualification remain open.
+Raw model, CAD, mesh and result files remain local.
+
+### Legacy and quadratic readers and saved mesh comparison
+
+Static review of the installed 6.3 reader identified the wrapped legacy
+linear and quadratic solid paths and the exact registered spelling
+`TdMesherVA`. Owned records exercise the supported revision branches and
+ordered node references. The downloaded PAT fixture also passed the boundary
+export for all four quadratic solids, generating 16 tet faces, 20 pyramid
+faces, 20 wedge faces and 24 brick faces. The PAT check provides independent
+geometry input. Native DWG layout confirmation awaits original examples.
+
+The saved-state comparison reported the public CMU TD Direct mesh unchanged
+when compared with itself. It resolved 29 nodes and 106 elements. The owned
+Discovery companion scenario exercises a first mesh, a saved reuse control
+and missing-companion handling. The local runtime probe found no licensed
+AutoCAD host, so no vendor sync or mesh generation was run. See the
+[command and scope](../docs/td-sinda.md#geometry-and-remaining-format-evidence).
 
 ## Files still needed for full coverage
 
@@ -277,7 +294,7 @@ vendor examples.
 | `td-conics.dwg` | `RcOgive` with full and partial sweeps, `RcScarfedCone` and `RcScarfedCylinder` with nonzero scarf angles of both signs, and `RcFdSolidEllipsoid` with independently trimmed, nonproportional inner and outer walls. Include source boundary coordinates, areas and solid volume where applicable. |
 | `td-fe-orders.dwg` | Quadratic triangle, quadrilateral, tetrahedron, pyramid, wedge and brick with displaced midside nodes, plus linear counterparts including pyramid. The PAT and VTU inputs above supply independent connectivity. Verify active `RcQuadraticTet`, `RcQuadraticPyramid`, `RcQuadraticWedge` and `RcQuadraticBrick` records and capture TD's ordered source nodes, edge and face connectivity and curved boundary coordinates. |
 | `td-fe-legacy.dwg` | Original `RcLinearTri`, `RcLinearQuad`, `RcLinearTet`, `RcLinearWedge`, `RcLinearBrick` and `RcPolygon` class instances. Preserve the pre-upgrade originals and record the writer build for both originals and any separately saved upgraded copies. |
-| `td-mesher-before.dwg`, `td-mesher-generated.dwg` and source CAD companion | Start with the public `TdMesher` and TD Direct importer examples above. Acquire a drawing with an active `TdMesherVa` instance, its input geometry and any preview and generated states. Record the writer build, class ID and object links. |
+| `td-mesher-before.dwg`, `td-mesher-generated.dwg` and source CAD companion | Start with the public `TdMesher` and TD Direct importer examples above. Acquire a drawing with an active `TdMesherVA` instance, its input geometry and any preview and generated states. Record the writer build, class ID and object links. |
 | Linked CAD synchronization and regeneration states | Use the CMU pair and TD Direct tutorials for SpaceClaim, and the Fin Diode tutorial for Discovery. For each host, retain matching DWG and companion copies from before sync, after first mesh, and after one controlled CAD or mesh-control change. Include an unchanged sync or reuse control and capture the geometry, tags and connectivity needed to check regeneration. |
 | `td-geometry-physics.dwg` with case files | Use the FE conduction/radiation, contact and result samples above as starting points. Acquire property databases, actual generated SINDA deck and all includes, case settings, node/face IDs, areas and volumes, and saved results or a bounded export. Cover geometry-derived conductance and capacity, layering and orientation, optical properties, radiation groups, contactors, and surface or volume loads. |
 

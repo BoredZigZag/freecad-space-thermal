@@ -377,12 +377,27 @@ the command checks all recognized geometry records, including known classes
 whose layouts are still held. The OBJ object names retain source handles.
 Keep derived geometry from restricted drawings local.
 
-Pass a `TdMesher` v43, `TdFiniteElementMeshImporter` v39 or `TdScImporter` v6
+Pass a `TdMesher` or `TdMesherVA` v43, `TdFiniteElementMeshImporter` v39 or `TdScImporter` v6
 handle to export its linked, already generated geometry. The export follows
 declared drawing references and retains the linked element handles in OBJ.
 Explicit generator selections allow up to 100,000 faces and all exports are
-bounded to 16 MiB. The importer settings stay opaque. CAD synchronization,
-mesh generation from CAD and regeneration after a parameter change remain open.
+bounded to 16 MiB. The importer settings stay opaque. Project inspection
+resolves declared `.scdoc` and `.dsco` paths inside the captured source tree.
+The `.dsco` binding applies when the document is named by the supported
+`TdScImporter` v6 layout. Native Discovery-generated DWG samples are pending.
+
+```text
+fcst td-compare-mesh-states before network.dwg after network.dwg comparison.json --before-handle 106 --after-handle 208 --backend RECEIPT --work WORK
+```
+
+Select the same logical importer or mesher in both captures. The command
+reports drawing and linked CAD hashes, node and element counts, and whether an
+ordered connectivity and coordinate fingerprint changed. It allows an empty
+starting mesh. Use paired initial-sync, parameter-change and reuse captures
+with the same drawing units. DWG handle renumbering alone does not change the
+fingerprint for distinct coordinates. The comparison covers saved FE geometry.
+Native synchronization, geometry generation, mesh controls, and tag transfer
+still need licensed execution and paired reference evidence.
 
 The exporter applies the drawing origin and right-handed basis, the local
 translation and ordered rotations, and the stored normalized subdivision
@@ -405,15 +420,17 @@ produce diagnostics.
 | Scarfed cone and cylinder | Static boundary export with either sign of scarf angle where the trim plane intersects every generator above the base. |
 | Ogive | Static circular-profile boundary with full or partial sweep. |
 | FD brick, solid cone, cylinder, sphere and ellipsoid | Static boundary export. Hollow ellipsoids support strictly nested full-sweep cavities with independent trims, plus proportional walls with matching normalized trims. |
-| Polygon and FD mesh | Ordered polygon connectivity and boundary export for the supported layouts, including marker 56. |
-| Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundary export for the reviewed layouts, including solid-element node v6 and attribute v14 records. Older class layouts and unmapped node selectors remain held. |
+| Polygon and FD mesh | Ordered connectivity and boundary export for reviewed `RcMeshFD` revisions, including marker 56. The `RcPolygon` C++ class remains held. |
+| Linear triangle, quadrilateral, tetrahedron, pyramid, wedge and brick | Ordered source nodes and static boundaries. Bounded legacy triangle, quadrilateral, tetrahedron, wedge and brick wrappers are covered by owned fixtures. Other legacy revisions and unmapped node selectors remain held. |
 | Quadratic triangle and quadrilateral | Four-face display tessellation through stored midside points where the edge assignment is unambiguous. The stored node order is preserved in the inventory. |
-| Quadratic tetrahedron, pyramid, wedge and brick | Recognized classes with unsupported-layout diagnostics. |
-| Automatic mesh and CAD importer entities | Stored geometry export for the reviewed link profiles. `TdMesherVa`, CAD synchronization and mesh regeneration remain held. |
+| Quadratic tetrahedron, pyramid, wedge and brick | Bounded wrapped solid layout, ordered source connectivity and a closed display boundary through stored midside points when each edge can be associated unambiguously. |
+| Automatic mesh and CAD importer entities | Stored links for the reviewed profiles, including `TdMesherVA`, and saved-state mesh comparison. |
 
-The new conic and quadratic-shell boundaries are tested against analytic or
-synthetic geometry. Native source comparisons for these shapes still need the
-paired fixtures listed in the source inventory.
+The conic and high-order boundaries are tested against analytic or synthetic
+geometry. The legacy and quadratic-solid wrappers and the `TdMesherVA`
+registration were reviewed against the installed reader and tested with owned
+records. Native source comparisons still need the fixtures in the source
+inventory.
 
 The catalog includes the geometry families exposed by TD's API. The class
 catalog describes the product surface across releases. Serialized layout

@@ -259,7 +259,7 @@
     "acceptance": "ci/td-acceptance.json exercises owned records, analytic bounds and volumes, source-node connectivity, and unsupported-class diagnostics",
     "remaining": [
       "Source comparisons for ogive, nonzero scarf angles and independently trimmed hollow ellipsoids",
-      "Quadratic-solid boundaries, legacy finite elements, automatic mesh regeneration and additional source versions",
+      "Native reference comparisons for legacy finite elements and quadratic solids, automatic mesh regeneration and additional source versions",
       "Native geometry-to-physics reconstruction and independent vendor reference evidence"
     ],
     "qualified": false
@@ -289,7 +289,14 @@
     "marker_56_geometry_records": 6213,
     "independent_nastran_comparison": {"nodes": 127, "quad_connectivities": 103},
     "stored_mesh_elements": {"td_direct_example": 106, "largest_opentd_example": 7705, "heating_coil_per_case": 12900},
-    "holds": ["Legacy FE and quadratic-solid DWG layouts", "Paired native conic and displaced midside fixtures", "TD Designer and TdMesherVa", "CAD synchronization and regeneration after changes"],
+    "holds": ["Paired native conic and displaced midside fixtures", "CAD synchronization and regeneration after changes"],
+    "qualified": false
+  },
+  "dwg_legacy_quadratic_and_cad_mesh_comparison": {
+    "coverage": "Legacy triangle, quad, tet, wedge and brick wrappers. Quadratic tet, pyramid, wedge and brick wrappers and display boundaries. TdMesherVA v43 stored links and TdScImporter v6 CAD companion binding.",
+    "acceptance": "Owned records verify ordered nodes, wrapper closure, moved midsides, watertight boundaries, linked Discovery companion hashes and initial versus reused stored mesh states through the comparison CLI.",
+    "timing_review": "The warm Foundation handoff for run 43586602355 shows Embree as the longest parallel job at 567 seconds and TD exchange stages at 13.282 seconds Debug and 8.828 seconds Release. The hypothesis was that reusing the face subdivision in the existing geometry path and bounding solid edge matching would preserve existing runtime. Two alternating local repetitions of three existing geometry tests measured 2.285 and 1.854 seconds at baseline and 1.771 and 1.683 seconds on the candidate, including interpreter startup. The small sample does not establish a hosted speedup. No coverage, compiler settings, or performance baseline changed.",
+    "holds": ["RcPolygon and unsupported legacy revisions", "Original legacy, quadratic solid and TdMesherVA drawing fixtures", "Native Discovery importer identification and licensed CAD synchronization and regeneration captures"],
     "qualified": false
   }
 }

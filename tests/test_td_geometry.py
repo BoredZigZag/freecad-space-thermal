@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
+from collections import Counter
 from copy import deepcopy
 from dataclasses import replace
 import math
@@ -520,6 +521,118 @@ class TdGeometryTests(unittest.TestCase):
             else:
                 self.assertEqual(faces, [tuple(range(count))])
 
+    def test_wrapped_finite_elements_preserve_layout_and_export_solids(self):
+        from fcst_exchange.td_decode import DECODERS, GEOMETRY_CLASSES
+
+        corners_by_shape = {
+            'tetra': ((0, 0, 0), (2, 0, 0), (0, 2, 0), (0, 0, 2)),
+            'pyramid': ((0, 0, 0), (2, 0, 0), (2, 2, 0), (0, 2, 0), (1, 1, 2)),
+            'wedge': ((0, 0, 0), (2, 0, 0), (0, 2, 0), (0, 0, 2), (2, 0, 2), (0, 2, 2)),
+            'brick': ((0, 0, 0), (2, 0, 0), (2, 2, 0), (0, 2, 0), (0, 0, 2), (2, 0, 2), (2, 2, 2), (0, 2, 2)),
+        }
+        topologies = (
+            ('Tet', 'tetra', ((0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3)), 16),
+            ('Pyramid', 'pyramid', ((0, 1), (1, 2), (2, 3), (3, 0), (0, 4), (1, 4), (2, 4), (3, 4)), 20),
+            ('Wedge', 'wedge', ((0, 1), (1, 2), (2, 0), (3, 4), (4, 5), (5, 3), (0, 3), (1, 4), (2, 5)), 20),
+            ('Brick', 'brick', ((0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4),
+                                (0, 4), (1, 5), (2, 6), (3, 7)), 24),
+        )
+        for suffix, shape, edges, face_count in topologies:
+            corners = corners_by_shape[shape]
+            mids = [tuple((x + y) * .5 + (.05 if i == 0 else 0) for i, (x, y) in
+                          enumerate(zip(corners[a], corners[b]))) for a, b in reversed(edges)]
+            for legacy in ((False,) if suffix == 'Pyramid' else (False, True)):
+                name = f'Rc{"Linear" if legacy else "Quadratic"}{suffix}'
+                with self.subTest(name=name):
+                    positions = corners if legacy else (*corners, *mids)
+                    writer = FilerWriter()
+                    b = writer.data
+                    if legacy:
+                        b.bl(1)
+                    b.bl(13)
+                    b.bl(5)
+                    b.bl(len(positions))
+                    writer.references.extend(range(1, len(positions) + 1))
+                    writer.text('owned element')
+                    b.put(0, 1)
+                    b.bl(1)
+                    b.bl(13)
+                    writer.text('owned material')
+                    writer.text('owned optics')
+                    b.bl(0)
+                    writer.text('owned attribute')
+                    for value in (63, 0, 0):
+                        b.bl(value)
+                    b.put(0, 1)
+                    b.bl(0)
+                    b.bl(1)
+                    writer.expression()
+                    b.bl(1)
+                    if not legacy:
+                        b.bl(1)
+                    handles = tuple(range(201, 201 + len(positions)))
+                    encoded = [node_payload('OWNED', i, 300, 1, 'capacitive') for i in handles]
+                    snapshot = drawing([*encoded, writer.result(30)], handles=[*handles, 301],
+                                       geometry_classes={30: (GEOMETRY_CLASSES[name], name)})
+                    inventory = decode_drawing(snapshot)
+                    payload = inventory.payloads[-1]
+                    self.assertEqual(payload.fields['node_handles'], handles)
+                    self.assertEqual(payload.order, 1 if legacy else 2)
+                    nodes = {h: replace(node, fields={**node.fields, 'basis': (p, *node.fields['basis'][1:])})
+                             for h, p, node in zip(handles, positions, inventory.payloads)}
+                    points, faces = boundary_mesh(payload, 'm', nodes=nodes)
+                    self.assertEqual(points[:len(positions)], list(positions))
+                    self.assertEqual(len(faces), face_count // 4 if legacy else face_count)
+                    directed = Counter((a, c) for face in faces for a, c in zip(face, (*face[1:], face[0])))
+                    self.assertTrue(all(n == 1 and directed[c, a] == 1 for (a, c), n in directed.items()))
+                    with self.assertRaisesRegex(ExchangeError, 'mesh_limit'):
+                        boundary_mesh(payload, 'm', nodes=nodes, face_limit=len(faces) - 1)
+                    b.bl(0)
+                    row, common = envelope(writer.result(30), targets=handles)
+                    with self.assertRaisesRegex(ExchangeError, 'unconsumed_stream'):
+                        DECODERS[name](row, Fields(common.items()))
+                    if not legacy:
+                        ambiguous = dict(nodes)
+                        for handle in handles[len(corners):]:
+                            node = ambiguous[handle]
+                            point = node.fields['basis'][0]
+                            ambiguous[handle] = replace(node, fields={**node.fields,
+                                'basis': ((8 + point[0], 8 + point[1], 8 + point[2]), *node.fields['basis'][1:])})
+                        with self.assertRaisesRegex(ExchangeError, 'midside_order_unmapped'):
+                            boundary_mesh(payload, 'm', nodes=ambiguous)
+
+        for name, count in (('RcLinearTri', 3), ('RcLinearQuad', 4)):
+            writer = FilerWriter()
+            writer.data.bl(1)
+            writer.data.bl(5)
+            write_owned_surface55(writer, rectangle_boundary_fields()['attributes'])
+            writer.data.bl(5)
+            writer.data.bl(count)
+            writer.references.extend(range(1, count + 1))
+            writer.text('owned legacy shell')
+            writer.data.put(0, 1)
+            writer.data.bl(1)
+            row, common = envelope(writer.result(30))
+            payload = DECODERS[name](row, Fields(common.items()))
+            self.assertTrue(payload.legacy)
+            self.assertEqual(payload.fields['node_handles'], tuple(range(101, 101 + count)))
+
+        legacy = FilerWriter()
+        for value in (1, 9, 5, 4):
+            legacy.data.bl(value)
+        legacy.references.extend((1, 2, 3, 4))
+        legacy.text('')
+        legacy.data.put(0, 1)
+        legacy.data.bl(1)
+        legacy.text('owned material')
+        legacy.text('owned optics')
+        for value in (1, 1, 1, 1, 1, 1, 0):
+            legacy.data.bl(value)
+        row, common = envelope(legacy.result(30))
+        payload = DECODERS['RcLinearTet'](row, Fields(common.items()))
+        self.assertEqual(payload.fields['attributes']['face_selectors'], (1,) * 6)
+        self.assertIn('attributes9', payload.report['profile'])
+
     def test_polygon_mesh_preserves_face_order_and_rejects_invalid_connectivity(self):
         from fcst_exchange.td_geometry import decode_polygon_mesh
 
@@ -637,6 +750,83 @@ class TdGeometryTests(unittest.TestCase):
             missing = replace(staged, snapshot=NativeSnapshot(native, staged.snapshot.standard, ''))
             with self.assertRaisesRegex(ExchangeError, 'missing_reference'):
                 render_geometry(missing, 'm', (104,))
+
+    def test_mesh_state_comparison_resolves_discovery_and_variant_mesher(self):
+        from fcst_exchange.independent_td import DwgPreview
+        from fcst_exchange.source_tree import capture_project
+        from fcst_exchange.td_mesher import compare_mesh_states
+        from fcst_exchange.td_project_inventory import inspect_project
+        from fcst_exchange.dwg_native import NativeRuntime
+        from fcst_cli.td import execute, parsers
+        from argparse import ArgumentParser
+        import json
+
+        classes = {20: ('TDMESHERVA', 'TdMesherVA'), 21: ('TDSCIMPORTER', 'TdScImporter'),
+                   22: ('RCLINEARTRI', 'RcLinearTri')}
+        nodes = [node_payload('OWNED', i, 300, 1, 'capacitive') for i in range(1, 4)]
+        shell = FilerWriter()
+        shell.data.bl(1)
+        shell.data.bl(5)
+        write_owned_surface55(shell, rectangle_boundary_fields()['attributes'])
+        shell.data.bl(5)
+        shell.data.bl(3)
+        shell.references.extend((1, 2, 3))
+        shell.text('')
+        shell.data.put(0, 1)
+        shell.data.bl(1)
+
+        def state(directory, *, mesh, first=101, cad=b'owned CAD'):
+            directory.mkdir()
+            (directory / 'owned.dwg').write_bytes(b'AC1032-owned')
+            if cad is not None:
+                (directory / 'owned.dsco').write_bytes(cad)
+            variant = FilerWriter()
+            variant.data.bl(43)
+            variant.data.bl(0)
+            variant.references.extend((4,) if mesh else ())
+            importer = FilerWriter()
+            importer.data.bl(6)
+            importer.text('Owned.DSCO')
+            importer.data.bl(0)
+            importer.references.append(5)
+            snapshot = drawing([*nodes, shell.result(22), variant.result(20), importer.result(21)],
+                               handles=list(range(first, first + 6)), geometry_classes=classes,
+                               reference_codes={4: (5,), 5: (4,)})
+            return DwgPreview(capture_project(directory, 'owned.dwg'), snapshot)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            before = state(root / 'before', mesh=False)
+            after = state(root / 'after', mesh=True, cad=b'edited CAD')
+            reused = state(root / 'reused', mesh=True, first=301, cad=b'edited CAD')
+            missing = state(root / 'missing', mesh=True, cad=None)
+            report = compare_mesh_states(before, after, 106, 106)
+            self.assertTrue(report['mesh_changed'])
+            self.assertTrue(report['companion_changed'])
+            self.assertEqual((report['before']['elements'], report['after']['elements']), (0, 1))
+            self.assertEqual(report['after']['nodes'], 3)
+            self.assertEqual(report['after']['companion']['role'], 'td-designer-document')
+            report = compare_mesh_states(after, reused, 106, 306)
+            self.assertFalse(report['mesh_changed'])
+            self.assertFalse(report['companion_changed'])
+            declared, = inspect_project(after)['companion_inventory']['declared_inputs']
+            self.assertEqual((declared['role'], declared['status']), ('td-designer-document', 'resolved'))
+            with self.assertRaisesRegex(ExchangeError, 'companion_unresolved'):
+                compare_mesh_states(after, missing, 106, 106)
+            with self.assertRaisesRegex(ExchangeError, 'state_manager'):
+                compare_mesh_states(after, reused, 104, 306)
+            parser = ArgumentParser()
+            parsers(parser.add_subparsers(dest='command', required=True))
+            output = root / 'comparison.json'
+            args = parser.parse_args(['td-compare-mesh-states', str(before.original.root), 'owned.dwg',
+                                      str(after.original.root), 'owned.dwg', str(output),
+                                      '--before-handle', '106', '--after-handle', '106',
+                                      '--backend', 'unused.json', '--work', str(root / 'work')])
+            runtime = NativeRuntime(root / 'backend.exe', 'b' * 64, PATCH)
+            with patch.object(NativeRuntime, 'from_receipt', return_value=runtime), patch.object(
+                    NativeRuntime, 'run', side_effect=[(before.snapshot, None, {}), (after.snapshot, None, {})]):
+                self.assertEqual(execute(args)['status'], 'compared')
+            self.assertTrue(json.loads(output.read_bytes())['mesh_changed'])
 
     def test_curved_dwg_profiles_export_valid_disks_cylinders_and_spheres(self):
         from collections import Counter

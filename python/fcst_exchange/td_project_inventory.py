@@ -4,7 +4,7 @@ from collections import Counter
 
 from .core import Limits, reject
 from .dwg_native import _one
-from .td_decode import GEOMETRY_CLASSES, decode_drawing
+from .td_decode import GEOMETRY_CLASSES, UNMAPPED_GEOMETRY_CLASSES, decode_drawing
 from .td_geometry import LinearShellPayload, LinearSolidPayload
 from .td_mesher import MesherPayload
 from .td_node import NodePayload
@@ -77,11 +77,13 @@ def inspect_project(staged):
                     elif linked is None:
                         status = 'missing' if target else 'null'
                     else:
-                        status = 'unmapped' if name in GEOMETRY_CLASSES or name == 'RcNode' else 'present'
+                        status = ('unmapped' if name in GEOMETRY_CLASSES or name in UNMAPPED_GEOMETRY_CLASSES
+                                  or name == 'RcNode' else 'present')
                     links.append({'target': str(target), 'class': name, 'status': status})
                 item['stored_mesh_links'] = links
                 if mesher.companion:
-                    mesh_references.append({'manager': str(handle), 'role': 'spaceclaim-document', 'path': mesher.companion})
+                    mesh_references.append({'manager': str(handle), 'role': mesher.companion_role,
+                                            'path': mesher.companion})
             thermal.append(item)
     for record in configuration:
         record['dictionary_reachable'] = int(record['handle']) in reached

@@ -11,7 +11,10 @@ from .td_mesher import MESHERS, decode_mesher
 from .td_geometry import (conic_decoder, decode_rectangle, decode_brick, decode_disk, decode_cylinder, decode_sphere,
                           decode_solid_cone, decode_solid_ellipsoid, decode_linear_brick, decode_linear_wedge,
                           decode_linear_tetra, decode_linear_pyramid, decode_linear_tri, decode_linear_quad,
-                          decode_quadratic_tri, decode_quadratic_quad, decode_polygon_mesh)
+                          decode_quadratic_tri, decode_quadratic_quad, decode_polygon_mesh, decode_legacy_tri,
+                          decode_legacy_quad, solid_decoder, LinearBrickPayload, LinearWedgePayload,
+                          LinearTetraPayload, QuadraticBrickPayload, QuadraticWedgePayload,
+                          QuadraticTetraPayload, QuadraticPyramidPayload)
 
 CONIC_CLASSES = {
     'RcCone': 'cone', 'RcCylinder': 'cylinder', 'RcEllipse': 'ellipse', 'RcEllipsoid': 'ellipsoid',
@@ -21,6 +24,18 @@ CONIC_CLASSES = {
     'RcSphere': 'sphere', 'RcTorus': 'torus',
 }
 
+WRAPPED_ELEMENTS = {
+    'RcLinearTri': ('RCLINEARTRI', decode_legacy_tri),
+    'RcLinearQuad': ('RCLINEARQUAD', decode_legacy_quad),
+    'RcLinearTet': ('RCLINEARTETRA', solid_decoder(LinearTetraPayload, legacy=True)),
+    'RcLinearWedge': ('RCLINEARWEDGE', solid_decoder(LinearWedgePayload, legacy=True)),
+    'RcLinearBrick': ('RCLINEARBRICK', solid_decoder(LinearBrickPayload, legacy=True)),
+    'RcQuadraticTet': ('RCQUADRATICTETRA', solid_decoder(QuadraticTetraPayload)),
+    'RcQuadraticPyramid': ('RCQUADRATICPYRAMID', solid_decoder(QuadraticPyramidPayload)),
+    'RcQuadraticWedge': ('RCQUADRATICWEDGE', solid_decoder(QuadraticWedgePayload)),
+    'RcQuadraticBrick': ('RCQUADRATICBRICK', solid_decoder(QuadraticBrickPayload)),
+}
+
 DECODERS={'RcNode':decode_node,'RcConductor':decode_conductor,'RcHeatLoad':decode_load,'RcRectangle':decode_rectangle,
           'RcFdBrick':decode_brick,'RcDisk':decode_disk,'RcFdSolidCylinder':decode_cylinder,'RcFdSolidSphere':decode_sphere,
           'RcFdSolidCone':decode_solid_cone,'RcFdSolidEllipsoid':decode_solid_ellipsoid,
@@ -28,6 +43,7 @@ DECODERS={'RcNode':decode_node,'RcConductor':decode_conductor,'RcHeatLoad':decod
           'RcLinearTet2':decode_linear_tetra,'RcLinearPyramid2':decode_linear_pyramid,
           'RcLinearTri2':decode_linear_tri,'RcLinearQuad2':decode_linear_quad,'RcMeshFD':decode_polygon_mesh,
           'RcQuadraticTri':decode_quadratic_tri,'RcQuadraticQuad':decode_quadratic_quad,
+          **{name:decoder for name,(_,decoder) in WRAPPED_ELEMENTS.items()},
           **{name:conic_decoder(shape) for name,shape in CONIC_CLASSES.items()}}
 GEOMETRY_CLASSES={'RcRectangle':'RCRECTANGLE','RcFdBrick':'RCTD_FDBRICK','RcDisk':'RCDISK',
                   'RcFdSolidCylinder':'RCTD_FDSOLIDCYLINDER','RcFdSolidSphere':'RCTD_FDSOLIDSPHERE',
@@ -36,14 +52,10 @@ GEOMETRY_CLASSES={'RcRectangle':'RCRECTANGLE','RcFdBrick':'RCTD_FDBRICK','RcDisk
                   'RcLinearTet2':'RCLINEARTETRA2','RcLinearPyramid2':'RCLINEARPYRAMID2',
                   'RcLinearTri2':'RCLINEARTRI2','RcLinearQuad2':'RCLINEARQUAD2','RcMeshFD':'RCPOLYGON',
                   'RcQuadraticTri':'RCQUADRATICTRI','RcQuadraticQuad':'RCQUADRATICQUAD',
+                  **{name:dxf for name,(dxf,_) in WRAPPED_ELEMENTS.items()},
                   **{name:name.upper() for name in CONIC_CLASSES}}
 GEOMETRY_DXF_ALIASES = {'RcParabolicTrough': {'RCPARABTROUGH'}, 'RcMeshFD': {'TD_MESH', 'RCMESHFD'}}
-UNMAPPED_GEOMETRY_CLASSES = {
-    'RcPolygon', 'TdMesherVa',
-    'RcLinearTri', 'RcLinearQuad', 'RcLinearTet', 'RcLinearBrick', 'RcLinearWedge',
-    'RcQuadraticTet', 'RcQuadraticBrick',
-    'RcQuadraticWedge', 'RcQuadraticPyramid',
-}
+UNMAPPED_GEOMETRY_CLASSES = {'RcPolygon'}
 
 
 @dataclass(frozen=True)

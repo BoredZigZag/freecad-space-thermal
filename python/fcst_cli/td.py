@@ -51,6 +51,16 @@ def parsers(commands):
     inventory.add_argument('output', type=Path, help='New local project inventory outside the source tree')
     inventory.add_argument('--backend', required=True)
     inventory.add_argument('--work', required=True)
+    mesh_states = commands.add_parser('td-compare-mesh-states')
+    mesh_states.add_argument('before_root')
+    mesh_states.add_argument('before_entry')
+    mesh_states.add_argument('after_root')
+    mesh_states.add_argument('after_entry')
+    mesh_states.add_argument('output', type=Path)
+    mesh_states.add_argument('--before-handle', required=True)
+    mesh_states.add_argument('--after-handle', required=True)
+    mesh_states.add_argument('--backend', required=True)
+    mesh_states.add_argument('--work', required=True)
     for name in ('td-prepare-transient', 'sinda-prepare-transient'):
         transient = commands.add_parser(name)
         transient.add_argument('root')
@@ -256,6 +266,28 @@ def execute(args):
         from fcst_exchange.dwg_native import NativeRuntime
         from fcst_exchange.independent_td import IndependentTdAdapter
         runtime=NativeRuntime.from_receipt(args.backend)
+        if args.command == 'td-compare-mesh-states':
+            from fcst_app.persistence import encode
+            from fcst_exchange.core import reject
+            from fcst_exchange.independent_td import source_edit_handle
+            from fcst_exchange.td_mesher import compare_mesh_states
+
+            roots = (Path(args.before_root).absolute(), Path(args.after_root).absolute())
+            work = Path(args.work).absolute()
+            if not work.name:
+                reject('td_mesh_state_output_overlap')
+            workdirs = (work, work.with_name(work.name + '-after'))
+            if any(path.resolve().is_relative_to(root.resolve()) for path in (args.output, *workdirs) for root in roots):
+                reject('td_mesh_state_output_overlap')
+            if args.output.exists() or args.output.is_symlink():
+                reject('td_output_exists')
+            handles = (source_edit_handle(args.before_handle), source_edit_handle(args.after_handle))
+            adapter = IndependentTdAdapter(runtime)
+            before = adapter.preview(roots[0], args.before_entry, workdirs[0])
+            after = adapter.preview(roots[1], args.after_entry, workdirs[1])
+            report = compare_mesh_states(before, after, *handles)
+            _write_new_output(args.output, encode(report))
+            return {'operation': args.command, 'status': 'compared', **report}
         if args.command == 'td-inspect-project':
             from fcst_app.persistence import encode
             from fcst_exchange.core import Limits, reject

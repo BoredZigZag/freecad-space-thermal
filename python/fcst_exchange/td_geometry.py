@@ -246,11 +246,16 @@ def _decode_solid(row, standard, cls, *versions):
 
 @dataclass(frozen=True)
 class LinearSolidPayload(RectanglePayload):
+    order = 1
+    legacy: bool = False
+
     @property
     def report(self):
         version = self.fields.get('node_wire_version', 5)
         revision = self.fields['attributes'].get('wire_version', 13)
-        return {'profile': f'td-rclinear{self.shape}2-v{version}-attributes{revision}/1', 'handle': self.record['handle'],
+        family = 'quadratic' if self.order == 2 else 'linear'
+        suffix = '' if self.legacy or self.order == 2 else '2'
+        return {'profile': f'td-rc{family}{self.shape}{suffix}-v{version}-attributes{revision}/1', 'handle': self.record['handle'],
                 'payload_decoded': True, 'geometric_envelope_decoded': True, 'thermal_semantics_decoded': False,
                 'native_ready': False, 'qualified': False,
                 'scope': 'Ordered node references, optional element frame and serialized element attributes'}
@@ -279,15 +284,40 @@ class LinearPyramidPayload(LinearSolidPayload):
     node_count = 5
 
 
+class QuadraticSolidPayload(LinearSolidPayload):
+    order = 2
+
+
+class QuadraticTetraPayload(QuadraticSolidPayload):
+    shape = 'tetra'
+    node_count = 10
+
+
+class QuadraticPyramidPayload(QuadraticSolidPayload):
+    shape = 'pyramid'
+    node_count = 13
+
+
+class QuadraticWedgePayload(QuadraticSolidPayload):
+    shape = 'wedge'
+    node_count = 15
+
+
+class QuadraticBrickPayload(QuadraticSolidPayload):
+    shape = 'brick'
+    node_count = 20
+
+
 @dataclass(frozen=True)
 class LinearShellPayload(RectanglePayload):
     shape: str
     order: int = 1
+    legacy: bool = False
 
     @property
     def report(self):
-        name = f'linear{self.shape}2' if self.order == 1 else f'quadratic{self.shape}'
-        revision = self.fields['attributes']['wire_revision']
+        name = f'linear{self.shape}{"" if self.legacy else "2"}' if self.order == 1 else f'quadratic{self.shape}'
+        revision = self.fields['attributes'].get('wire_revision', 54)
         version = self.fields.get('node_wire_version', 5)
         return {**super().report, 'profile': f'td-rc{name}-v{version}-attributes{revision}/1',
                 'scope': 'Ordered element nodes, surface attributes and linked objects'}
@@ -365,10 +395,23 @@ def decode_quadratic_quad(row, standard):
     return _decode_linear_shell(row, standard, 'quad', 8, order=2)
 
 
-def _decode_linear_shell(row, standard, shape, count, *, order=1):
+def decode_legacy_tri(row, standard):
+    return _decode_linear_shell(row, standard, 'tri', 3, legacy=True)
+
+
+def decode_legacy_quad(row, standard):
+    return _decode_linear_shell(row, standard, 'quad', 4, legacy=True)
+
+
+def _decode_linear_shell(row, standard, shape, count, *, order=1, legacy=False):
     filer = Filer(row)
     common = common_handles(filer, standard)
-    attrs = read_attributes(filer, revisions=EXTENDED_SURFACE_REVISIONS)
+    revisions = EXTENDED_SURFACE_REVISIONS
+    if legacy:
+        filer.version(1)
+        filer.version_one_of(2, 3, 5)
+        revisions = (ATTRIBUTE_REVISION, *revisions)
+    attrs = read_attributes(filer, revisions=revisions)
     marker56 = attrs.get('wire_revision') == 56
     if marker56:
         # An optional soft pointer precedes the ordered hard node pointers.
@@ -379,13 +422,15 @@ def _decode_linear_shell(row, standard, shape, count, *, order=1):
         if code == 4:
             attrs['leading_soft_reference'] = filer.handle()
     fields = _element_nodes(filer, count, hard_pointers=marker56)
-    filer.version(5)
-    references = tuple(filer.handle() for _ in range(filer.count()))
-    extra_points = tuple(filer.data.point() for _ in range(filer.count()))
-    filer.version(1)
+    references = extra_points = ()
+    if not legacy:
+        filer.version(5)
+        references = tuple(filer.handle() for _ in range(filer.count()))
+        extra_points = tuple(filer.data.point() for _ in range(filer.count()))
+        filer.version(1)
     filer.finish()
     fields.update(common_handles=common, attributes=attrs, references=references, extra_points=extra_points)
-    return LinearShellPayload(fields, {}, dict(row), standard, shape, order)
+    return LinearShellPayload(fields, {}, dict(row), standard, shape, order, legacy)
 
 
 def decode_linear_brick(row, standard):
@@ -404,12 +449,37 @@ def decode_linear_pyramid(row, standard):
     return _decode_linear_solid(row, standard, LinearPyramidPayload)
 
 
-def _decode_linear_solid(row, standard, cls):
+def solid_decoder(cls, *, legacy=False):
+    def decode(row, standard):
+        return _decode_linear_solid(row, standard, cls, legacy=legacy)
+    return decode
+
+
+def _decode_linear_solid(row, standard, cls, *, legacy=False):
     filer = Filer(row)
     common = common_handles(filer, standard)
+    if legacy:
+        filer.version(1)
+    wrapped = legacy or cls.order == 2
+    if wrapped:
+        # The class wrapper repeats the base revision ahead of the entity.
+        outer_revision = filer.version_one_of(9, 13, 14)
     fields = _element_nodes(filer, cls.node_count)
     b = filer.data
+
+    if wrapped and outer_revision == 9:
+        attrs = {'wire_version': 9, 'names': (filer.text(), filer.text()),
+                 'face_selectors': tuple(b.bl() for _ in range(6)),
+                 'references_a': tuple(filer.handle() for _ in range(filer.count()))}
+        if cls.order == 2:
+            filer.version(1)
+        filer.finish()
+        fields.update(common_handles=common, attributes=attrs)
+        return cls(fields, {}, dict(row), standard, legacy=legacy)
+
     revision = filer.version_one_of(13, 14)
+    if wrapped and revision != outer_revision:
+        reject('td_filer_version')
 
     def references():
         return tuple(filer.handle() for _ in range(filer.count()))
@@ -422,9 +492,11 @@ def _decode_linear_solid(row, standard, cls):
     if revision == 14:
         attrs.update(wire_version=14, additional_selector=b.bl())
     filer.version(1)
+    if cls.order == 2:
+        filer.version(1)
     filer.finish()
     fields.update(common_handles=common, attributes=attrs)
-    return cls(fields, {}, dict(row), standard)
+    return cls(fields, {}, dict(row), standard, legacy=legacy)
 
 
 def _element_nodes(filer, count, *, hard_pointers=False):
