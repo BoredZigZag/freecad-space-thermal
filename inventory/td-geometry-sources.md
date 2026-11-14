@@ -278,7 +278,8 @@ faces, 20 wedge faces and 24 brick faces. The PAT check provides independent
 geometry input. Native DWG layout confirmation awaits original examples.
 
 The saved-state comparison reported the public CMU TD Direct mesh unchanged
-when compared with itself. It resolved 29 nodes and 106 elements. The owned
+when compared with itself. It resolved 29 nodes, 106 elements and three saved
+DWG mesh groups with matching memberships. The owned
 Discovery companion scenario exercises a first mesh, a saved reuse control
 and missing-companion handling. The local runtime probe found no licensed
 AutoCAD host, so no vendor sync or mesh generation was run. See the
@@ -359,9 +360,11 @@ runtime. The saved output is absent from the archive.
 A deduplicated rescreen of 30 AC1032 drawings with retained native inventories
 found four active `TdScImporter` records. It found zero instances of the
 target legacy FE wrappers, quadratic solids, `TdMesherVA`, ogive, scarfed
-surfaces or solid ellipsoid. That leaves the original layout comparisons
-open. The CMU SpaceClaim pair passed the unchanged saved-mesh check with
-29 nodes, 106 elements and matching source node assignments. This is a
+surfaces or solid ellipsoid. The user conditionally accepted DWG layout
+validation on the available structural and analytic evidence. Comparisons
+against original target instances remain deferred until drawings are available.
+The CMU SpaceClaim pair passed the unchanged saved-mesh check with
+29 nodes, 106 elements and three matching mesh groups. This is a
 same-drawing control. The historical UC Davis CubeSat drawing contains a
 v12 case manager advertising four cases. The reader recovered the first
 v78 case header and preserved the remaining fields as opaque.
@@ -369,9 +372,10 @@ v78 case header and preserved the remaining fields as opaque.
 ## Files still needed for full coverage
 
 The names below are proposed for new test fixtures. The inspected drawings
-supply mesher and importer records and linear-element examples. The remaining
-class and parameter combinations need purpose-built drawings or verified
-vendor examples.
+supply mesher and importer records and linear-element examples. The conic,
+element-order, legacy FE and `TdMesherVA` layout comparisons are deferred
+under the conditional acceptance. The linked CAD states and geometry physics
+files still support open acceptance work.
 
 | Proposed fixture | Required contents |
 | --- | --- |

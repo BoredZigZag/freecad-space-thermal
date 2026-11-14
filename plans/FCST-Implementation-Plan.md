@@ -727,8 +727,10 @@ AC1027 inspection fixtures and AC1032 wire revisions for FD solids, rectangles,
 linear solid elements, conductors and expressions. Read-only inspection and
 static boundary export now cover the reviewed cases, including marker-56
 surfaces and linked stored meshes. The reviewed legacy FE and quadratic-solid
-layouts have owned fixtures. Original DWG comparisons for these layouts and
-the new conics, CAD importer synchronization, regeneration and geometry-attached
+layouts have owned fixtures. The user conditionally accepted the DWG layout
+validation on that evidence because no available original drawing contains
+the target instances. Retain original comparisons for when suitable files
+become available. Native CAD importer synchronization and geometry-attached
 thermal physics remain open.
 WP-08 validation targets the required TD 6.3 profile, including the
 `RcMeshFD` polygon representation. The historical `RcPolygon` C++ class and

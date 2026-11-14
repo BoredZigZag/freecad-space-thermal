@@ -59,10 +59,16 @@ def parsers(commands):
     mesh_states.add_argument('output', type=Path)
     mesh_states.add_argument('--before-handle', required=True)
     mesh_states.add_argument('--after-handle', required=True)
-    mesh_states.add_argument('--expect', choices=('initial', 'changed', 'unchanged'),
+    mesh_states.add_argument('--expect', choices=('initial', 'changed', 'unchanged', 'retagged'),
                              help='Require the expected stored-mesh transition before saving the report')
     mesh_states.add_argument('--backend', required=True)
     mesh_states.add_argument('--work', required=True)
+    sync = commands.add_parser('td-sync-cad-mesh', help='Transfer an accepted FCST CAD setup to a regenerated mesh')
+    sync.add_argument('project', type=Path, help='Previous prepared FCST CAD project')
+    sync.add_argument('mesh', type=Path, help='New pinned FreeCAD/Gmsh CAD mesh JSON')
+    sync.add_argument('brep', type=Path, help='BREP corresponding to the new mesh')
+    sync.add_argument('output', type=Path, help='New portable FCST project')
+    sync.add_argument('--mapping', type=Path, help='JSON with region_map and face_map for changed topology')
     for name in ('td-prepare-transient', 'sinda-prepare-transient'):
         transient = commands.add_parser(name)
         transient.add_argument('root')
@@ -165,7 +171,38 @@ def _write_transient_request(args, request):
             'vendor_runtime_required': False, 'qualified': False}
 
 
+def _sync_cad_mesh(args):
+    from fcst_app.cad_mesh import synchronize_project
+    from fcst_app.persistence import Limits, Package
+    from fcst_contracts import MAX_BYTES, loads
+    from fcst_exchange.core import reject
+
+    def bounded(path, limit):
+        with path.open('rb') as stream:
+            raw = stream.read(limit + 1)
+        if len(raw) > limit:
+            reject('td_cad_sync_input_limit')
+        return raw
+
+    if args.output.exists() or args.output.is_symlink():
+        reject('td_output_exists')
+    if any(args.output.resolve().is_relative_to(path.resolve())
+           for path in (args.project, args.mesh, args.brep, args.mapping) if path is not None):
+        reject('td_cad_sync_output_overlap')
+    saved = Package.open(args.project)
+    source = loads(bounded(args.mesh, MAX_BYTES))
+    brep = bounded(args.brep, Limits().item_bytes)
+    mapping = loads(bounded(args.mapping, MAX_BYTES)) if args.mapping else {}
+    if not isinstance(mapping, dict) or set(mapping) != ({'region_map', 'face_map'} if args.mapping else set()):
+        reject('td_cad_sync_mapping')
+    prepared, report = synchronize_project(saved, source, brep, **mapping)
+    _write_new_output(args.output, prepared.zip_bytes())
+    return {'operation': args.command, **report, 'vendor_runtime_required': False, 'qualified': False}
+
+
 def execute(args):
+    if args.command == 'td-sync-cad-mesh':
+        return _sync_cad_mesh(args)
     if args.command in {'td-prepare-transient', 'sinda-prepare-transient'}:
         from fcst_exchange.core import reject
 
@@ -292,11 +329,12 @@ def execute(args):
                 was_meshed = report['before']['elements'] > 0
                 is_meshed = report['after']['elements'] > 0
                 changed = report['mesh_changed']
+                stable_mesh = was_meshed and is_meshed and not changed and not report['source_node_assignments_changed']
                 observed = {
                     'initial': not was_meshed and is_meshed,
                     'changed': was_meshed and is_meshed and changed,
-                    'unchanged': (was_meshed and is_meshed and not changed
-                                  and not report['source_node_assignments_changed']),
+                    'unchanged': stable_mesh and not report['mesh_groups_changed'],
+                    'retagged': stable_mesh and report['mesh_groups_changed'],
                 }
                 if not observed[args.expect]:
                     reject('td_mesh_state_expectation')

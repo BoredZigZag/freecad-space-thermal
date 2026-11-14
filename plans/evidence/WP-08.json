@@ -261,8 +261,7 @@
     "catalog": "Versioned conic, finite-difference solid, polygon mesh, linear and quadratic element classes",
     "acceptance": "ci/td-acceptance.json exercises owned records, analytic bounds and volumes, source-node connectivity, and unsupported-class diagnostics",
     "remaining": [
-      "Source comparisons for ogive, nonzero scarf angles and independently trimmed hollow ellipsoids",
-      "Native reference comparisons for the reviewed legacy finite-element and quadratic-solid layouts and automatic mesh regeneration",
+      "Automatic mesh regeneration and vendor synchronization comparisons",
       "Native geometry-to-physics reconstruction and independent vendor reference evidence"
     ],
     "qualified": false
@@ -292,22 +291,35 @@
     "marker_56_geometry_records": 6213,
     "independent_nastran_comparison": {"nodes": 127, "quad_connectivities": 103},
     "stored_mesh_elements": {"td_direct_example": 106, "largest_opentd_example": 7705, "heating_coil_per_case": 12900},
-    "holds": ["Paired native conic and displaced midside fixtures", "CAD synchronization and regeneration after changes"],
+    "holds": ["CAD synchronization and regeneration after changes"],
     "qualified": false
   },
   "dwg_legacy_quadratic_and_cad_mesh_comparison": {
     "coverage": "Legacy triangle, quad, tet, wedge and brick wrappers. Quadratic tet, pyramid, wedge and brick wrappers and display boundaries. TdMesherVA v43 stored links and TdScImporter v6 CAD companion binding.",
     "acceptance": "Owned records verify ordered nodes, wrapper closure, moved midsides, watertight boundaries, linked Discovery companion hashes and initial versus reused stored mesh states through the comparison CLI.",
     "timing_review": "The warm Foundation handoff for run 43586602355 shows Embree as the longest parallel job at 567 seconds and TD exchange stages at 13.282 seconds Debug and 8.828 seconds Release. The hypothesis was that reusing the face subdivision in the existing geometry path and bounding solid edge matching would preserve existing runtime. Two alternating local repetitions of three existing geometry tests measured 2.285 and 1.854 seconds at baseline and 1.771 and 1.683 seconds on the candidate, including interpreter startup. The small sample does not establish a hosted speedup. No coverage, compiler settings, or performance baseline changed.",
-    "holds": ["Original drawings for the reviewed legacy, quadratic solid and TdMesherVA layouts", "Native Discovery importer identification and licensed CAD synchronization and regeneration captures"],
+    "holds": ["Native Discovery importer identification and licensed CAD synchronization and regeneration captures"],
     "qualified": false
   },
   "original_drawing_and_case_dependency_follow_up": {
     "local_native_class_screen": {"distinct_ac1032_drawings": 30, "td_sc_importer": 4, "target_legacy_quadratic_mesher_and_conic_instances": 0},
-    "spaceclaim_saved_state_control": {"nodes": 29, "elements": 106, "source_node_assignments_equal": true},
+    "spaceclaim_saved_state_control": {"nodes": 29, "elements": 106, "mesh_groups": 3, "source_node_assignments_equal": true, "mesh_group_memberships_equal": true},
     "case_manager_control": {"manager_version": 12, "first_case_version": 78, "declared_cases": 4, "decoded_headers": 1},
     "acceptance": "Existing frozen cases exercise expected stored mesh transitions, thermal node renumbering, safe relative run directories, generated-deck INSERT traversal and opaque case tails.",
-    "holds": ["Original layout comparisons for the required classes", "Licensed native Discovery and SpaceClaim synchronization and mesh regeneration", "Full case, physics, SINDA and reverse export semantics"],
+    "holds": ["Licensed native Discovery and SpaceClaim synchronization and mesh regeneration", "Full case, physics, SINDA and reverse export semantics"],
+    "qualified": false
+  },
+  "dwg_layout_validation_disposition": {
+    "status": "conditionally_accepted",
+    "basis": "The user accepted the available structural and analytic evidence due to lack of original DWGs with the target instances.",
+    "deferred": ["Original DWG comparisons for legacy FE, quadratic solids, TdMesherVA, and the specified conics"],
+    "qualified": false
+  },
+  "cad_synchronization_follow_up": {
+    "coverage": "Saved mesh group membership fingerprints and tag-only comparison. FreeCAD/Gmsh regeneration transfers compatible material and face assignments to a new FCST project with explicit maps for geometry changes.",
+    "acceptance": "The host acceptance remeshes the existing three box refinements. Owned standalone cases verify unchanged reuse, assignment transfer, explicit reassignment, and atomic portable output.",
+    "timing_review": "Foundation run 43619023291 measured TD exchange at 18.687 seconds Debug and 12.453 seconds Release and host acceptance at 184.062 and 140.390 seconds. Debug was on the hosted critical path at 570 seconds. The candidate reuses the three existing box refinements to exercise synchronization without adding Gmsh launches or changing the solver comparisons. Coverage and performance baselines are unchanged.",
+    "holds": ["Native TD Designer tutorial captures and licensed Thermal Desktop sync execution", "Native importer control and action semantics, proprietary CAD regeneration and parity"],
     "qualified": false
   }
 }

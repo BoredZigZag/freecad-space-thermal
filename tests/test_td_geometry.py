@@ -756,7 +756,7 @@ class TdGeometryTests(unittest.TestCase):
         from fcst_exchange.source_tree import capture_project
         from fcst_exchange.td_mesher import compare_mesh_states
         from fcst_exchange.td_project_inventory import inspect_project
-        from fcst_exchange.dwg_native import NativeRuntime
+        from fcst_exchange.dwg_native import NativeRuntime, NativeSnapshot, _one
         from fcst_cli.td import execute, parsers
         from argparse import ArgumentParser
         import json
@@ -775,7 +775,7 @@ class TdGeometryTests(unittest.TestCase):
         shell.data.put(0, 1)
         shell.data.bl(1)
 
-        def state(directory, *, mesh, first=101, cad=b'owned CAD', first_id=1):
+        def state(directory, *, mesh, first=101, cad=b'owned CAD', first_id=1, group='domain'):
             directory.mkdir()
             (directory / 'owned.dwg').write_bytes(b'AC1032-owned')
             if cad is not None:
@@ -794,6 +794,18 @@ class TdGeometryTests(unittest.TestCase):
             snapshot = drawing([*state_nodes, shell.result(22), variant.result(20), importer.result(21)],
                                handles=list(range(first, first + 6)), geometry_classes=classes,
                                reference_codes={4: (5,), 5: (4,)})
+            if mesh:
+                from test_td_project_inventory import handle
+
+                rows = list(_one(snapshot.standard, 'OBJECTS'))
+                dictionary, group_handle = first + 6, first + 7
+                name = f'{group}_NODES_{first + 5:X}'
+                rows.append(Fields([('object', 'DICTIONARY'), ('handle', handle(dictionary)),
+                                    ('numitems', 1), ('items', Fields([(name, handle(group_handle))]))]))
+                rows.append(Fields([('object', 'GROUP'), ('handle', handle(group_handle)),
+                                    ('groups', [handle(first), handle(first + 1)])]))
+                header = Fields([*_one(snapshot.standard, 'HEADER'), ('DICTIONARY_ACAD_GROUP', handle(dictionary))])
+                snapshot = NativeSnapshot(snapshot.native, Fields([('HEADER', header), ('OBJECTS', rows)]), snapshot.digest)
             return DwgPreview(capture_project(directory, 'owned.dwg'), snapshot)
 
         with tempfile.TemporaryDirectory() as directory:
@@ -802,6 +814,7 @@ class TdGeometryTests(unittest.TestCase):
             after = state(root / 'after', mesh=True, cad=b'edited CAD')
             reused = state(root / 'reused', mesh=True, first=301, cad=b'edited CAD')
             renumbered = state(root / 'renumbered', mesh=True, cad=b'edited CAD', first_id=10)
+            retagged = state(root / 'retagged', mesh=True, cad=b'edited CAD', group='other')
             missing = state(root / 'missing', mesh=True, cad=None)
             report = compare_mesh_states(before, after, 106, 106)
             self.assertTrue(report['mesh_changed'])
@@ -813,9 +826,14 @@ class TdGeometryTests(unittest.TestCase):
             self.assertFalse(report['mesh_changed'])
             self.assertFalse(report['companion_changed'])
             self.assertFalse(report['source_node_assignments_changed'])
+            self.assertFalse(report['mesh_groups_changed'])
+            self.assertEqual(report['after']['mesh_groups'], 1)
             report = compare_mesh_states(after, renumbered, 106, 106)
             self.assertFalse(report['mesh_changed'])
             self.assertTrue(report['source_node_assignments_changed'])
+            report = compare_mesh_states(after, retagged, 106, 106)
+            self.assertFalse(report['mesh_changed'])
+            self.assertTrue(report['mesh_groups_changed'])
             declared, = inspect_project(after)['companion_inventory']['declared_inputs']
             self.assertEqual((declared['role'], declared['status']), ('td-designer-document', 'resolved'))
             with self.assertRaisesRegex(ExchangeError, 'companion_unresolved'):

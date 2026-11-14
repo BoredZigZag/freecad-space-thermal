@@ -398,10 +398,13 @@ reports drawing and linked CAD hashes, node and element counts, and whether an
 ordered connectivity and coordinate fingerprint changed. It allows an empty
 starting mesh. Use paired initial-sync, parameter-change and reuse captures
 with the same drawing units. DWG handle renumbering alone does not change the
-fingerprint for distinct coordinates. The report also fingerprints the source
+fingerprint for distinct coordinates. The report also fingerprints named
+DWG groups that contain selected nodes or elements and the source
 submodel and node number assignments. Use `--expect initial` for an empty-to-meshed
 transition, `--expect changed` for changed geometry between populated meshes,
-or `--expect unchanged` for matching populated geometry and node assignments.
+or `--expect unchanged` for matching populated geometry, node assignments
+and group memberships. Use `--expect retagged` for changed group memberships
+on matching geometry and node assignments.
 A failed expectation leaves the output path untouched. Companion changes are
 reported separately.
 Native synchronization, geometry generation, mesh controls, and tag transfer
@@ -437,8 +440,8 @@ produce diagnostics.
 The conic and high-order boundaries are tested against analytic or synthetic
 geometry. The legacy and quadratic-solid wrappers and the `TdMesherVA`
 registration were reviewed against the installed reader and tested with owned
-records. Native source comparisons still need the fixtures in the source
-inventory.
+records. The user conditionally accepted layout validation based on this
+evidence. The source inventory preserves the deferred original comparisons.
 
 The catalog includes the geometry families exposed by TD's API. The class
 catalog describes the product surface across releases. Serialized layout
@@ -449,6 +452,25 @@ support is tied to explicit wire versions and tested separately.
 The [WP-08 source inventory](../inventory/td-geometry-sources.md) records the
 local drawing checks and the fixtures needed for additional geometry and
 thermal coverage.
+
+### Regenerate an FCST CAD project
+
+```text
+fcst td-sync-cad-mesh original.fcst edited-mesh.json edited.brep regenerated.fcst --mapping assignments.json
+```
+
+This command takes a fresh mesh from the pinned FreeCAD/Gmsh path and a
+matching BREP. It writes a new FCST package and keeps the original package
+intact. The host `fcst_host.cad_mesher.regenerate` entry point runs the pinned
+mesher asynchronously and prepares the same portable output in memory.
+With unchanged geometry and region names, it reapplies the accepted material
+and boundary settings and reuses an identical saved mesh. A geometry or region
+change requires a `region_map` covering all old and new regions one-to-one and
+a `face_map` matching every previously assigned face to a distinct new face.
+A total-power boundary keeps its integrated power on the regenerated facets.
+The new package contains recalculated conduction inputs. Previous solver
+results remain in the source package. Native TD Direct and TD Designer action
+scripts, proprietary CAD data and DWG regeneration remain open.
 
 ### Prepare a native conduction mesh
 

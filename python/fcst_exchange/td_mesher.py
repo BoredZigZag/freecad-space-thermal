@@ -2,10 +2,13 @@
 """Inspect stored TD mesher links while preserving the opaque settings."""
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
+import re
 
 from .core import ExchangeError, reject
+from .dwg_native import Fields, _one
 from .td_filer import Filer
 from .td_node import common_handles
+from .td_project_graph import field as dwg_field, reference_target
 
 
 MESHERS = {
@@ -72,6 +75,43 @@ def decode_mesher(row, standard, identity):
     return MesherPayload(row, tuple(links), companion, version, role)
 
 
+def _saved_mesh_groups(standard, manager_handle, node_indices, element_keys):
+    """Return named DWG groups containing at least one selected mesh member."""
+    root_ref = dwg_field(_one(standard, 'HEADER'), 'DICTIONARY_ACAD_GROUP')
+    if root_ref is None:
+        return []
+    root = reference_target(root_ref, 0)
+    if not root:
+        return []
+    objects = {_one(row, 'handle')[2]: row for row in _one(standard, 'OBJECTS')}
+    dictionary = objects.get(root, ())
+    entries = dwg_field(dictionary, 'items', Fields())
+    if (dwg_field(dictionary, 'object') != 'DICTIONARY' or not isinstance(entries, Fields)
+            or len(entries) != dwg_field(dictionary, 'numitems') or len(entries) > MESH_LINK_LIMIT):
+        reject('td_mesh_group_dictionary')
+    names, groups = set(), []
+    for name, link in entries:
+        handle = reference_target(link, root)
+        row = objects.get(handle, ())
+        links = dwg_field(row, 'groups', [])
+        if (not name or name.casefold() in names or dwg_field(row, 'object') != 'GROUP'
+                or not isinstance(links, list) or len(links) > MESH_LINK_LIMIT):
+            reject('td_mesh_group_record')
+        names.add(name.casefold())
+        targets = {reference_target(member, handle) for member in links}
+        nodes = sorted(node_indices[h] for h in targets & node_indices.keys())
+        elements = sorted(element_keys[h] for h in targets & element_keys.keys())
+        if nodes or elements:
+            key = name.casefold()
+            # Reviewed TD groups append the owning importer handle in hex.
+            # Normalize only recognized TD mesh groups with the exact suffix.
+            suffix = f'_{manager_handle:x}'
+            if key.endswith(suffix) and re.search(r'(?:^tdfem_|_(?:nodes|surfaces|solids)_)', key):
+                key = key[:-len(suffix)] + '_<owner>'
+            groups.append((key, nodes, elements, len(targets) - len(nodes) - len(elements)))
+    return sorted(groups)
+
+
 def compare_mesh_states(before, after, before_handle, after_handle):
     """Compare stored CAD links and FE connectivity in two captured drawings."""
     from hashlib import sha256
@@ -131,17 +171,19 @@ def compare_mesh_states(before, after, before_handle, after_handle):
         if len(set(source_ids)) != len(source_ids):
             reject('td_mesh_state_node_identity_collision')
         indices = {handle: i for i, handle in enumerate(ordered)}
-        cells = []
+        cells = {}
         for element in elements:
             if element.fields.get('additional_node_selector') or element.fields.get('extra_points'):
                 reject('td_mesh_state_element_unmapped')
             handles = element.fields['node_handles']
-            cells.append((element.shape, element.order, tuple(indices[h] for h in handles)))
-        topology = {'points': [nodes[h]['basis'][0] for h in ordered], 'cells': sorted(cells)}
+            cells[element.record['handle']] = (element.shape, element.order, tuple(indices[h] for h in handles))
+        topology = {'points': [nodes[h]['basis'][0] for h in ordered], 'cells': sorted(cells.values())}
+        groups = _saved_mesh_groups(state.snapshot.standard, handle, indices, cells)
         return {'drawing_sha256': original.drawing_hash, 'manager_class': name, 'companion': companion,
                 'nodes': len(nodes), 'elements': len(cells),
                 'ordered_mesh_sha256': sha256(encode(topology)).hexdigest(),
-                'source_node_assignment_sha256': sha256(encode(source_ids)).hexdigest()}
+                'source_node_assignment_sha256': sha256(encode(source_ids)).hexdigest(),
+                'mesh_groups': len(groups), 'mesh_group_sha256': sha256(encode(groups)).hexdigest()}
 
     first = capture(before, before_handle)
     second = capture(after, after_handle)
@@ -154,8 +196,9 @@ def compare_mesh_states(before, after, before_handle, after_handle):
     before.original.check_current()
     if after.original != before.original:
         after.original.check_current()
-    return {'profile': 'td-stored-mesh-comparison/1', 'before': first, 'after': second,
+    return {'profile': 'td-stored-mesh-comparison/2', 'before': first, 'after': second,
             'companion_changed': first['companion'] != second['companion'],
             'mesh_changed': first['ordered_mesh_sha256'] != second['ordered_mesh_sha256'],
             'source_node_assignments_changed': first['source_node_assignment_sha256'] != second['source_node_assignment_sha256'],
+            'mesh_groups_changed': first['mesh_group_sha256'] != second['mesh_group_sha256'],
             'vendor_runtime_required': False, 'qualified': False}
