@@ -210,6 +210,12 @@ void validate(const Assembly& a,const TransientOptions& o) {
        (e.kind!="environment" && e.kind!="eclipse"))throw Error("callback_events");
     finite(e.before);finite(e.after);previous_event=e.time;
   }
+  if(o.callback_knots.size()>10000 || (!o.callback_knots.empty() && !a.has_callbacks()))throw Error("callback_knots");
+  double previous_knot=-std::numeric_limits<double>::infinity();
+  for(const auto& knot:o.callback_knots) {
+    if(finite(knot.time)<=previous_knot)throw Error("callback_knots");
+    previous_knot=knot.time;
+  }
   if (o.schedules.size()>10000) throw Error("limit"); std::string previous;
   for (const auto& s:o.schedules) {
     if (s.load_id<=previous || s.points.empty() || s.points.size()>10000 || s.points.front().time>o.start) throw Error("schedule");
@@ -315,6 +321,9 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       auto event=std::upper_bound(o.callback_events.begin(),o.callback_events.end(),c.time,
         [](double t,const CallbackEvent& e){return t<e.time;});
       if(event!=o.callback_events.end())stop=std::min(stop,event->time);
+      auto knot=std::upper_bound(o.callback_knots.begin(),o.callback_knots.end(),c.time,
+        [](double t,const CallbackKnot& k){return t<k.time;});
+      if(knot!=o.callback_knots.end())stop=std::min(stop,knot->time);
       double h=std::min({c.next_step,o.maximum_step,stop-c.time});
       // A capped step can leave a floating-point remainder smaller than the
       // minimum step at an exact output/schedule boundary. Split the remaining
@@ -323,8 +332,10 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       const double remaining=stop-c.time;
       if(h<remaining && remaining-h<o.minimum_step && remaining/2>=o.minimum_step)h=remaining/2;
       if(h<o.minimum_step || c.time+h==c.time || c.time+h/2==c.time)throw Failure{"step_underflow",{}};
+      const bool stop_has_jump=(event!=o.callback_events.end() && event->time==stop) ||
+        (knot!=o.callback_knots.end() && knot->time==stop && knot->discontinuity);
       auto endpoint=[&](double duration)->std::optional<double> {
-        if(event!=o.callback_events.end() && event->time==stop && (duration==remaining || c.time+duration>=stop))
+        if(stop_has_jump && (duration==remaining || c.time+duration>=stop))
           return std::nextafter(stop,c.time);
         return {};
       };
@@ -367,10 +378,12 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       reserve_values(8+a.model().data().nodes.size()*4);
       auto committed=c;
       const double old_time=c.time;
-      const bool callback_event=endpoint(h).has_value();
+      const bool pre_event=endpoint(h).has_value();
       c.time=old_time+h;
-      if(callback_event || ((event==o.callback_events.end() || stop!=event->time) && located.empty() &&
+      if(pre_event || (!stop_has_jump && located.empty() &&
          std::abs(c.time-stop)<=4*std::numeric_limits<double>::epsilon()*std::max(1.,std::abs(stop))))c.time=stop;
+      const bool callback_event=pre_event && event!=o.callback_events.end() && event->time==c.time;
+      const bool load_jump=pre_event && knot!=o.callback_knots.end() && knot->time==c.time && knot->discontinuity;
       for(const auto& [id,on]:c.operating.heaters)if(on)c.on_seconds[id]=finite(c.on_seconds[id]+h);
       c.temperature=trial.end; add(c.run_energy,trial.energy); ++c.accepted_steps;
       c.next_step=std::clamp(h*(trial.error==0?2:std::clamp(.9/std::sqrt(trial.error),.5,2.)),o.minimum_step,o.maximum_step);
@@ -387,7 +400,7 @@ TransientResult solve_transient(const Assembly& base,const TransientOptions& o,s
       for(const auto& schedule:o.schedules)for(const auto& point:schedule.points)if(point.time==c.time)scheduled=true;
       try {
         if(callback_event)record_event(event->entity_id,event->kind,event->before,event->after);
-        if(callback_event || scheduled || !located.empty())update_events(false,located);
+        if(callback_event || load_jump || scheduled || !located.empty())update_events(false,located);
       }
       catch(...) {c=committed;out.events.resize(events_before);throw;}
       out.steps.push_back({old_time,c.time,trial.error,true,"accepted",trial.energy}); snapshot();

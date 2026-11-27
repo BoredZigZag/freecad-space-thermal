@@ -29,7 +29,11 @@
     "offline-native",
     "temperature-tensor-law",
     "spatial-transient-heating",
-    "mixed-material-storage"
+    "mixed-material-storage",
+    "td-material-mesh",
+    "td-brick-face-power",
+    "td-cartesian-fd-network",
+    "td-saved-linear-elements"
   ],
   "criteria": {
     "patch_absolute": 1e-09,

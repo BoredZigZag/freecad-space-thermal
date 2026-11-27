@@ -17,6 +17,8 @@ def assess(evidence,*,candidate,profile=PROFILE):
 
     Optional OpenTD evidence cannot satisfy the independent product profile.
     Reference licenses and source-tool installations are not product gates.
+    The class coverage case counts unresolved requirements for the declared
+    profile. Historical RcPolygon and extra revisions are optional coverage.
     """
     problems=[];by_id={}
     if profile!=PROFILE:problems.append('independent_product_profile_required')

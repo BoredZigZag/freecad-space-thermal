@@ -43,8 +43,12 @@ class Filer:
         self.values+=value;return value
 
     def version(self,expected):
-        value=self.data.bl()
-        if value!=expected:reject('td_filer_version')
+        return self.version_one_of(expected)
+
+    def version_one_of(self, *expected):
+        value = self.data.bl()
+        if value not in expected:
+            reject('td_filer_version')
         return value
 
     def number(self,name):
@@ -76,11 +80,15 @@ class Filer:
         return {'column_a':self.integers(),'column_b':self.integers(),'enabled':self.flags()}
 
     def expression(self):
-        self.version(5)
-        return {'selectors':tuple(self.data.bl() for _ in range(3)),
+        version = self.version_one_of(5, 6)
+        fields = {'selectors':tuple(self.data.bl() for _ in range(3)),
                 'text':self.text(),'alternate':self.text(),'table':self.table_metadata(),
-                'mode':self.data.bl(),'dimension':self.data.bl(),'dimensional':bool(self.data.take(1)),
-                'dimension_table':self.table_metadata()}
+                'mode':self.data.bl(),'dimension':self.data.bl()}
+        if version == 5:
+            fields.update(dimensional=bool(self.data.take(1)), dimension_table=self.table_metadata())
+        else:
+            fields.update(dimensional=False, dimension_table={}, wire_version=6)
+        return fields
 
     def multi_expression(self):
         self.version(3)

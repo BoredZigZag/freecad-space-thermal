@@ -94,6 +94,8 @@
     "transient-limits",
     "transient-failures",
     "transient-cli-analytic",
+    "td-material-storage",
+    "td-sinda-time-power",
     "transient-cli-checkpoint",
     "transient-cli-events",
     "transient-cli-failures",

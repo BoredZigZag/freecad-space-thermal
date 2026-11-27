@@ -1,19 +1,25 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
+from collections import Counter
 from copy import deepcopy
 from dataclasses import replace
+import math
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 from fcst_exchange import ExchangeError
 from fcst_exchange.dwg_native import NativeSnapshot,Fields,_one
-from fcst_exchange.td_geometry import decode_rectangle,decode_rectangle_complete,decode_brick,rectangle_payload,brick_payload,SENTINEL
-from fcst_exchange.td_writer import FilerWriter
+from fcst_exchange.td_geometry import (decode_rectangle, decode_rectangle_complete, decode_brick, decode_disk,
+                                       decode_cylinder, decode_sphere, decode_linear_brick, decode_linear_wedge,
+                                       rectangle_payload, brick_payload, SENTINEL)
+from fcst_exchange.td_geometry_mesh import boundary_mesh
+from fcst_exchange.td_node import decode_node
+from fcst_exchange.td_writer import FilerWriter, node_payload
 from fcst_exchange.td_decode import decode_drawing
 from fcst_exchange.td_model import convert_network
 from fcst_exchange.sinda import SindaUnits
 from td_fixture import drawing,envelope,PATCH
-from td_geometry_fixture import rectangle_fields,brick_fields
+from td_geometry_fixture import rectangle_fields,brick_fields,rectangle_boundary_fields,brick_boundary_fields,expression
 
 
 def rectangle():
@@ -25,7 +31,940 @@ def rectangle():
     b.bl(99);f.text('owned opaque attributes');return f.result(1)
 
 
+def write_owned_surface55(f, attrs, *, marker56=False):
+    from fcst_exchange.td_surface import ATTRIBUTE_LAYOUT, EXTENDED_ATTRIBUTE_REVISION, MESH_ATTRIBUTE_REVISION, write_value
+
+    b = f.data
+    b.bl(0)
+    f.text('')
+    f.text('')
+    b.bl(0)
+    b.bl(0)
+    for name in ('front', 'back', 'edge'):
+        f.text(name)
+    b.bd(MESH_ATTRIBUTE_REVISION if marker56 else EXTENDED_ATTRIBUTE_REVISION)
+    if marker56:
+        layout = (
+            *ATTRIBUTE_LAYOUT[:6],
+            ('selectors_a', 'integer', 2), ('names_a', 'text', 6),
+            ('indices_a', 'integer', 4), ('source_submodel', 'text', 1),
+            ('selectors_b', 'integer', 8), ('names_b', 'text', 2), ('values_a', 'double', 4),
+            *ATTRIBUTE_LAYOUT[13:15], ('additional_selector_d', 'integer', 1),
+            *ATTRIBUTE_LAYOUT[15:17], ('reference_mode', 'integer', 1),
+            *ATTRIBUTE_LAYOUT[18:24], ('expression_selectors', 'integer', 2),
+            ('expressions_a', 'expression', 5), *ATTRIBUTE_LAYOUT[25:],
+        )
+        attrs = {**attrs, 'selectors_a': (0, 1), 'names_a': ('one', '', '', 'four', 'five', 'six'),
+                 'indices_a': (7, 8, 9, 10), 'source_submodel': 'owned submodel', 'selectors_b': (0,) * 8,
+                 'names_b': ('left edge', 'right edge'), 'values_a': (1, 2, 3, 4),
+                 'additional_selector_d': 7, 'reference_mode': 1, 'expression_selectors': (1, 2),
+                 'expressions_a': attrs['expressions_a'][:5]}
+    else:
+        layout = ATTRIBUTE_LAYOUT
+    for name, field_kind, count in layout:
+        for value in ((attrs[name],) if count == 1 else attrs[name]):
+            write_value(f, field_kind, value)
+    b.bl(1)
+    f.text('owned identifier')
+    b.bl(17)
+    b.bl(31)
+    f.text('left')
+    f.text('right')
+    b.bl(0)
+    b.bl(0)
+    for name in ('first', 'second'):
+        f.text(name)
+        b.bl(0)
+    if marker56:
+        b.bl(0)
+
+
+def curved_record(shape, *, trailing=False, shell_parameters=None, solid_parameters=None, kind=None, marker56=False):
+    from fcst_exchange.td_surface import write_expression, write_mesh_controls, write_solid_attributes
+
+    f = FilerWriter()
+    b = f.data
+    shell = shape == 'disk' or shell_parameters is not None
+    if shell:
+        fields = rectangle_boundary_fields()
+        values = (0, 3, 0, math.tau) if shell_parameters is None else shell_parameters
+        parameters = (*values[:6], *(0,) * max(0, 6 - len(values)))
+        b.bd(SENTINEL)
+        b.bl(7)
+    else:
+        fields = brick_boundary_fields()
+        values = solid_parameters if solid_parameters is not None else (
+            (5, 1, 3, 0, math.tau) if shape == 'cylinder' else (0, 3, 0, math.tau, 0, math.pi))
+        parameters = (*values, *(0,) * (12 - len(values)))
+        b.bl(23)
+    for value in parameters:
+        b.bd(value)
+    for p in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)):
+        b.point(p)
+    attrs = fields['attributes']
+    if shell:
+        write_owned_surface55(f, attrs, marker56=marker56)
+        additional = values[6:]
+        for value in (*additional, *(0,) * (6 - len(additional))):
+            b.bd(value)
+        fields['mesh_controls']['values'] = (0,) * 6
+        write_mesh_controls(f, fields['mesh_controls'])
+        b.bl(len(values))
+        for _ in values:
+            write_expression(f, expression())
+        b.bl(0)
+    else:
+        attrs['parameter_expressions'] = tuple(expression() for _ in values)
+        write_solid_attributes(f, attrs)
+        b.bl(1)
+        f.text('owned face name')
+        f.integers((4, 6))
+        b.bl(1)
+        f.text('owned identifier')
+        b.bl(17)
+        b.bl(31)
+    if trailing:
+        b.bl(1)
+    return f.result(kind or {'disk': 6, 'cylinder': 7, 'sphere': 8}[shape])
+
+
 class TdGeometryTests(unittest.TestCase):
+    def test_marker56_geometry_preserves_ordered_data_and_rejects_bad_handles(self):
+        from fcst_exchange.td_geometry import decode_linear_tri, decode_polygon_mesh
+
+        disk = curved_record('disk', marker56=True)
+        row, common = envelope(disk)
+        payload = decode_disk(row, Fields(common.items()))
+        self.assertIn('attributes56', payload.report['profile'])
+        self.assertEqual(payload.fields['attributes']['names_b'], ('left edge', 'right edge'))
+        self.assertEqual(payload.fields['attributes']['reference_mode'], 1)
+        self.assertTrue(boundary_mesh(payload, 'm')[1])
+
+        writer = FilerWriter()
+        write_owned_surface55(writer, rectangle_boundary_fields()['attributes'], marker56=True)
+        writer.data.bl(6)
+        writer.data.bl(3)
+        writer.references.extend((4, 1, 2, 3))
+        writer.text('owned triangle')
+        writer.data.put(0, 1)
+        for value in (1, 0, 5, 0, 0, 1):
+            writer.data.bl(value)
+        targets = (201, 202, 203, 204)
+        for codes in ((4, 5, 5, 5), (4, 5, 4, 5)):
+            row, common = envelope(writer.result(12), targets=targets, reference_codes=codes)
+            if codes[2] != 5:
+                with self.assertRaisesRegex(ExchangeError, 'element_node_reference_code'):
+                    decode_linear_tri(row, Fields(common.items()))
+                continue
+            payload = decode_linear_tri(row, Fields(common.items()))
+            self.assertEqual(payload.fields['node_handles'], targets[:3])
+            self.assertEqual(payload.fields['attributes']['leading_soft_reference']['target'], 204)
+
+        writer = FilerWriter()
+        write_owned_surface55(writer, rectangle_boundary_fields()['attributes'], marker56=True)
+        for value in (2, 1, 3):
+            writer.data.bl(value)
+        for point in ((0, 0, 0), (1, 0, 0), (0, 1, 0)):
+            writer.data.point(point)
+        for value in (1, 1, 1):
+            writer.data.bl(value)
+        writer.integers((0, 1, 2))
+        writer.data.bl(0)
+        writer.references.append(1)
+        for code in (4, 5):
+            row, common = envelope(writer.result(13), targets=(201,), reference_codes=(code,))
+            if code == 5:
+                with self.assertRaisesRegex(ExchangeError, 'mesh_reference_code'):
+                    decode_polygon_mesh(row, Fields(common.items()))
+                continue
+            payload = decode_polygon_mesh(row, Fields(common.items()))
+            self.assertEqual(payload.fields['mesh_references'][0]['target'], 201)
+            self.assertEqual(boundary_mesh(payload, 'm')[1], ((0, 1, 2),))
+
+    def test_scarf_plane_and_ogive_profile_match_analytic_surfaces(self):
+        from fcst_exchange.td_decode import DECODERS
+
+        for shape, name, top in (('scarfed-cone', 'RcScarfedCone', 2),
+                                  ('scarfed-cylinder', 'RcScarfedCylinder', 3)):
+            for angle in (.25, -.25):
+                parameters = (8, 3, top, 0, math.pi, angle) if shape.endswith('cone') else (8, 3, 0, math.pi, angle)
+                row, common = envelope(curved_record(shape, shell_parameters=parameters, kind=11))
+                points, faces = boundary_mesh(DECODERS[name](row, Fields(common.items())), 'm')
+                self.assertTrue(faces)
+                maximum = max(z for _, _, z in points)
+                self.assertGreater(maximum, 8)
+                for x, y, z in points:
+                    self.assertAlmostEqual(math.hypot(x, y), 3 + (top - 3) * z / 8)
+                rim = [p for p in points if math.isclose(p[2] + math.tan(angle) * p[0], 8)]
+                self.assertGreaterEqual(len(rim), 9)
+                self.assertTrue(all(z + math.tan(angle) * x <= 8 + 1e-12 for x, _, z in points))
+
+        parameters = (5, 2, 0, math.pi / 2, -3, 4)
+        row, common = envelope(curved_record('ogive', shell_parameters=parameters, kind=11))
+        points, faces = boundary_mesh(DECODERS['RcOgive'](row, Fields(common.items())), 'm')
+        self.assertTrue(faces)
+        for x, y, z in points:
+            self.assertAlmostEqual((math.hypot(x, y) + 3) ** 2 + z ** 2, 25)
+            self.assertGreaterEqual(min(x, y), 0)
+
+        disk = curved_record('disk', shell_parameters=(0, 3, 0, round(math.tau, 11)))
+        row, common = envelope(disk)
+        rounded = boundary_mesh(decode_disk(row, Fields(common.items())), 'm')
+        row, common = envelope(curved_record('disk'))
+        self.assertEqual(rounded, boundary_mesh(decode_disk(row, Fields(common.items())), 'm'))
+
+    def test_v6_expression_consumes_only_its_fields_and_preserves_inert_source(self):
+        from fcst_exchange.td_filer import Filer, expression_is_constant
+
+        for version, source in ((5, ''), (6, ''), (6, 'owned_symbol'), (7, '')):
+            writer = FilerWriter()
+            b = writer.data
+            b.bl(version)
+            for selector in (-1, 0, 0):
+                b.bl(selector)
+            writer.text(source)
+            writer.text('')
+            writer.table()
+            b.bl(0)
+            b.bl(-1)
+            if version == 5:
+                b.put(0, 1)
+                writer.table()
+            b.bl(23)
+            row, _ = envelope(writer.result(4))
+            filer = Filer(row)
+            if version == 7:
+                with self.assertRaisesRegex(ExchangeError, 'filer_version'):
+                    filer.expression()
+                continue
+            fields = filer.expression()
+            self.assertEqual(fields['text'], source)
+            self.assertEqual(fields.get('wire_version', 5), version)
+            self.assertEqual(expression_is_constant(fields), not source)
+            self.assertEqual(filer.data.bl(), 23)
+            self.assertEqual(filer.handle()['target'], 0)
+            filer.finish()
+
+    def test_extended_primitive_profiles_preserve_fields_and_export_static_boundaries(self):
+        from fcst_exchange.td_spatial import _constant_assignment
+        from fcst_exchange.td_surface import write_expression, write_mesh_controls, write_solid_attributes
+
+        for solid, decode, name, parameters in (
+                (False, decode_rectangle_complete, 'attributes55', (4, 6)),
+                (True, decode_brick, 'v23', (4, 6, 8))):
+            writer = FilerWriter()
+            b = writer.data
+            if not solid:
+                b.bd(SENTINEL)
+            b.bl(23 if solid else 7)
+            count = 12 if solid else 6
+            for value in (*parameters, *(0,) * (count - len(parameters))):
+                b.bd(value)
+            for point in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)):
+                b.point(point)
+            if solid:
+                attrs = brick_boundary_fields()['attributes']
+                write_solid_attributes(writer, attrs)
+                writer.integers(())  # Empty text vector.
+                writer.integers((7, 11))
+                b.bl(0)
+            else:
+                attrs = rectangle_boundary_fields()['attributes']
+                write_owned_surface55(writer, attrs)
+                for _ in range(6):
+                    b.bd(0)
+                write_mesh_controls(writer, {**rectangle_boundary_fields()['mesh_controls'], 'values': (0,) * 6})
+                b.bl(len(parameters))
+                for _ in parameters:
+                    write_expression(writer, expression())
+                b.bl(0)
+            row, standard = envelope(writer.result(5 if solid else 4))
+            payload = decode(row, Fields(standard.items()))
+            self.assertIn(name, payload.report['profile'])
+            self.assertFalse(payload.report['thermal_semantics_decoded'])
+            points, faces = boundary_mesh(payload, 'm')
+            self.assertEqual(tuple(map(max, zip(*points))), (*parameters, 0) if not solid else parameters)
+            self.assertEqual(len(faces), 24 if solid else 4)
+            with self.assertRaisesRegex(ExchangeError, 'material_mode'):
+                _constant_assignment(payload, 1)
+            with self.assertRaisesRegex(ExchangeError, 'extended_edit_unmapped'):
+                payload.edited_record({'serialized_parameters': parameters})
+
+    def test_extended_conics_and_solids_match_analytic_geometry(self):
+        from collections import Counter
+        from fcst_contracts.spatial import determinant
+        from fcst_exchange.td_decode import CONIC_CLASSES, DECODERS
+
+        geometry = {
+            'cone': ((5, 3, 0, 0, math.tau), ((-3, 3), (-3, 3), (0, 5))),
+            'cylinder': ((5, 3, 0, math.tau), ((-3, 3), (-3, 3), (0, 5))),
+            'ellipse': ((3, 2, 0, 0, math.tau), ((-3, 3), (-2, 2), (0, 0))),
+            'ellipsoid': ((3, 2, 1, -1, 1, 0, math.tau), ((-3, 3), (-2, 2), (-1, 1))),
+            'elliptic-cone': ((5, 3, 0, 0.5, 0, math.tau), ((-3, 3), (-1.5, 1.5), (0, 5))),
+            'elliptic-cylinder': ((5, 3, 2, 0, math.tau), ((-3, 3), (-2, 2), (0, 5))),
+            'offset-paraboloid': ((4, 4, 1, 1, 0.5), ((0, 2), (-0.5, 0.5), (0, 1))),
+            'ogive': ((5, 2, 0, math.tau, -4, 4), ((-2, 2), (-2, 2), (-4, 4))),
+            'parabolic-trough': ((2, -4, 4, -2, 2), ((-4, 4), (-2, 2), (0, 2))),
+            'paraboloid': ((5, 0, 3, 0, math.tau), ((-3, 3), (-3, 3), (0, 5))),
+            'scarfed-cone': ((5, 3, 0, 0, math.tau, 0), ((-3, 3), (-3, 3), (0, 5))),
+            'scarfed-cylinder': ((5, 3, 0, math.tau, 0), ((-3, 3), (-3, 3), (0, 5))),
+            'sphere': ((3, -3, 3, 0, math.tau), ((-3, 3), (-3, 3), (-3, 3))),
+            'torus': ((3, 1, 0, math.tau, 0, math.tau), ((-4, 4), (-4, 4), (-1, 1))),
+        }
+        for name, shape in CONIC_CLASSES.items():
+            with self.subTest(shape=shape):
+                parameters = geometry.get(shape, ((1, 2, 3, 4, 5, 6), None))[0]
+                row, common = envelope(curved_record(shape, shell_parameters=parameters, kind=11))
+                payload = DECODERS[name](row, Fields(common.items()))
+                self.assertEqual(payload.shape, shape)
+                self.assertEqual((payload.fields['serialized_parameters'] + payload.fields['additional_parameters'])[:len(parameters)], parameters)
+                trailing, trailing_common = envelope(curved_record(shape, trailing=True, shell_parameters=parameters, kind=11))
+                with self.assertRaisesRegex(ExchangeError, 'unconsumed_stream'):
+                    DECODERS[name](trailing, Fields(trailing_common.items()))
+                points, faces = boundary_mesh(payload, 'm')
+                self.assertEqual(len(set(points)), len(points))
+                for coordinates, bounds in zip(zip(*points), geometry[shape][1]):
+                    self.assertAlmostEqual(min(coordinates), bounds[0])
+                    self.assertAlmostEqual(max(coordinates), bounds[1])
+                self.assertTrue(all(len(face) in (3, 4) for face in faces))
+                with self.assertRaisesRegex(ExchangeError, 'mesh_limit'):
+                    boundary_mesh(payload, 'm', face_limit=1)
+        for name, parameters, expected in (
+                ('RcFdSolidCone', (5, 0, 3, 0, 0, 0, math.tau), 15 * math.pi),
+                ('RcFdSolidCone', (5, 1, 3, 0.5, 2, 0, math.pi), (5 * math.pi / 6) * (19 - 1.75)),
+                ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 0, 0, 0, 0, 0), 8 * math.pi),
+                ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 1, 1.5, 0.5, -0.5, 0.5), 7 * math.pi),
+                ('RcFdSolidEllipsoid', (3, 2, 1, -1, 1, 0, math.tau, 1.5, 1, 0.5, -0.5, 0.5), 7 * math.pi),
+                ('RcFdSolidEllipsoid', (3, 2, 1, -.75, .75, 0, math.tau, 1, 1.5, .5, -.25, .25),
+                 math.pi * (6 * (1.5 - 2 * .75 ** 3 / 3) - 1.5 * (.5 - 2 * .25 ** 3 / (.25 * 3))))):
+            with self.subTest(name=name, parameters=parameters):
+                row, common = envelope(curved_record(name, solid_parameters=parameters, kind=11))
+                payload = DECODERS[name](row, Fields(common.items()))
+                points, faces = boundary_mesh(payload, 'm')
+                edges = Counter((a, b) for face in faces for a, b in zip(face, (*face[1:], face[0])))
+                self.assertTrue(all(count == 1 and edges[b, a] == 1 for (a, b), count in edges.items()))
+                volume = sum(determinant((points[a], points[b], points[c])) / 6
+                             for a, *rest in faces for b, c in zip(rest, rest[1:]))
+                self.assertLess(abs(volume / expected - 1), 0.08)
+
+    def test_linear_brick_uses_ordered_source_nodes_and_holds_unmapped_physics(self):
+        from fcst_contracts.spatial import determinant
+
+        def element_writer(count, *, version=5, node_selector=0, attribute_selector=0):
+            writer = FilerWriter()
+            writer.data.bl(version)
+            writer.data.bl(count)
+            writer.references.extend(range(1, count + 1))
+            writer.text('owned element')
+            writer.data.put(0, 1)
+            writer.data.bl(1)
+            if version == 6:
+                writer.data.bl(node_selector)
+            writer.data.bl(14 if version == 6 else 13)
+            writer.text('owned material')
+            writer.text('owned optics')
+            writer.data.bl(0)
+            writer.text('owned attribute')
+            writer.data.bl(0x3f)
+            writer.data.bl(0)
+            writer.data.bl(1)
+            writer.data.bd(2)
+            writer.data.point((1, 2, 3))
+            writer.data.put(1, 1)
+            for value in (1, 2, 3, 4):
+                writer.data.bd(value)
+            for _ in range(4):
+                writer.expression()
+            writer.data.bl(0)
+            writer.data.bl(1)
+            writer.expression()
+            if version == 6:
+                writer.data.bl(attribute_selector)
+            writer.data.bl(1)
+            return writer
+
+        writer = element_writer(8)
+        handles = tuple(range(201, 209))
+        row, common = envelope(writer.result(9), targets=handles)
+        brick = decode_linear_brick(row, Fields(common.items()))
+        self.assertEqual(brick.fields['node_handles'], handles)
+        self.assertTrue(brick.report['payload_decoded'])
+        self.assertFalse(brick.report['thermal_semantics_decoded'])
+        self.assertFalse(brick.report['native_ready'])
+        self.assertEqual(brick.fields['attributes']['point_values'], ((2, (1, 2, 3)),))
+        self.assertEqual(brick.fields['attributes']['modifiers'][0], (1, 2, 3, 4))
+        with self.assertRaisesRegex(ExchangeError, 'edit_unmapped'):
+            brick.edited_record({})
+
+        from fcst_exchange.independent_td import DwgPreview
+        from fcst_exchange.td_geometry_mesh import render_geometry
+        from fcst_exchange.td_project_inventory import inspect_project
+        from fcst_exchange.source_tree import capture_project
+
+        encoded_nodes = [node_payload('OWNED', handle, 300, 1, 'capacitive') for handle in handles]
+        inventory = drawing([*encoded_nodes, writer.result(9)], handles=[*handles, 209])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'owned.dwg').write_bytes(b'AC1032-owned')
+            preview = DwgPreview(capture_project(root, 'owned.dwg'), inventory)
+            element = next(r for r in inspect_project(preview)['thermal_objects'] if r['handle'] == '209')
+            self.assertEqual(element['node_bindings'], [{'target': str(handle), 'status': 'resolved'} for handle in handles])
+            with self.assertRaisesRegex(ExchangeError, 'coordinate_precision'):
+                render_geometry(preview, 'm')
+
+        coordinates = ((1, 1, 1), (3, 1, 1), (3, 4, 1), (1, 4, 1),
+                       (1, 1, 5), (3, 1, 5), (3, 4, 5), (1, 4, 5))
+        nodes = {}
+        for handle, point in zip(handles, coordinates):
+            node_row, node_common = envelope(node_payload('OWNED', handle, 300, 1, 'capacitive'), handle)
+            node = decode_node(node_row, Fields(node_common.items()))
+            nodes[handle] = replace(node, fields={**node.fields, 'basis': (point, *node.fields['basis'][1:])})
+
+        for order in (handles, tuple(handles[i] for i in (0, 3, 2, 1, 4, 7, 6, 5))):
+            cell = replace(brick, fields={**brick.fields, 'node_handles': order})
+            points, faces = boundary_mesh(cell, 'mm', nodes=nodes)
+            self.assertEqual(points, [tuple(v / 1000 for v in coordinates[handles.index(h)]) for h in order])
+            self.assertEqual(len(faces), 6)
+            signed_volume = sum(determinant((points[a], points[j], points[k])) / 6
+                                for a, b, c, d in faces for j, k in ((b, c), (c, d)))
+            self.assertAlmostEqual(signed_volume, 24e-9, places=16)
+        with self.assertRaisesRegex(ExchangeError, 'missing_node'):
+            boundary_mesh(brick, 'm', nodes={})
+        wedge_handles = tuple(handles[i] for i in (0, 1, 3, 4, 5, 7))
+        wedge_row, wedge_common = envelope(element_writer(6).result(10), targets=wedge_handles)
+        wedge = decode_linear_wedge(wedge_row, Fields(wedge_common.items()))
+        points, faces = boundary_mesh(wedge, 'mm', nodes=nodes)
+        self.assertEqual(wedge.fields['node_handles'], wedge_handles)
+        self.assertEqual(sorted(map(len, faces)), [3, 3, 4, 4, 4])
+        signed_volume = sum(determinant((points[a], points[j], points[k])) / 6
+                            for a, *rest in faces for j, k in zip(rest, rest[1:]))
+        self.assertAlmostEqual(signed_volume, 12e-9, places=16)
+        from fcst_exchange.td_geometry import decode_linear_pyramid, decode_linear_tetra
+
+        for count, decode, order, expected, face_sizes in (
+                (4, decode_linear_tetra, (0, 1, 3, 4), 4e-9, [3, 3, 3, 3]),
+                (5, decode_linear_pyramid, (0, 1, 2, 3, 4), 8e-9, [3, 3, 3, 3, 4])):
+            targets = tuple(handles[i] for i in order)
+            for version in (5, 6):
+                record, common = envelope(element_writer(count, version=version, attribute_selector=19).result(11), targets=targets)
+                solid = decode(record, Fields(common.items()))
+                points, faces = boundary_mesh(solid, 'mm', nodes=nodes)
+                self.assertEqual(sorted(map(len, faces)), face_sizes)
+                volume = sum(determinant((points[a], points[j], points[k])) / 6
+                             for a, *rest in faces for j, k in zip(rest, rest[1:]))
+                self.assertAlmostEqual(volume, expected, places=16)
+                if version == 6:
+                    self.assertEqual(solid.fields['attributes']['additional_selector'], 19)
+                    self.assertIn('v6-attributes14', solid.report['profile'])
+            record, common = envelope(element_writer(count, version=6, node_selector=9).result(11), targets=targets)
+            with self.assertRaisesRegex(ExchangeError, 'node_selector_unmapped'):
+                boundary_mesh(decode(record, Fields(common.items())), 'mm', nodes=nodes)
+        node = nodes[handles[0]]
+        nodes[handles[0]] = replace(node, fields={**node.fields, 'offsets': (1, 0, 0)})
+        with self.assertRaisesRegex(ExchangeError, 'offset_unmapped'):
+            boundary_mesh(brick, 'm', nodes=nodes)
+        duplicate, common = envelope(writer.result(9), targets=(*handles[:7], handles[0]))
+        with self.assertRaisesRegex(ExchangeError, 'node_identity'):
+            decode_linear_brick(duplicate, Fields(common.items()))
+        writer.data.bl(0)
+        trailing, common = envelope(writer.result(9), targets=handles)
+        with self.assertRaisesRegex(ExchangeError, 'unconsumed_stream'):
+            decode_linear_brick(trailing, Fields(common.items()))
+
+    def test_linear_shells_decode_references_and_export_ordered_faces(self):
+        from fcst_exchange.td_geometry import (decode_linear_quad, decode_linear_tri,
+                                               decode_quadratic_quad, decode_quadratic_tri)
+
+        for count, decode in ((3, decode_linear_tri), (4, decode_linear_quad),
+                              (6, decode_quadratic_tri), (8, decode_quadratic_quad)):
+            writer = FilerWriter()
+            write_owned_surface55(writer, rectangle_boundary_fields()['attributes'])
+            writer.data.bl(5)
+            writer.data.bl(count)
+            writer.references.extend(range(1, count + 1))
+            writer.text('owned shell')
+            writer.data.put(0, 1)
+            writer.data.bl(1)
+            writer.data.bl(5)
+            writer.data.bl(1)
+            writer.references.append(count + 1)
+            writer.data.bl(0)
+            writer.data.bl(1)
+            handles = tuple(range(101, 102 + count))
+            row, common = envelope(writer.result(12), targets=handles)
+            payload = decode(row, Fields(common.items()))
+            self.assertEqual(payload.fields['node_handles'], handles[:-1])
+            self.assertEqual(payload.fields['references'][0]['target'], handles[-1])
+            nodes = {}
+            corners = ((0, 0, 0), (3, 0, 0), (3, 2, 0), (0, 2, 0))[:count if count <= 4 else count // 2]
+            mids = [(0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1]), .25)
+                    for a, b in zip(corners, (*corners[1:], corners[0]))] if count > 4 else []
+            for i, (handle, point) in enumerate(zip(handles, (*corners, *mids)), 1):
+                row, common = envelope(node_payload('OWNED', i, 300, 1, 'capacitive'), handle)
+                node = decode_node(row, Fields(common.items()))
+                nodes[handle] = replace(node, fields={**node.fields, 'basis': (point, *node.fields['basis'][1:])})
+            points, faces = boundary_mesh(payload, 'm', nodes=nodes)
+            self.assertEqual(points[:count], [*corners, *mids])
+            if count > 4:
+                self.assertEqual(payload.order, 2)
+                self.assertEqual(len(faces), 4)
+                self.assertEqual({i for face in faces for i in face}, set(range(len(points))))
+                if count == 8:
+                    self.assertEqual(points[-1], (1.5, 1.0, .5))
+                with self.assertRaisesRegex(ExchangeError, 'mesh_limit'):
+                    boundary_mesh(payload, 'm', nodes=nodes, face_limit=3)
+                reversed_mids = tuple(reversed(handles[len(corners):count]))
+                reordered = replace(payload, fields={**payload.fields, 'node_handles': (*handles[:len(corners)], *reversed_mids)})
+                other_points, other_faces = boundary_mesh(reordered, 'm', nodes=nodes)
+                self.assertEqual([[points[i] for i in face] for face in faces],
+                                 [[other_points[i] for i in face] for face in other_faces])
+            else:
+                self.assertEqual(faces, [tuple(range(count))])
+
+    def test_wrapped_finite_elements_preserve_layout_and_export_solids(self):
+        from fcst_exchange.td_decode import DECODERS, GEOMETRY_CLASSES
+
+        corners_by_shape = {
+            'tetra': ((0, 0, 0), (2, 0, 0), (0, 2, 0), (0, 0, 2)),
+            'pyramid': ((0, 0, 0), (2, 0, 0), (2, 2, 0), (0, 2, 0), (1, 1, 2)),
+            'wedge': ((0, 0, 0), (2, 0, 0), (0, 2, 0), (0, 0, 2), (2, 0, 2), (0, 2, 2)),
+            'brick': ((0, 0, 0), (2, 0, 0), (2, 2, 0), (0, 2, 0), (0, 0, 2), (2, 0, 2), (2, 2, 2), (0, 2, 2)),
+        }
+        topologies = (
+            ('Tet', 'tetra', ((0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3)), 16),
+            ('Pyramid', 'pyramid', ((0, 1), (1, 2), (2, 3), (3, 0), (0, 4), (1, 4), (2, 4), (3, 4)), 20),
+            ('Wedge', 'wedge', ((0, 1), (1, 2), (2, 0), (3, 4), (4, 5), (5, 3), (0, 3), (1, 4), (2, 5)), 20),
+            ('Brick', 'brick', ((0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4),
+                                (0, 4), (1, 5), (2, 6), (3, 7)), 24),
+        )
+        for suffix, shape, edges, face_count in topologies:
+            corners = corners_by_shape[shape]
+            mids = [tuple((x + y) * .5 + (.05 if i == 0 else 0) for i, (x, y) in
+                          enumerate(zip(corners[a], corners[b]))) for a, b in reversed(edges)]
+            for legacy in ((False,) if suffix == 'Pyramid' else (False, True)):
+                name = f'Rc{"Linear" if legacy else "Quadratic"}{suffix}'
+                with self.subTest(name=name):
+                    positions = corners if legacy else (*corners, *mids)
+                    writer = FilerWriter()
+                    b = writer.data
+                    if legacy:
+                        b.bl(1)
+                    b.bl(13)
+                    b.bl(5)
+                    b.bl(len(positions))
+                    writer.references.extend(range(1, len(positions) + 1))
+                    writer.text('owned element')
+                    b.put(0, 1)
+                    b.bl(1)
+                    b.bl(13)
+                    writer.text('owned material')
+                    writer.text('owned optics')
+                    b.bl(0)
+                    writer.text('owned attribute')
+                    for value in (63, 0, 0):
+                        b.bl(value)
+                    b.put(0, 1)
+                    b.bl(0)
+                    b.bl(1)
+                    writer.expression()
+                    b.bl(1)
+                    if not legacy:
+                        b.bl(1)
+                    handles = tuple(range(201, 201 + len(positions)))
+                    encoded = [node_payload('OWNED', i, 300, 1, 'capacitive') for i in handles]
+                    snapshot = drawing([*encoded, writer.result(30)], handles=[*handles, 301],
+                                       geometry_classes={30: (GEOMETRY_CLASSES[name], name)})
+                    inventory = decode_drawing(snapshot)
+                    payload = inventory.payloads[-1]
+                    self.assertEqual(payload.fields['node_handles'], handles)
+                    self.assertEqual(payload.order, 1 if legacy else 2)
+                    nodes = {h: replace(node, fields={**node.fields, 'basis': (p, *node.fields['basis'][1:])})
+                             for h, p, node in zip(handles, positions, inventory.payloads)}
+                    points, faces = boundary_mesh(payload, 'm', nodes=nodes)
+                    self.assertEqual(points[:len(positions)], list(positions))
+                    self.assertEqual(len(faces), face_count // 4 if legacy else face_count)
+                    directed = Counter((a, c) for face in faces for a, c in zip(face, (*face[1:], face[0])))
+                    self.assertTrue(all(n == 1 and directed[c, a] == 1 for (a, c), n in directed.items()))
+                    with self.assertRaisesRegex(ExchangeError, 'mesh_limit'):
+                        boundary_mesh(payload, 'm', nodes=nodes, face_limit=len(faces) - 1)
+                    b.bl(0)
+                    row, common = envelope(writer.result(30), targets=handles)
+                    with self.assertRaisesRegex(ExchangeError, 'unconsumed_stream'):
+                        DECODERS[name](row, Fields(common.items()))
+                    if not legacy:
+                        ambiguous = dict(nodes)
+                        for handle in handles[len(corners):]:
+                            node = ambiguous[handle]
+                            point = node.fields['basis'][0]
+                            ambiguous[handle] = replace(node, fields={**node.fields,
+                                'basis': ((8 + point[0], 8 + point[1], 8 + point[2]), *node.fields['basis'][1:])})
+                        with self.assertRaisesRegex(ExchangeError, 'midside_order_unmapped'):
+                            boundary_mesh(payload, 'm', nodes=ambiguous)
+
+        for name, count in (('RcLinearTri', 3), ('RcLinearQuad', 4)):
+            writer = FilerWriter()
+            writer.data.bl(1)
+            writer.data.bl(5)
+            write_owned_surface55(writer, rectangle_boundary_fields()['attributes'])
+            writer.data.bl(5)
+            writer.data.bl(count)
+            writer.references.extend(range(1, count + 1))
+            writer.text('owned legacy shell')
+            writer.data.put(0, 1)
+            writer.data.bl(1)
+            row, common = envelope(writer.result(30))
+            payload = DECODERS[name](row, Fields(common.items()))
+            self.assertTrue(payload.legacy)
+            self.assertEqual(payload.fields['node_handles'], tuple(range(101, 101 + count)))
+
+        legacy = FilerWriter()
+        for value in (1, 9, 5, 4):
+            legacy.data.bl(value)
+        legacy.references.extend((1, 2, 3, 4))
+        legacy.text('')
+        legacy.data.put(0, 1)
+        legacy.data.bl(1)
+        legacy.text('owned material')
+        legacy.text('owned optics')
+        for value in (1, 1, 1, 1, 1, 1, 0):
+            legacy.data.bl(value)
+        row, common = envelope(legacy.result(30))
+        payload = DECODERS['RcLinearTet'](row, Fields(common.items()))
+        self.assertEqual(payload.fields['attributes']['face_selectors'], (1,) * 6)
+        self.assertIn('attributes9', payload.report['profile'])
+
+    def test_polygon_mesh_preserves_face_order_and_rejects_invalid_connectivity(self):
+        from fcst_exchange.td_geometry import decode_polygon_mesh
+
+        points = ((0, 0, 0), (3, 0, 0), (3, 2, 0), (1, 3, 0), (0, 2, 0))
+
+        def encoded(faces, version):
+            writer = FilerWriter()
+            write_owned_surface55(writer, rectangle_boundary_fields()['attributes'])
+            b = writer.data
+            b.bl(version)
+            b.bl(1)
+            b.bl(len(points))
+            for point in points:
+                b.point(point)
+            b.bl(1)
+            b.bl(len(faces))
+            for face in faces:
+                b.bl(1)
+                writer.integers(face)
+            if version == 2:
+                b.bl(0)
+            row, common = envelope(writer.result(13))
+            return row, Fields(common.items())
+
+        faces = ((0, 1, 2, 3, 4), (0, 4, 3))
+        for version in (1, 2):
+            payload = decode_polygon_mesh(*encoded(faces, version))
+            self.assertEqual(boundary_mesh(payload, 'm'), (list(points), faces))
+            row, standard = encoded(faces, version)
+            registered = drawing([], geometry_classes={13: ('RCMESHFD', 'RcMeshFD')})
+            native = {**registered.native, 'objects': [row]}
+            document = Fields((name, [standard] if name == 'OBJECTS' else data) for name, data in registered.standard)
+            inventory = decode_drawing(NativeSnapshot(native, document, ''))
+            self.assertEqual(inventory.records[0]['status'], 'payload-decoded')
+        for invalid in ((0, 1, -1), (0, 1, len(points)), (0, 1, 1), (0, 1)):
+            with self.assertRaisesRegex(ExchangeError, 'polygon_mesh_connectivity'):
+                decode_polygon_mesh(*encoded((invalid,), 2))
+
+    def test_geometry_selection_covers_registered_classes_and_reports_unmapped_profiles(self):
+        from fcst_exchange.independent_td import DwgPreview
+        from fcst_exchange.source_tree import capture_project
+        from fcst_exchange.td_decode import CONIC_CLASSES, GEOMETRY_CLASSES, UNMAPPED_GEOMETRY_CLASSES
+        from fcst_exchange.td_geometry_mesh import render_geometry
+
+        records, classes = [], {}
+        for kind, name in enumerate(sorted(CONIC_CLASSES), 20):
+            records.append(curved_record(CONIC_CLASSES[name], shell_parameters=(5, 3, 0, 0, math.tau), kind=kind))
+            classes[kind] = (GEOMETRY_CLASSES[name], name)
+        supported = drawing(records, geometry_classes=classes)
+        self.assertEqual(len(decode_drawing(supported).payloads), len(CONIC_CLASSES))
+        for kind, name in enumerate(sorted(UNMAPPED_GEOMETRY_CLASSES), 50):
+            writer = FilerWriter()
+            writer.data.bl(1)
+            records.append(writer.result(kind))
+            classes[kind] = (name.upper(), name)
+        blocked = drawing(records, geometry_classes=classes)
+        holds = [r for r in decode_drawing(blocked).records if r.get('limitation') == 'td_geometry_profile_unmapped']
+        self.assertEqual(len(holds), len(UNMAPPED_GEOMETRY_CLASSES))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'owned.dwg').write_bytes(b'AC1032-owned')
+            preview = DwgPreview(capture_project(root, 'owned.dwg'), blocked)
+            with self.assertRaisesRegex(ExchangeError, 'geometry_selection'):
+                render_geometry(preview, 'm')
+            cone = sorted(CONIC_CLASSES).index('RcCone') + 101
+            from unittest.mock import Mock
+            from fcst_exchange.td_decode import DECODERS
+            decoder = Mock(side_effect=AssertionError('unselected payload decoded'))
+            with patch.dict(DECODERS, {'RcTorus': decoder}):
+                obj, report = render_geometry(preview, 'm', (cone,))
+            decoder.assert_not_called()
+            self.assertIn(f'o td_cone_{cone}\n'.encode(), obj)
+            self.assertEqual(report['objects'], 1)
+
+    def test_stored_mesh_selection_and_cad_companion_require_declared_links(self):
+        from fcst_exchange.independent_td import DwgPreview
+        from fcst_exchange.source_tree import capture_project
+        from fcst_exchange.td_geometry_mesh import render_geometry
+        from fcst_exchange.td_project_inventory import inspect_project
+
+        first = curved_record('disk', kind=6)
+        second = curved_record('disk', kind=6, shell_parameters=(1, 2, 0, math.pi))
+        mesher = FilerWriter()
+        mesher.data.bl(39)
+        mesher.data.bl(0)  # Retained settings.
+        mesher.references.append(1)
+        importer = FilerWriter()
+        importer.data.bl(6)
+        importer.text('Owned.scdoc')
+        importer.data.bl(0)
+        importer.references.append(3)
+        classes = {17: ('TDFEMESHIMPORTER', 'TdFiniteElementMeshImporter'), 18: ('TDSCIMPORTER', 'TdScImporter')}
+        records = [first, second, mesher.result(17), importer.result(18)]
+        codes = {2: (5,), 3: (4,)}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'owned.dwg').write_bytes(b'AC1032-owned')
+            (root / 'owned.scdoc').write_bytes(b'owned CAD')
+            source = capture_project(root, 'owned.dwg')
+            staged = DwgPreview(source, drawing(records, geometry_classes=classes, reference_codes=codes))
+            result, receipt = render_geometry(staged, 'm', (104,))
+            self.assertEqual((result, receipt), render_geometry(staged, 'm', (101,)))
+            self.assertNotIn(b'td_disk_102', result)
+            with self.assertRaisesRegex(ExchangeError, 'duplicate_handle'):
+                render_geometry(staged, 'm', (104, 104))
+            report = inspect_project(staged)
+            bound = report['companion_inventory']['declared_inputs']
+            self.assertEqual([(r['role'], r['status']) for r in bound], [('spaceclaim-document', 'resolved')])
+            mesher_record = next(r for r in report['thermal_objects'] if r['handle'] == '103')
+            self.assertEqual(mesher_record['status'], 'partial-payload')
+            self.assertFalse(mesher_record['native_ready'])
+            # The fixture generator binds references by index. Remove the target
+            # after encoding to model a source with a dangling DWG pointer.
+            native = {**staged.snapshot.native, 'objects': staged.snapshot.native['objects'][1:]}
+            missing = replace(staged, snapshot=NativeSnapshot(native, staged.snapshot.standard, ''))
+            with self.assertRaisesRegex(ExchangeError, 'missing_reference'):
+                render_geometry(missing, 'm', (104,))
+
+    def test_mesh_state_comparison_resolves_discovery_and_variant_mesher(self):
+        from fcst_exchange.independent_td import DwgPreview
+        from fcst_exchange.source_tree import capture_project
+        from fcst_exchange.td_mesher import compare_mesh_states
+        from fcst_exchange.td_project_inventory import inspect_project
+        from fcst_exchange.dwg_native import NativeRuntime, NativeSnapshot, _one
+        from fcst_cli.td import execute, parsers
+        from argparse import ArgumentParser
+        import json
+
+        classes = {20: ('TDMESHERVA', 'TdMesherVA'), 21: ('TDSCIMPORTER', 'TdScImporter'),
+                   22: ('RCLINEARTRI', 'RcLinearTri')}
+        nodes = [node_payload('OWNED', i, 300, 1, 'capacitive') for i in range(1, 4)]
+        shell = FilerWriter()
+        shell.data.bl(1)
+        shell.data.bl(5)
+        write_owned_surface55(shell, rectangle_boundary_fields()['attributes'])
+        shell.data.bl(5)
+        shell.data.bl(3)
+        shell.references.extend((1, 2, 3))
+        shell.text('')
+        shell.data.put(0, 1)
+        shell.data.bl(1)
+
+        def state(directory, *, mesh, first=101, cad=b'owned CAD', first_id=1, group='domain'):
+            directory.mkdir()
+            (directory / 'owned.dwg').write_bytes(b'AC1032-owned')
+            if cad is not None:
+                (directory / 'owned.dsco').write_bytes(cad)
+            variant = FilerWriter()
+            variant.data.bl(43)
+            variant.data.bl(0)
+            variant.references.extend((4,) if mesh else ())
+            importer = FilerWriter()
+            importer.data.bl(6)
+            importer.text('Owned.DSCO')
+            importer.data.bl(0)
+            importer.references.append(5)
+            state_nodes = nodes if first_id == 1 else [node_payload('OWNED', i, 300, 1, 'capacitive')
+                                                       for i in range(first_id, first_id + 3)]
+            snapshot = drawing([*state_nodes, shell.result(22), variant.result(20), importer.result(21)],
+                               handles=list(range(first, first + 6)), geometry_classes=classes,
+                               reference_codes={4: (5,), 5: (4,)})
+            if mesh:
+                from test_td_project_inventory import handle
+
+                rows = list(_one(snapshot.standard, 'OBJECTS'))
+                dictionary, group_handle = first + 6, first + 7
+                name = f'{group}_NODES_{first + 5:X}'
+                rows.append(Fields([('object', 'DICTIONARY'), ('handle', handle(dictionary)),
+                                    ('numitems', 1), ('items', Fields([(name, handle(group_handle))]))]))
+                rows.append(Fields([('object', 'GROUP'), ('handle', handle(group_handle)),
+                                    ('groups', [handle(first), handle(first + 1)])]))
+                header = Fields([*_one(snapshot.standard, 'HEADER'), ('DICTIONARY_ACAD_GROUP', handle(dictionary))])
+                snapshot = NativeSnapshot(snapshot.native, Fields([('HEADER', header), ('OBJECTS', rows)]), snapshot.digest)
+            return DwgPreview(capture_project(directory, 'owned.dwg'), snapshot)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            before = state(root / 'before', mesh=False)
+            after = state(root / 'after', mesh=True, cad=b'edited CAD')
+            reused = state(root / 'reused', mesh=True, first=301, cad=b'edited CAD')
+            renumbered = state(root / 'renumbered', mesh=True, cad=b'edited CAD', first_id=10)
+            retagged = state(root / 'retagged', mesh=True, cad=b'edited CAD', group='other')
+            missing = state(root / 'missing', mesh=True, cad=None)
+            report = compare_mesh_states(before, after, 106, 106)
+            self.assertTrue(report['mesh_changed'])
+            self.assertTrue(report['companion_changed'])
+            self.assertEqual((report['before']['elements'], report['after']['elements']), (0, 1))
+            self.assertEqual(report['after']['nodes'], 3)
+            self.assertEqual(report['after']['companion']['role'], 'td-designer-document')
+            report = compare_mesh_states(after, reused, 106, 306)
+            self.assertFalse(report['mesh_changed'])
+            self.assertFalse(report['companion_changed'])
+            self.assertFalse(report['source_node_assignments_changed'])
+            self.assertFalse(report['mesh_groups_changed'])
+            self.assertEqual(report['after']['mesh_groups'], 1)
+            report = compare_mesh_states(after, renumbered, 106, 106)
+            self.assertFalse(report['mesh_changed'])
+            self.assertTrue(report['source_node_assignments_changed'])
+            report = compare_mesh_states(after, retagged, 106, 106)
+            self.assertFalse(report['mesh_changed'])
+            self.assertTrue(report['mesh_groups_changed'])
+            declared, = inspect_project(after)['companion_inventory']['declared_inputs']
+            self.assertEqual((declared['role'], declared['status']), ('td-designer-document', 'resolved'))
+            with self.assertRaisesRegex(ExchangeError, 'companion_unresolved'):
+                compare_mesh_states(after, missing, 106, 106)
+            with self.assertRaisesRegex(ExchangeError, 'state_manager'):
+                compare_mesh_states(after, reused, 104, 306)
+            parser = ArgumentParser()
+            parsers(parser.add_subparsers(dest='command', required=True))
+            output = root / 'comparison.json'
+            args = parser.parse_args(['td-compare-mesh-states', str(before.original.root), 'owned.dwg',
+                                      str(after.original.root), 'owned.dwg', str(output),
+                                      '--before-handle', '106', '--after-handle', '106',
+                                      '--backend', 'unused.json', '--work', str(root / 'work'), '--expect', 'initial'])
+            runtime = NativeRuntime(root / 'backend.exe', 'b' * 64, PATCH)
+            with patch.object(NativeRuntime, 'from_receipt', return_value=runtime), patch.object(
+                    NativeRuntime, 'run', side_effect=[(before.snapshot, None, {}), (after.snapshot, None, {})]):
+                self.assertEqual(execute(args)['status'], 'compared')
+            self.assertTrue(json.loads(output.read_bytes())['mesh_changed'])
+            self.assertEqual(json.loads(output.read_bytes())['expected_transition'], 'initial')
+            wrong_output = root / 'mismatch.json'
+            args.output, args.expect = wrong_output, 'unchanged'
+            with patch.object(NativeRuntime, 'from_receipt', return_value=runtime), patch.object(
+                    NativeRuntime, 'run', side_effect=[(before.snapshot, None, {}), (after.snapshot, None, {})]):
+                with self.assertRaisesRegex(ExchangeError, 'td_mesh_state_expectation'):
+                    execute(args)
+            self.assertFalse(wrong_output.exists())
+
+    def test_curved_dwg_profiles_export_valid_disks_cylinders_and_spheres(self):
+        from collections import Counter
+        from fcst_contracts.spatial import determinant
+        from fcst_exchange.independent_td import DwgPreview
+        from fcst_exchange.source_tree import capture_project
+        from fcst_exchange.td_geometry_mesh import render_geometry
+
+        decoders = {'disk': decode_disk, 'cylinder': decode_cylinder, 'sphere': decode_sphere}
+        for name, decode in decoders.items():
+            with self.subTest(name=name):
+                row, common = envelope(curved_record(name))
+                payload = decode(row, Fields(common.items()))
+                extended = (payload.fields['attributes'] if name == 'disk' else payload.fields)['extended_attributes']
+                self.assertEqual(extended['text_ids'], (('owned identifier', 17, 31),))
+                points, faces = boundary_mesh(payload, 'm')
+                self.assertEqual(len(points), len(set(points)))
+                self.assertEqual(set(range(len(points))), {i for face in faces for i in face})
+                self.assertTrue(all(len(face) in (3, 4) for face in faces))
+                if name == 'disk':
+                    self.assertEqual(points.count((0, 0, 0)), 1)
+                    self.assertTrue(all(p[2] == 0 for p in points))
+                    self.assertTrue(any(len(face) == 3 for face in faces))
+                else:
+                    edges = Counter((a, b) for face in faces for a, b in zip(face, (*face[1:], face[0])))
+                    self.assertTrue(all(count == 1 and edges[b, a] == 1 for (a, b), count in edges.items()))
+                    volume = sum(determinant((points[f[0]], points[f[i]], points[f[i + 1]])) / 6
+                                 for f in faces for i in range(1, len(f) - 1))
+                    self.assertGreater(volume, 0)
+                    expected = 40 * math.pi if name == 'cylinder' else 36 * math.pi
+                    self.assertLess(abs(volume / expected - 1), .08)
+                bad, common = envelope(curved_record(name, trailing=True))
+                with self.assertRaisesRegex(ExchangeError, 'unconsumed_stream'):
+                    decode(bad, Fields(common.items()))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'owned.dwg').write_bytes(b'AC1032-owned')
+            preview = DwgPreview(capture_project(root, 'owned.dwg'), drawing([curved_record(name) for name in decoders]))
+            obj, report = render_geometry(preview, 'mm')
+            self.assertEqual(report['objects'], 3)
+            self.assertGreater(report['triangles'], 0)
+            self.assertIn(b'o td_disk_101\n', obj)
+            self.assertIn(b'o td_cylinder_102\n', obj)
+            self.assertIn(b'o td_sphere_103\n', obj)
+            self.assertFalse(report['qualified'])
+
+    def test_rectangle_boundary_applies_ordered_local_rotation_and_nonuniform_subdivision(self):
+        row, common = envelope(rectangle_payload(rectangle_boundary_fields()))
+        points, faces = boundary_mesh(decode_rectangle_complete(row, Fields(common.items())), 'mm')
+        self.assertEqual(len(points), 9)
+        self.assertEqual(faces[0], (0, 1, 2, 3))
+        self.assertEqual(len(faces), 4)
+        self.assertEqual({tuple(round(c * 1000, 8) for c in point) for point in points},
+                         {(x, 25, z) for x in (0, 3, 4) for z in (37, 40, 43)})
+        self.assertEqual(tuple(round(c * 1000, 8) for c in points[faces[0][0]]), (4, 25, 37))
+        self.assertEqual(tuple(round(c * 1000, 8) for c in points[faces[0][1]]), (3, 25, 37))
+
+    def test_brick_boundary_is_closed_outward_and_accepts_only_known_size_edits(self):
+        fields = brick_boundary_fields()
+        row, common = envelope(brick_payload(fields))
+        standard = Fields(common.items())
+        payload = decode_brick(row, standard)
+        vertices, faces = boundary_mesh(payload, 'm')
+        self.assertEqual((len(vertices), len(faces)), (26, 24))
+        from collections import Counter
+        edges = Counter(tuple(sorted((a, b))) for face in faces for a, b in zip(face, (*face[1:], face[0])))
+        self.assertTrue(all(count == 2 for count in edges.values()))
+        signed_volume = 0
+        from fcst_contracts.spatial import determinant
+        for a, b, c, d in faces:
+            signed_volume += (determinant((vertices[a], vertices[b], vertices[c]))
+                              + determinant((vertices[a], vertices[c], vertices[d]))) / 6
+        self.assertAlmostEqual(signed_volume, 4 * 6 * 8)
+        values = list(fields['serialized_parameters'])
+        values[2] = 10
+        edited, receipt = payload.edited_record({'serialized_parameters': values})
+        self.assertEqual(receipt['changed_fields'], ['parameter_2'])
+        resized, _ = boundary_mesh(decode_brick(edited, standard), 'm')
+        self.assertEqual(max(point[2] for point in resized), 50)
+        for index, value in ((0, 0), (3, 1)):
+            invalid = list(fields['serialized_parameters'])
+            invalid[index] = value
+            with self.assertRaisesRegex(ExchangeError, 'size_edit_scope'):
+                payload.edited_record({'serialized_parameters': invalid})
+
+    def test_geometry_boundary_rejects_dynamic_layouts_bad_basis_and_budget(self):
+        fields = rectangle_boundary_fields()
+        variants = (
+            (lambda f: f['parameter_expressions'][0].update(text='VARIABLE'), 'dynamic_size'),
+            (lambda f: f['mesh_controls']['expressions'][0].update(text='VARIABLE'), 'dynamic_transform'),
+            (lambda f: f['mesh_controls'].update(selectors=(3, 0, 0)), 'rotation_axis'),
+            (lambda f: f.update(axes=((1, 0, 0), (0, -1, 0), (0, 0, 1))), 'geometry_basis'),
+            (lambda f: f['attributes']['subdivision'][0].update(boundaries=(0, 0, 1)), 'subdivision_unmapped'),
+            (lambda f: f['attributes']['subdivision'][0].update(mode=1), 'subdivision_unmapped'),
+        )
+        for change, code in variants:
+            invalid = deepcopy(fields)
+            change(invalid)
+            row, common = envelope(rectangle_payload(invalid))
+            with self.assertRaisesRegex(ExchangeError, code):
+                boundary_mesh(decode_rectangle_complete(row, Fields(common.items())), 'm')
+        row, common = envelope(rectangle_payload(fields))
+        with self.assertRaisesRegex(ExchangeError, 'mesh_limit'):
+            boundary_mesh(decode_rectangle_complete(row, Fields(common.items())), 'm', face_limit=3)
+
     def test_complete_rectangle_and_brick_preserve_all_attribute_mesh_and_advection_fields(self):
         for build,decode,fields in ((rectangle_payload,decode_rectangle_complete,rectangle_fields()),(brick_payload,decode_brick,brick_fields())):
             before=deepcopy(fields);row,common=envelope(build(fields));actual=decode(row,Fields(common.items()))

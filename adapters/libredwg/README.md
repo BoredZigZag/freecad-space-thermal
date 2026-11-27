@@ -19,8 +19,10 @@ the application's ordered field representation. Native rewrites are reopened and
 audited before they can be accepted. Reading the container does not implement TD
 thermal-class semantics or qualify native thermal editing.
 
-`fixture` creates only an owned synthetic geometry/container example. It never
-creates an alleged Thermal Desktop model or supplies TD qualification evidence.
+`inspect` accepts AC1032 and AC1027. Rewrite and network generation use AC1032.
+`fixture` and `fixture-ac1027` generate owned synthetic container examples for
+the two signatures. The AC1027 test verifies a fresh inspection and byte-exact
+source copying through the application adapter.
 
 Protocol `fcst-dwg-native/2` retains full Unicode class names and normalizes partial
 opaque bytes to MSB-first wire order. Stream coordinates are explicit. The owned

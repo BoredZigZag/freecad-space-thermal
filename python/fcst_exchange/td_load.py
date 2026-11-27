@@ -55,3 +55,27 @@ def decode_load(row,standard):
     f['selector_f']=b.bl();f['text_f']=filer.text();f['selectors_f']=tuple(b.bl() for _ in range(3));f['selector_g']=b.bl();f['expression_g']=filer.expression()
     f['connections']=filer.connections();f['selector_h']=b.bl();f['multi_expressions']=tuple(filer.multi_expression() for _ in range(7));f['selector_i']=b.bl()
     filer.finish();return LoadPayload(f,dict(filer.spans),dict(row),standard)
+
+
+def load_time_table(fields, expected, units):
+    """Bind RcHeatLoad v17's literal total-power, single-node time mode."""
+    from .time_loads import time_table
+
+    # The fourth selector selects the transient load type. Value B is the
+    # time-varying multiplier. Selector H selects a steady-only policy.
+    if (fields['selectors_a'] != (0, 0, 0, 1) or fields['selector_h'] not in (0, 1, 2)
+            or len(fields['time_table']) < 2):
+        reject('td_time_load_mode')
+    expected.update(selectors_a=fields['selectors_a'], selector_h=fields['selector_h'],
+                    time_table=fields['time_table'], value_b=fields['value_b'])
+    for key in ('expression', 'expression_b', 'expression_c', 'expression_d'):
+        value = fields[key]
+        if expression_is_constant(value) and value['dimension'] in (-1, expected[key]['dimension']):
+            expected[key] = value
+    # The unused time/temperature editor can retain a power dimension instead
+    # of the default dimension. Its switches, text and table must still be empty.
+    inactive = fields['multi_expressions'][1]
+    if inactive == {**expected['multi_expressions'][1], 'dimension': 16}:
+        expected['multi_expressions'] = (expected['multi_expressions'][0], inactive,
+                                         *expected['multi_expressions'][2:])
+    return time_table(fields['time_table'], units, fields['value_b'], period=fields['time_table'][-1][0])

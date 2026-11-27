@@ -8,6 +8,8 @@ physical meaning or qualify a thermal model.
 from .core import reject
 
 ATTRIBUTE_REVISION=5.4e22
+EXTENDED_ATTRIBUTE_REVISION=5.5e22
+MESH_ATTRIBUTE_REVISION=5.6e22
 
 
 def _array(value,*,size=None,limit=10000):
@@ -30,6 +32,19 @@ ATTRIBUTE_LAYOUT=(
     ('name_lists','texts',2),('names_i','text',4),('selectors_i','integer',2),
     ('selector_j','integer',1),('expression_j','expression',1),('references_e','handles',1),
     ('flag_j','flag',1))
+
+# Marker 56 keeps the common prefix and most trailing groups, but changes the
+# middle fields and stores a selector where markers 54/55 store a handle count.
+MESH_ATTRIBUTE_LAYOUT = (
+    *ATTRIBUTE_LAYOUT[:6],
+    ('selectors_a', 'integer', 2), ('names_a', 'text', 6),
+    ('indices_a', 'integer', 4), ('source_submodel', 'text', 1),
+    ('selectors_b', 'integer', 8), ('names_b', 'text', 2), ('values_a', 'double', 4),
+    *ATTRIBUTE_LAYOUT[13:15], ('additional_selector_d', 'integer', 1),
+    *ATTRIBUTE_LAYOUT[15:17], ('reference_mode', 'integer', 1),
+    *ATTRIBUTE_LAYOUT[18:24], ('expression_selectors', 'integer', 2),
+    ('expressions_a', 'expression', 5), *ATTRIBUTE_LAYOUT[25:],
+)
 
 
 def read_breakdown(filer):
@@ -62,16 +77,32 @@ def read_value(filer,kind):
     reject('td_surface_field_kind')
 
 
-def read_attributes(filer):
+def read_text_ids(filer):
+    return tuple((filer.text(), filer.data.bl(), filer.data.bl()) for _ in range(filer.count()))
+
+
+def read_attributes(filer, *, revisions=(ATTRIBUTE_REVISION,)):
     b=filer.data
     fields={'groups':tuple((filer.text(),b.bl()) for _ in range(filer.count())),
             'legacy_names':tuple(filer.text() for _ in range(2)),
             'legacy_selectors':tuple(b.bl() for _ in range(2)),
             'names':tuple(filer.text() for _ in range(3))}
-    if b.bd()!=ATTRIBUTE_REVISION:reject('td_surface_attribute_revision')
-    for name,kind,count in ATTRIBUTE_LAYOUT:
+    revision = b.bd()
+    if revision not in revisions:
+        reject('td_surface_attribute_revision')
+    layout = MESH_ATTRIBUTE_LAYOUT if revision == MESH_ATTRIBUTE_REVISION else ATTRIBUTE_LAYOUT
+    for name,kind,count in layout:
         values=tuple(read_value(filer,kind) for _ in range(count))
         fields[name]=values[0] if count==1 else values
+    if revision in (EXTENDED_ATTRIBUTE_REVISION, MESH_ATTRIBUTE_REVISION):
+        fields['wire_revision'] = 56 if revision == MESH_ATTRIBUTE_REVISION else 55
+        fields['extended_attributes'] = {
+            'text_ids': read_text_ids(filer), 'names': (filer.text(), filer.text()),
+            'name_maps': tuple(read_value(filer, 'text_pairs') for _ in range(2)),
+            'name_lists': tuple((filer.text(), filer.texts()) for _ in range(2)),
+        }
+    if revision == MESH_ATTRIBUTE_REVISION:
+        fields['additional_selector'] = b.bl()
     return fields
 
 
@@ -143,18 +174,34 @@ def write_value(filer,kind,value):
 
 def write_attributes(filer,fields):
     required={'groups','legacy_names','legacy_selectors','names',*(row[0] for row in ATTRIBUTE_LAYOUT)}
-    if not isinstance(fields,dict) or set(fields)!=required:reject('td_surface_attribute_shape')
+    if not isinstance(fields,dict):reject('td_surface_attribute_shape')
+    revision=fields.get('wire_revision',54)
+    extras={'wire_revision','extended_attributes'} if revision==55 else set()
+    if revision not in (54,55) or set(fields)!=required|extras:reject('td_surface_attribute_shape')
     groups=_array(fields['groups']);b=filer.data
     b.bl(len(groups))
     for pair in groups:
         name,selector=_array(pair,size=2);filer.text(name);b.bl(selector)
     for name,count,kind in (('legacy_names',2,'text'),('legacy_selectors',2,'integer'),('names',3,'text')):
         for value in _array(fields[name],size=count):write_value(filer,kind,value)
-    b.bd(ATTRIBUTE_REVISION)
+    b.bd(EXTENDED_ATTRIBUTE_REVISION if revision==55 else ATTRIBUTE_REVISION)
     for name,kind,count in ATTRIBUTE_LAYOUT:
         values=(fields[name],) if count==1 else fields[name]
         if not isinstance(values,(tuple,list)) or len(values)!=count:reject('td_surface_attribute_shape')
         for value in values:write_value(filer,kind,value)
+    if revision==55:
+        ext=fields['extended_attributes']
+        if not isinstance(ext,dict) or set(ext)!={'text_ids','names','name_maps','name_lists'}:
+            reject('td_surface_attribute_shape')
+        text_ids=_array(ext['text_ids']);b.bl(len(text_ids))
+        for entry in text_ids:
+            text,first,second=_array(entry,size=3)
+            filer.text(text);b.bl(first);b.bl(second)
+        for name in _array(ext['names'],size=2):filer.text(name)
+        for mapping in _array(ext['name_maps'],size=2):write_value(filer,'text_pairs',mapping)
+        for entry in _array(ext['name_lists'],size=2):
+            name,values=_array(entry,size=2)
+            filer.text(name);write_value(filer,'texts',values)
 
 
 def write_mesh_controls(filer,fields):

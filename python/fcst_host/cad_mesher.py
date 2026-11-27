@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """Pinned FEM Gmsh API adapter; only immutable SI values leave the host thread."""
 from hashlib import sha256
+from functools import partial
 import math
 from pathlib import Path
 import re
@@ -20,19 +21,42 @@ def geometry(shape,identifier,revision,brep):
             ref=f'Face{i}',signature=shape_signature(face),area_m2=face.Area*1e-6) for i,face in enumerate(shape.Faces,1)])
 
 
+def regenerate(part, previous_project, workspace, *, maximum_size_m=None,
+               minimum_size_m=None, region_map=None, face_map=None):
+    """Run the pinned mesher and transfer accepted assignments on success."""
+    from fcst_app.cad_mesh import synchronize_project
+    from fcst_contracts import loads, read
+
+    raw = previous_project.files.get('cad-mesh/prepared.json')
+    if raw is None:
+        reject('td_cad_sync_project')
+    old = read('cad_mesh', loads(raw)['source'])
+    options = old['options']
+    if maximum_size_m is None:
+        maximum_size_m = options['maximum_size_m']
+        if minimum_size_m is None:
+            minimum_size_m = options['minimum_size_m']
+    prepare_mesh = partial(synchronize_project, previous_project, region_map=region_map, face_map=face_map)
+    return CadMesher(part, old['geometry']['id'], workspace, revision=int(old['geometry']['revision']),
+                     dimension=int(options['dimension']), maximum_size_m=maximum_size_m,
+                     minimum_size_m=minimum_size_m, prepare_mesh=prepare_mesh)
+
+
 class CadMesher:
     """One bounded asynchronous job, with explicit cancellation and topology guard.
 
     The caller owns an empty private working directory. Generated BREP/UNV/geo
     files and raw diagnostics remain there, outside the portable receipt.
     """
-    def __init__(self,part,identifier,workspace,*,dimension=3,maximum_size_m=.25,minimum_size_m=None,revision=0):
+    def __init__(self,part,identifier,workspace,*,dimension=3,maximum_size_m=.25,minimum_size_m=None,revision=0,
+                 prepare_mesh=None):
         assert_thread()
         import FreeCAD as App
         import ObjectsFem
         from femmesh.gmshtools import GmshTools
         from PySide6 import QtCore
         self.part=part;self.identifier=identifier;self.revision=revision
+        self.prepare_mesh=prepare_mesh; self.prepared_project=None; self.synchronization=None
         self.directory=Path(workspace).resolve()
         if not self.directory.is_dir() or any(self.directory.iterdir()):reject('cad_mesher_workspace')
         minimum_size_m=maximum_size_m if minimum_size_m is None else minimum_size_m
@@ -101,7 +125,10 @@ class CadMesher:
                 if shape_signature(self.part.Shape)!=self.signature or str(self.part.getGlobalPlacement())!=self.placement:
                     reject('attachment_reassignment_required')
                 if not self.mesh.FemMesh.NodeCount:self.tool.update_properties()
-                self.source=self.extract();self.state='succeeded'
+                source=self.extract()
+                if self.prepare_mesh is not None:
+                    self.prepared_project,self.synchronization=self.prepare_mesh(source,self.brep)
+                self.source=source;self.state='succeeded'
             except (ValueError,RuntimeError,ReferenceError):self.state='failed';self.error='cad_mesher_output_or_topology'
         self._notify()
 

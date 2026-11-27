@@ -7,6 +7,7 @@ namespace fcst::thermal {
 struct SchedulePoint { double time, factor; };
 struct LoadSchedule { std::string load_id; std::vector<SchedulePoint> points; };
 struct CallbackEvent { double time; std::string entity_id, kind; double before, after; };
+struct CallbackKnot { double time; bool discontinuity; };
 struct TransientOptions {
   double start=0, end=1, initial_step=.01, minimum_step=1e-12, maximum_step=1;
   double absolute_temperature_tolerance=1e-5, relative_temperature_tolerance=1e-6;
@@ -18,6 +19,7 @@ struct TransientOptions {
   std::vector<double> temperature_tolerances; // Optional per-equation absolute K tolerances.
   std::vector<LoadSchedule> schedules; // Right continuous; first point must cover start.
   std::vector<CallbackEvent> callback_events; // Strictly increasing time; pre-event endpoint integration.
+  std::vector<CallbackKnot> callback_knots; // Breakpoints derived from the callback revision.
   // Exact compiled callback registration/build digest; required when callbacks exist.
   std::string callback_revision;
   SparseLuSettings linear;

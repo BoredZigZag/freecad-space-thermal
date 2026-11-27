@@ -107,6 +107,65 @@ class CadMeshTests(unittest.TestCase):
             else:geometry['faces'].pop()
             with self.assertRaisesRegex(ValueError,'attachment_reassignment_required'):reconcile(receipt,geometry)
 
+        from fcst_app.cad_mesh import synchronize_project
+        from fcst_contracts import loads
+
+        face=source['geometry']['faces'][0]['id']
+        boundary=[dict(face_id=face,kind='total_power',value=dict(value=10,unit='W'))]
+        _,accepted=prepare(source,brep,cards,boundary)
+        previous=package(accepted,brep)
+        reopened,report=synchronize_project(previous,source,brep)
+        self.assertIs(reopened,previous)
+        self.assertEqual(report,dict(status='reused',geometry_changed=False,mesh_changed=False))
+        rebuilt,report=synchronize_project(previous,other,brep)
+        self.assertEqual(report,dict(status='synchronized',geometry_changed=False,mesh_changed=True))
+        self.assertEqual(loads(rebuilt.files['cad-mesh/prepared.json'])['assignments'][0]['integrated_power_W'],10)
+
+        revised=deepcopy(source)
+        updated_brep=brep+b' changed'
+        revised['geometry']['brep_sha256']=sha256(updated_brep).hexdigest()
+        revised['cells'][0]['region']='Solid2'
+        replacement='b0000000-0000-4000-8000-000000000000'
+        revised['geometry']['faces'][0]['id']=replacement
+        revised['facets'][0]['cad_face_id']=replacement
+        with self.assertRaisesRegex(ValueError,'attachment_reassignment_required'):
+            synchronize_project(previous,revised,updated_brep)
+        rebuilt,report=synchronize_project(previous,revised,updated_brep,
+                                            region_map={'Solid1':'Solid2'},face_map={face:replacement})
+        self.assertTrue(report['geometry_changed'])
+        saved=loads(rebuilt.files['cad-mesh/prepared.json'])
+        self.assertEqual(saved['source']['geometry']['revision'],1)
+        self.assertEqual(saved['boundaries'][0]['face_id'],replacement)
+        self.assertEqual(saved['assignments'][0]['integrated_power_W'],10)
+        self.assertEqual(loads(previous.files['cad-mesh/prepared.json'])['boundaries'][0]['face_id'],face)
+
+        from argparse import ArgumentParser
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from fcst_app.persistence import Package,encode
+        from fcst_cli.td import execute,parsers
+        from fcst_exchange.core import ExchangeError
+
+        parser=ArgumentParser()
+        parsers(parser.add_subparsers(dest='command',required=True))
+        with TemporaryDirectory() as directory:
+            root=Path(directory)
+            original,mesh,shape,output,mapping=(root/name for name in ('original.fcst','mesh.json','shape.brep','new.fcst','map.json'))
+            original.write_bytes(previous.zip_bytes())
+            mesh.write_bytes(encode(revised))
+            shape.write_bytes(updated_brep)
+            mapping.write_bytes(encode({'region_map':{'Solid1':'Solid2'},'face_map':{face:replacement}}))
+            args=parser.parse_args(['td-sync-cad-mesh',str(original),str(mesh),str(shape),str(output)])
+            with self.assertRaisesRegex(ValueError,'attachment_reassignment_required'):
+                execute(args)
+            self.assertFalse(output.exists())
+            args.mapping=mapping
+            self.assertEqual(execute(args)['status'],'synchronized')
+            self.assertEqual(Package.open(output).model,rebuilt.model)
+            with self.assertRaisesRegex(ExchangeError,'td_output_exists'):
+                execute(args)
+            self.assertEqual(original.read_bytes(),previous.zip_bytes())
+
     def test_assignment_conflicts_receipt_tampering_and_unsupported_orders_reject(self):
         source,brep,cards=fixture()
         boundaries=[dict(face_id=f['id'],kind='temperature',value=dict(value=300+i,unit='K')) for i,f in enumerate(source['geometry']['faces'][:2])]

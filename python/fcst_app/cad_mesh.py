@@ -209,11 +209,79 @@ def reconcile(receipt,geometry):
     return True
 
 
+def synchronize(previous, previous_brep, source, brep, *, region_map=None, face_map=None,
+                previous_model=None):
+    """Regenerate a prepared CAD project from a fresh mesh and accepted mappings."""
+    old_value = validate_receipt(previous, previous_brep)
+    if previous_model is not None and old_value['model'] != previous_model:
+        reject('td_cad_sync_project_changed')
+    source = read('cad_mesh', source)
+    old_geometry = previous['source']['geometry']
+    geometry = source['geometry']
+    if geometry['id'] != old_geometry['id']:
+        reject('cad_sync_geometry_identity')
+    if source['options']['dimension'] != previous['source']['options']['dimension']:
+        reject('cad_sync_geometry_dimension')
+
+    def content(value):
+        return {key: item for key, item in value.items() if key != 'revision'}
+
+    unchanged_geometry = content(old_geometry) == content(geometry)
+    new_regions = {c['region'] for c in source['cells']}
+    if unchanged_geometry and new_regions == previous['materials'].keys() and region_map is None and face_map is None:
+        source['geometry']['revision'] = old_geometry['revision']
+        if source == previous['source'] and brep == previous_brep:
+            return old_value, previous
+        materials, boundaries = previous['materials'], previous['boundaries']
+    else:
+        source['geometry']['revision'] = old_geometry['revision'] + int(not unchanged_geometry)
+
+        def transfer(mapping, old, new):
+            if (not isinstance(mapping, dict) or mapping.keys() != old
+                    or any(not isinstance(target, str) for target in mapping.values())
+                    or set(mapping.values()) != new or len(mapping) != len(new)):
+                reject('attachment_reassignment_required')
+            return mapping
+
+        regions = transfer(region_map, set(previous['materials']), new_regions)
+        assigned_faces = {b['face_id'] for b in previous['boundaries']}
+        new_faces = {f['id'] for f in geometry['faces']}
+        if (not isinstance(face_map, dict) or face_map.keys() != assigned_faces
+                or any(not isinstance(target, str) for target in face_map.values())
+                or not set(face_map.values()) <= new_faces or len(set(face_map.values())) != len(face_map)):
+            reject('attachment_reassignment_required')
+        materials = {target: previous['materials'][old] for old, target in regions.items()}
+        boundaries = [{**entry, 'face_id': face_map[entry['face_id']]} for entry in previous['boundaries']]
+
+    return prepare(source, brep, materials, boundaries)
+
+
+def synchronize_project(saved, source, brep, *, region_map=None, face_map=None):
+    """Prepare a new portable project from a validated CAD project and mesh."""
+    from fcst_contracts import loads
+
+    geometry = [row for row in saved.model['entities'] if row['kind'] == 'geometry']
+    if len(geometry) != 1 or 'cad-mesh/prepared.json' not in saved.files:
+        reject('td_cad_sync_project')
+    previous = loads(saved.files['cad-mesh/prepared.json'])
+    previous_brep = saved.files[geometry[0]['artifact']['path']]
+    value, receipt = synchronize(previous, previous_brep, source, brep,
+                                 region_map=region_map, face_map=face_map, previous_model=saved.model)
+    report = {'status': 'reused' if receipt is previous else 'synchronized',
+              'geometry_changed': receipt['source']['geometry'] != previous['source']['geometry'],
+              'mesh_changed': receipt['mesh_revision'] != previous['mesh_revision']}
+    return (saved if receipt is previous else _package(value, receipt, brep)), report
+
+
 def package(receipt,brep):
     """Close original geometry, assignments and their re-creatable receipt."""
+    return _package(validate_receipt(receipt,brep),receipt,brep)
+
+
+def _package(value,receipt,brep):
     from .discretization import assignment_payload
     from .persistence import Package,encode
-    value=validate_receipt(receipt,brep);namespace=value['model']['project_id']
+    namespace=value['model']['project_id']
     mesh=next(e['artifact'] for e in value['model']['entities'] if e['kind']=='mesh')
     geometry=next(e['artifact'] for e in value['model']['entities'] if e['kind']=='geometry')
     artifacts=[(_id(namespace,'conduction-input'),'conduction_input',mesh['path'],assignment_payload(value),[]),

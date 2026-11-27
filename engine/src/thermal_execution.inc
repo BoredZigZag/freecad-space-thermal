@@ -7,6 +7,7 @@ void execution_keys(const J& j,std::initializer_list<const char*> required,std::
   for(auto key:optional)allowed.insert(key);
   for(const auto& [key,value]:j.obj()) { (void)value; if(!allowed.contains(key))fail("schema"); }
 }
+#include "thermal_time_loads.inc"
 J numbers(std::span<const double> values) { J::A out;for(double v:values)out.emplace_back(v);return J(out); }
 std::vector<double> execution_numbers(const J& j) { std::vector<double> out;for(const auto& v:j.arr())out.push_back(v.num());return out; }
 std::size_t execution_count(const J& j) { double n=j.num();if(n<0 || n>10000000 || n!=std::floor(n))fail("range");return static_cast<std::size_t>(n); }
@@ -111,7 +112,7 @@ J::O transient_output(const thermal::Data& data,const J& settings,const thermal:
 std::string thermal::inspect_thermal_capabilities() { return dump(J(J::O{{"status",J("passed")},{"backend",capabilities_json()}})); }
 std::string thermal::inspect_transient(std::string_view input) {
   try {
-    auto j=Parser{input}.parse();execution_keys(j,{"thermal_input","transient"},{"checkpoint","initial_operating","environment_power_W"});
+    auto j=Parser{input}.parse();execution_keys(j,{"thermal_input","transient"},{"checkpoint","initial_operating","environment_power_W","time_loads"});
     auto model=thermal::load(dump(j.at("thermal_input")));auto state=initial_operating_state(model);
     if(j.has("initial_operating"))state=execution_state(j.at("initial_operating"));
     const auto& settings=j.at("transient");auto o=execution_options(settings);
@@ -121,7 +122,12 @@ std::string thermal::inspect_transient(std::string_view input) {
       std::vector<std::size_t> nodes;for(std::size_t i=0;i<watts.size();++i)nodes.push_back(i);
       powers.push_back({id,PowerKind::environment,nodes,{},[watts](double,std::span<const double>,bool){return PowerEvaluation{watts,{}};}});
     }
-    if(!powers.empty())o.callback_revision=thermal_digest(canonical(j.at("environment_power_W")));
+    if(j.has("time_loads")) {
+      bind_time_power(j.at("time_loads"),model,o,powers);
+      J::O callbacks{{"time_loads",j.at("time_loads")}};
+      if(j.has("environment_power_W"))callbacks.emplace("environment_power_W",j.at("environment_power_W"));
+      o.callback_revision=thermal_digest(canonical(J(callbacks)));
+    } else if(!powers.empty())o.callback_revision=thermal_digest(canonical(j.at("environment_power_W")));
     Assembly assembly(std::move(model),std::move(powers),{},state);std::optional<TransientCheckpoint> restart;
     if(j.has("checkpoint"))restart=execution_checkpoint(j.at("checkpoint"));auto result=solve_transient(assembly,o,restart);
     return dump(J(transient_output(assembly.model().data(),settings,result)));
