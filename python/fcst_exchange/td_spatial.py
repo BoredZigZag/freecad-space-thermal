@@ -31,7 +31,12 @@ def _constant_assignment(payload, scale):
         return attrs['names_a'][1], 0.0, (1,) * 4
 
     top, bottom = attrs['property_names']
-    if ('extended_attributes' in attrs or attrs['primary_selector'] != 1 or bottom.casefold() not in ('', 'default')
+    extended = attrs.get('extended_attributes')
+    inactive_extension = (extended is None or
+                          attrs['wire_revision'] == 55 and not extended['text_ids']
+                          and all(not name or name.casefold() == 'default' for name in extended['names'])
+                          and not any(extended['name_maps']) and not any(values for _, values in extended['name_lists']))
+    if (not inactive_extension or attrs['primary_selector'] != 1 or bottom.casefold() not in ('', 'default')
             or attrs['property_label'].casefold() not in ('', 'default') or attrs['property_value']
             or any(attrs['selectors_a']) or any(attrs['selectors_b']) or any(attrs['selectors_f']) or any(attrs['selectors_i'])
             or any(value <= 0 for value in attrs['values_g']) or any(attrs['name_lists']) or any(attrs['name_maps'])
@@ -73,21 +78,11 @@ def _region(prefix, material, thickness, grid):
                       volumes, nodal, thickness, material)
 
 
-def prepare_spatial(staged, properties, length_unit, *, temperature, temperature_range, handles=(),
-                    source_node_ids=False, face_load_handle=None, power_unit=None):
-    """Build a native conduction input and optionally bind saved TD identities and a face load."""
-    geometry = selected_geometry(staged, handles)
+def material_input(staged, properties, length_unit, temperature, temperature_range):
     if staged.snapshot.native['version'] != 'AC1032':
         reject('td_spatial_container_version_unmapped')
     if length_unit not in LENGTH_UNITS:
         reject('td_geometry_length_unit')
-    if (face_load_handle is None) != (power_unit is None):
-        reject('td_spatial_face_power_unit')
-    scale = LENGTH_UNITS[length_unit]
-    groups = saved_node_groups(staged.snapshot, geometry) if source_node_ids else {}
-    selected_face = face_power(staged.snapshot, face_load_handle, power_unit) if face_load_handle is not None else None
-    if selected_face and selected_face[0] not in {handle for handle, _ in geometry}:
-        reject('td_spatial_face_load_target')
     if (len(temperature_range) != 2
             or not all(type(x) in (int, float) and math.isfinite(x) for x in (temperature, *temperature_range))
             or not 0 < temperature_range[0] < temperature_range[1]
@@ -98,8 +93,21 @@ def prepare_spatial(staged, properties, length_unit, *, temperature, temperature
     if PurePosixPath(properties).suffix.casefold() != '.tdp' or library is None:
         reject('td_spatial_property_companion')
     entries = {entry.name.casefold(): entry for entry in parse_properties(library, 'tdp').entries}
+    return LENGTH_UNITS[length_unit], sha256(library).hexdigest(), entries
+
+
+def prepare_spatial(staged, properties, length_unit, *, temperature, temperature_range, handles=(),
+                    source_node_ids=False, face_load_handle=None, power_unit=None):
+    """Build a native conduction input and optionally bind saved TD identities and a face load."""
+    geometry = selected_geometry(staged, handles)
+    scale, property_revision, entries = material_input(staged, properties, length_unit, temperature, temperature_range)
+    if (face_load_handle is None) != (power_unit is None):
+        reject('td_spatial_face_power_unit')
+    groups = saved_node_groups(staged.snapshot, geometry) if source_node_ids else {}
+    selected_face = face_power(staged.snapshot, face_load_handle, power_unit) if face_load_handle is not None else None
+    if selected_face and selected_face[0] not in {handle for handle, _ in geometry}:
+        reject('td_spatial_face_load_target')
     source_revision = staged.original.source_hash
-    property_revision = sha256(library).hexdigest()
     selection_input = [properties, [str(handle) for handle, _ in geometry]]
     if source_node_ids or selected_face:
         selection_input.append([source_node_ids, str(face_load_handle) if selected_face else '', power_unit or ''])

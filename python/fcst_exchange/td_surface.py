@@ -174,18 +174,34 @@ def write_value(filer,kind,value):
 
 def write_attributes(filer,fields):
     required={'groups','legacy_names','legacy_selectors','names',*(row[0] for row in ATTRIBUTE_LAYOUT)}
-    if not isinstance(fields,dict) or set(fields)!=required:reject('td_surface_attribute_shape')
+    if not isinstance(fields,dict):reject('td_surface_attribute_shape')
+    revision=fields.get('wire_revision',54)
+    extras={'wire_revision','extended_attributes'} if revision==55 else set()
+    if revision not in (54,55) or set(fields)!=required|extras:reject('td_surface_attribute_shape')
     groups=_array(fields['groups']);b=filer.data
     b.bl(len(groups))
     for pair in groups:
         name,selector=_array(pair,size=2);filer.text(name);b.bl(selector)
     for name,count,kind in (('legacy_names',2,'text'),('legacy_selectors',2,'integer'),('names',3,'text')):
         for value in _array(fields[name],size=count):write_value(filer,kind,value)
-    b.bd(ATTRIBUTE_REVISION)
+    b.bd(EXTENDED_ATTRIBUTE_REVISION if revision==55 else ATTRIBUTE_REVISION)
     for name,kind,count in ATTRIBUTE_LAYOUT:
         values=(fields[name],) if count==1 else fields[name]
         if not isinstance(values,(tuple,list)) or len(values)!=count:reject('td_surface_attribute_shape')
         for value in values:write_value(filer,kind,value)
+    if revision==55:
+        ext=fields['extended_attributes']
+        if not isinstance(ext,dict) or set(ext)!={'text_ids','names','name_maps','name_lists'}:
+            reject('td_surface_attribute_shape')
+        text_ids=_array(ext['text_ids']);b.bl(len(text_ids))
+        for entry in text_ids:
+            text,first,second=_array(entry,size=3)
+            filer.text(text);b.bl(first);b.bl(second)
+        for name in _array(ext['names'],size=2):filer.text(name)
+        for mapping in _array(ext['name_maps'],size=2):write_value(filer,'text_pairs',mapping)
+        for entry in _array(ext['name_lists'],size=2):
+            name,values=_array(entry,size=2)
+            filer.text(name);write_value(filer,'texts',values)
 
 
 def write_mesh_controls(filer,fields):

@@ -69,7 +69,7 @@ def read_laws(raw,kind,*,limits=Limits()):
     return library
 
 
-def entry_laws(entry,kind,*,limits=Limits()):
+def entry_laws(entry,kind,*,limits=Limits(),allow_inactive_empty_aggregate=False):
     row={'name':entry.name,'scalars':{},'tables':{},'vectors':{}}
     for f in entry.fields:
         if f.depth or f.tag in {'NAME','COMMENT_MULTILINE'}:continue
@@ -79,7 +79,22 @@ def entry_laws(entry,kind,*,limits=Limits()):
         else:reject('td_property_law_field_unmapped')
     if entry.blocks:
         if kind!='tdp':reject('td_property_law_composite_structure')
-        row['aggregate']=_aggregate(entry)
+        block, *extra = entry.blocks
+        if (allow_inactive_empty_aggregate and row['scalars'].get('TYPE',0)==0 and not extra
+                and block.tag=='AGGREGATE' and block.depth==0):
+            settings = set()
+            for f in entry.fields:
+                if not f.depth:
+                    continue
+                if (f.depth!=1 or not block.start<f.start<block.end or f.tag not in AGGREGATE_SETTINGS
+                        or f.tag in settings):
+                    reject('td_property_law_composite_field')
+                value = f.scalar()
+                if (not 0<=value<=1 if f.tag in {'KXP','KYP','KZP'} else value not in (0,1)):
+                    reject('td_property_law_composite_range')
+                settings.add(f.tag)
+        else:
+            row['aggregate']=_aggregate(entry)
     return row
 
 

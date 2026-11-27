@@ -7,12 +7,14 @@ from fcst_contracts import BUNDLE
 
 from .core import reject
 from .td_decode import decode_drawing
+from .td_filer import expression_is_constant, logic_is_empty
 from .td_load import LoadPayload
 from .td_node import NodePayload
 from .td_writer import load_payload, template_fields
 
 
 POWER_UNITS = tuple(unit for unit, (dimension, _, _) in BUNDLE['units'].items() if dimension == 'power')
+TEMPERATURE_UNITS = tuple(unit for unit, (dimension, _, _) in BUNDLE['units'].items() if dimension == 'temperature')
 
 # Marker bits follow the documented XMIN, XMAX, YMIN, YMAX, ZMIN, ZMAX order.
 # Each quad is outward-wound in the hex8 point order used by the spatial mesh.
@@ -40,12 +42,29 @@ def saved_node_groups(snapshot, geometry):
     return {handle: [(ref, nodes[ref]) for ref in handles] for handle, handles in groups.items()}
 
 
-def node_source_entries(region, grid, handle, records, scale):
+def saved_boundary_temperature(node, unit, temperature_range, diagnostic):
+    if (node['use_material'] or node['time_table'] or node['time_table_mode'] or any(node['source_switches'])
+            or node['source_selector'] or node['source_flag'] or not logic_is_empty(node['logic'])
+            or any(not expression_is_constant(node[key]) for key in
+                   ('mass_expression', 'temperature_expression', 'selector_expression'))):
+        reject(diagnostic)
+    if node['node_type']==0 and not node['user_override']:
+        return None
+    if node['node_type']!=2 or unit not in TEMPERATURE_UNITS:
+        reject(diagnostic)
+    _, scale, offset = BUNDLE['units'][unit]
+    temperature = scale*node['initial_temperature'] + offset
+    if not temperature_range[0] <= temperature <= temperature_range[1]:
+        reject('td_geometry_boundary_temperature_range')
+    return temperature
+
+
+def match_saved_nodes(grid, handle, records, scale, *, allow_shared=False):
     # A complete Cartesian lattice distinguishes a saved vertex from a saved
     # cell center. The latter identifies a conduction element for provenance.
     cuts, origin, axes = grid
-    centered = len(records) == len(region.connectivity)
-    if not centered and len(records) != len(region.positions):
+    centered = len(records) == math.prod(max(1, len(axis)-1) for axis in cuts)
+    if not centered and len(records) != math.prod(map(len, cuts)):
         reject('td_spatial_source_node_count')
     coordinates = [tuple(a + (b-a)/2 for a, b in zip(axis, axis[1:]))
                    if centered and len(axis) > 1 else axis for axis in cuts]
@@ -59,15 +78,16 @@ def node_source_entries(region, grid, handle, records, scale):
     if tolerance < precision or tolerance <= 0:
         reject('td_spatial_source_node_precision')
 
-    entries, occupied = [], set()
+    matched = {}
+    extent = 2 * sum(axis[-1] for axis in cuts)
     for ref, node in records:
         owners = {owner['target'] for owner in node['associations']}
-        if owners != {handle} or any(node['offsets']):
+        if handle not in owners or (not allow_shared and owners != {handle}) or any(node['offsets']):
             reject('td_spatial_source_node_association')
         if len(node['submodel']) > 256:
             reject('td_spatial_source_node_identity')
         delta = tuple(value * scale - start for value, start in zip(node['basis'][0], origin))
-        if any(not math.isfinite(value) or abs(value) > 2 * sum(axis[-1] for axis in cuts) for value in delta):
+        if any(not math.isfinite(value) or abs(value) > extent for value in delta):
             reject('td_spatial_source_node_position')
         indices = []
         for axis, basis in zip(coordinates, axes):
@@ -79,13 +99,18 @@ def node_source_entries(region, grid, handle, records, scale):
             indices.append(candidates[0])
         i, j, k = indices
         index = (k * len(coordinates[1]) + j) * len(coordinates[0]) + i
-        if index in occupied:
+        if index in matched:
             reject('td_spatial_source_node_position')
-        occupied.add(index)
-        namespace, target = ('TD.DWG.FD-CELL', 'element') if centered else ('TD.DWG.FD-NODE', 'node')
-        entries.append(dict(namespace=namespace, handle=str(ref), entity_id=region.identifier(f'{target}-{index}'),
-                            submodel_handle=node['submodel'], node_number=node['identifier']))
-    return entries
+        matched[index] = ref, node
+    return centered, coordinates, [matched[i] for i in range(len(records))]
+
+
+def node_source_entries(region, grid, handle, records, scale):
+    centered, _, matched = match_saved_nodes(grid, handle, records, scale)
+    namespace, target = ('TD.DWG.FD-CELL', 'element') if centered else ('TD.DWG.FD-NODE', 'node')
+    return [dict(namespace=namespace, handle=str(ref), entity_id=region.identifier(f'{target}-{i}'),
+                 submodel_handle=node['submodel'], node_number=node['identifier'])
+            for i, (ref, node) in enumerate(matched)]
 
 
 def face_power(snapshot, load_handle, unit):

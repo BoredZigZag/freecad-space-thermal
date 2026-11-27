@@ -114,7 +114,7 @@ def spatial_law_properties():
 
 
 def spatial_source_records(*, centered=True, marker=1, wrong_position=False, wrong_owner=False,
-                           duplicate_number=False, duplicate_position=False, time_table=()):
+                           duplicate_number=False, duplicate_position=False, time_table=(), prescribed=False):
     from fcst_exchange.td_geometry import brick_payload
     from fcst_exchange.td_writer import load_payload, node_payload
 
@@ -132,13 +132,15 @@ def spatial_source_records(*, centered=True, marker=1, wrong_position=False, wro
         if index == 0 and wrong_position:
             point = (-10, -10, -10)
         number = 100 if index == 1 and duplicate_number else 100 + 2 * index
-        nodes.append(node_payload('OWNED FD', number, 300, 0, 'capacitive', position=point,
+        fixed = prescribed and index==0
+        nodes.append(node_payload('OWNED FD', number, 25 if fixed else 300, 0,
+                                  'prescribed' if fixed else 'capacitive', position=point,
                                   association=None if index == 0 and wrong_owner else 1))
     brick['attributes']['references_a'] = (tuple(range(2, 2+len(nodes))), ())
     return [brick_payload(brick), *nodes, load_payload(.048, 1, marker=marker, time_table=time_table)]
 
 
-def spatial_preview(root, fields=None, properties=None, *, records=None):
+def spatial_preview(root, fields=None, properties=None, *, records=None, geometry_classes=None):
     from fcst_exchange.independent_td import DwgPreview
     from fcst_exchange.source_tree import capture_project
     from fcst_exchange.td_geometry import rectangle_payload, brick_payload
@@ -150,4 +152,62 @@ def spatial_preview(root, fields=None, properties=None, *, records=None):
     (root / 'fixture.dwg').write_bytes(b'AC1032-owned')
     (root / 'fixture.tdp').write_bytes(spatial_properties() if properties is None else properties)
     return DwgPreview(capture_project(root, 'fixture.dwg'),
-                      drawing(records))
+                      drawing(records, geometry_classes=geometry_classes))
+
+
+def shared_fd_records():
+    from fcst_exchange.td_geometry import rectangle_payload
+    from fcst_exchange.td_writer import node_payload
+
+    records = []
+    for i, refs in enumerate(((3,4,6,7), (4,5,7,8))):
+        rectangle, _ = spatial_fields()
+        rectangle.update(serialized_parameters=(2,3,0,0,0,0), origin=(2*i,0,0),
+                         axes=((1,0,0),(0,1,0),(0,0,1)))
+        rectangle['mesh_controls'].update(values=(0,)*6, selectors=(0,1,2))
+        attrs = rectangle['attributes']
+        attrs['subdivision'] = tuple({'mode':0,'intervals':1,'boundaries':(0,1),'expression':expression()}
+                                     for _ in range(2))
+        attrs.update(references_a=(refs,()),wire_revision=55,
+                     extended_attributes={'text_ids':(),'names':('Default','Default'),'name_maps':((),()),
+                                          'name_lists':(('OWNED A',()),('OWNED B',()))})
+        records.append(rectangle_payload(rectangle))
+    for i, (y,x) in enumerate(product((0,3),(0,2,4)),1):
+        owners = (1,2) if x==2 else (1,) if x==0 else (2,)
+        records.append(node_payload('OWNED SHARED',i,300,0,'capacitive',position=(x,y,0),associations=owners))
+    return records
+
+
+FE_CLASSES = {11: ('RCLINEARTRI2','RcLinearTri2'), 12: ('RCLINEARQUAD2','RcLinearQuad2'),
+              13: ('RCLINEARTETRA2','RcLinearTet2'), 14: ('RCLINEARBRICK2','RcLinearBrick2')}
+
+
+def saved_element_records(*, prescribed=False):
+    from fcst_exchange.td_surface import write_attributes
+    from fcst_exchange.td_writer import FilerWriter, node_payload
+
+    coordinates = ((0,0,0),(2,0,0),(2.5,3,0),(0,3,0),(4,0,0),(0,0,1),
+                   (10,0,0),(12,0,0),(12,3,0),(10,3,0),(10,0,1),(12,0,1),(12,3,1),(10,3,1))
+    records = []
+    for i,p in enumerate(coordinates,1):
+        fixed = prescribed and i==1
+        records.append(node_payload('OWNED FE',i,25 if fixed else 300,0,
+                                    'prescribed' if fixed else 'capacitive',position=p))
+    for kind,keys in ((11,(2,5,3)),(12,(1,2,3,4)),(13,(1,2,4,6)),(14,tuple(range(7,15)))):
+        writer = FilerWriter()
+        b = writer.data
+        if kind in (11,12):
+            rectangle, _ = spatial_fields()
+            attrs = rectangle['attributes']
+            attrs.update(wire_revision=55,extended_attributes={'text_ids':(),'names':('Default','Default'),
+                         'name_maps':((),()),'name_lists':(('',()),('',()))})
+            write_attributes(writer,attrs)
+        b.bl(5);b.bl(len(keys));writer.references.extend(keys)
+        writer.text('OWNED element');b.put(0,1);b.bl(1)
+        if kind in (11,12):
+            b.bl(5);b.bl(0);b.bl(0);b.bl(1)
+        else:
+            b.bl(13);writer.text('OWNED solid');writer.text('Default');b.bl(0);writer.text('')
+            b.bl(63);b.bl(0);b.bl(0);b.put(0,1);b.bl(0);b.bl(1);writer.expression();b.bl(1)
+        records.append(writer.result(kind))
+    return records

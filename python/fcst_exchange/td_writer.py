@@ -99,7 +99,7 @@ class FilerWriter:
 
 
 def node_payload(submodel,identifier,temperature,capacity,classification,label='',*,material=None,
-                 position=(0,0,0),association=None):
+                 position=(0,0,0),association=None,associations=()):
     if classification not in {'capacitive','algebraic','prescribed'}:reject('td_writer_node_classification')
     name,mode=('UNDEFINED',0) if material is None else material
     if material is not None and (classification!='capacitive' or not name or mode not in (0,1) or capacity<=0):
@@ -108,13 +108,16 @@ def node_payload(submodel,identifier,temperature,capacity,classification,label='
     for point in (position,(1,0,0),(0,1,0),(0,0,1)):b.point(point)
     f.text(submodel);b.bl(identifier);b.bl({'capacitive':0,'algebraic':1,'prescribed':2}[classification])
     b.bd(capacity);b.bd(temperature);b.bl(int(material is not None));f.text(name)
-    b.bl(0);b.put(0,1);b.bl(int(association is not None))
+    if association is not None:
+        if associations:reject('td_writer_node_associations')
+        associations=(association,)
+    if len(associations)>10000:reject('td_filer_array_limit')
+    b.bl(0);b.put(0,1);b.bl(len(associations))
     for _ in range(3):b.put(0,1)
     b.bl(0);b.bl(0);b.bl(0);b.bd(-1)
     f.expression(13);f.expression(4);f.text(label);b.bl(mode);b.bl(1);f.expression();b.bl(0);b.put(0,1);f.logic()
     for _ in range(3):b.bd(0)
-    if association is not None:
-        f.references.append(association)
+    f.references.extend(associations)
     f.references.append(0);return f.result(1)
 
 

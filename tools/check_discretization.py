@@ -153,6 +153,51 @@ def check(worker, report, native_build):
         mean_temperature = math.fsum(t*c for t, c in zip(final['temperature_K'], initial['capacity_J_per_K'])) / capacity
         near(mean_temperature, 300 + power*duration/capacity, 1e-6)
         near(sum(final['storage_change_J']), power*duration, 1e-10)
+
+    def td_fd_network():
+        from fcst_exchange.td_fd import prepare_fd
+        sys.path.insert(0, str(ROOT/'tests'))
+        from td_geometry_fixture import spatial_preview, spatial_source_records
+
+        with tempfile.TemporaryDirectory() as directory:
+            staged = spatial_preview(Path(directory), records=spatial_source_records())
+            value, _ = prepare_fd(staged, 'fixture.tdp', 'mm', temperature=300, temperature_range=(250,450),
+                                  face_load_handle=110, power_unit='mW')
+        duration, power, mass_capacity = 2, 4.8e-5, 9.6e-5
+        result = run(dict(thermal_input=value, transient=dict(start=0,end=duration,output_times=[0,duration],
+                          maximum_step=.05,include_steps=False)), '--thermal-transient')
+        sample = result['samples'][-1]
+        assert sample['valid']
+        near(math.fsum(sample['load_in_W']), power, 1e-13)
+        near(math.fsum(sample['storage_change_J']), power*duration, 1e-10)
+        mean = 300 + power*duration/mass_capacity
+        # Cross-section sums for the half-brick control volumes. Each x plane
+        # heats uniformly, including unequal y partitions.
+        link = 7*.006*.008/.002
+        difference = -power/(2*link)*math.expm1(-4*link*duration/mass_capacity)
+        numbers = {entry['entity_id']:entry['node_number'] for source in value['model']['source_maps']
+                   for entry in source['entries'] if 'node_number' in entry}
+        for node, temperature in zip(nodes(value),sample['temperature_K']):
+            sign = 1 if numbers[node['id']] % 4 == 0 else -1
+            near(temperature,mean+sign*difference/2,5e-6)
+
+    def td_fe_mesh():
+        from fcst_app.discretization import read_input
+        from fcst_exchange.td_fe import prepare_elements
+        sys.path.insert(0, str(ROOT/'tests'))
+        from td_geometry_fixture import FE_CLASSES, saved_element_records, spatial_preview
+
+        with tempfile.TemporaryDirectory() as directory:
+            staged = spatial_preview(Path(directory), records=saved_element_records(), geometry_classes=FE_CLASSES)
+            value, _ = prepare_elements(staged, 'fixture.tdp', 'mm', temperature=300, temperature_range=(250,450))
+        result = field(read_input(value),lambda p:300+2*p[0]+3*p[1]+4*p[2])
+        kinds = {row['element_id']:row['topology'] for row in value['spatial']['cells']}
+        for cell in result['cells']:
+            expected = (-8,-12,0) if kinds[cell['element_id']] in ('tri3','quad4') else (-14,-21,-28)
+            for measured, target in zip(cell['heat_flux_W_per_m2'],expected):
+                near(measured,target,criteria['patch_absolute'])
+        near(math.fsum(result['capacity_J_per_K']),1.52e-5,1e-13)
+        near(math.fsum(result['conductive_in_W']),0,criteria['energy_absolute_W'])
     def tensor():
         v=brick(tensor=[[2,0,0],[0,3,0],[0,0,4]],rotation=[[0,-1,0],[1,0,0],[0,0,1]])
         out=field(v)
@@ -338,7 +383,8 @@ def check(worker, report, native_build):
         spatial_refine,time_refine,reordering,invalid_mesh,invalid_mappings,invalid_materials,invalid_contacts,stale,offline]))
     cases.update({'temperature-tensor-law':tensor_law,'spatial-transient-heating':spatial_heating,
                   'mixed-material-storage':mixed_storage,'td-material-mesh':td_mesh,
-                  'td-brick-face-power':td_face_power})
+                  'td-brick-face-power':td_face_power,'td-cartesian-fd-network':td_fd_network,
+                  'td-saved-linear-elements':td_fe_mesh})
     for name,fn in cases.items():
         started=time.monotonic()
         try:fn();status='passed'

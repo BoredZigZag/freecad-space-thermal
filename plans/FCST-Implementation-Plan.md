@@ -115,6 +115,12 @@ both Windows configurations. TST-021 clears exact sources, synthetic filer
 fixtures, coverage and source locks, bounded verdicts, timing scalars, outgoing
 history, approved metadata and GitHub prose. Saved drawings, decoded local
 inventories, prepared inputs and raw solver results remain local.
+The Cartesian FD and saved linear FE bindings run the TD driver, the independent
+DWG CLI, the analytic FD transient and the four-topology FE flux and capacity
+checks. TST-021 covers the exact sources, synthetic filer fixtures, coverage and
+source locks, bounded verdicts, timing scalars, and the sanitized comparison
+summary. Native DWG and TDP inputs, generated decks, mapped identities, prepared
+solver inputs and raw comparisons remain local.
 
 WP-09 now applies TST-021 to exact owned codecs, CLI, acquisition/profile locks,
 synthetic D-deck/TMD/XML fixtures, bounded `esatan.json` summaries and final GitHub
@@ -708,10 +714,16 @@ of basic materials. The input uses generated FCST nodes and disconnected bodies.
 The optional source-map path binds complete saved FD node numbering by position,
 with edge IDs on native nodes and centered IDs on elements. A selected literal
 total-power record can heat one brick face with area-proportional weights and
-retained source provenance. General FD numbering, native curved and finite-element physics,
-independent regeneration from TD drawing geometry, multilayer assignments, and
+retained source provenance. Further FD numbering modes, independent regeneration
+from TD drawing geometry, multilayer assignments, and
 coupling to source contacts, loads, optical properties, radiation and case
 controls remain open.
+The Cartesian FD formulation supports saved centered and edge nodes with closed
+shared primary attachments, constant directional conductance, storage and
+constant-temperature boundaries. The saved FE formulation binds linear tri3,
+quad4, tet4 and hex8 cells, shared node identities and supported isotropic TDP laws.
+Curved, high-order, wedge and pyramid solve semantics, secondary attachments,
+additional material laws, and geometry-attached contact and radiation remain open.
 Basic isotropic TDP temperature tables now bind to native thermal inputs with
 explicit intervals, interpolation, extrapolation and optional node masses. The
 binding reads the active specific-heat and conductivity laws and exercises

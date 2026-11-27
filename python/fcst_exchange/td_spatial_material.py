@@ -31,7 +31,7 @@ class MaterialProfile:
 
 def material_profile(key, entries, temperature_range, profiles):
     entry = entries[key]
-    row = entry_laws(entry, 'tdp')
+    row = entry_laws(entry, 'tdp', allow_inactive_empty_aggregate=True)
     mode = row['scalars'].get('TYPE', 0)
     if mode == 0:
         return _basic_profile(row, temperature_range)
@@ -88,7 +88,7 @@ def _composite_profile(row, entries, temperature_range, cache):
         if name not in entries:
             reject('td_property_law_composite_reference')
         if name not in cache:
-            basic = entry_laws(entries[name], 'tdp')
+            basic = entry_laws(entries[name], 'tdp', allow_inactive_empty_aggregate=True)
             if basic['scalars'].get('TYPE', 0) != 0:
                 reject('td_property_law_composite_reference')
             cache[name] = _basic_profile(basic, temperature_range)

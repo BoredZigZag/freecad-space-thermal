@@ -430,6 +430,14 @@ raise SystemExit(main())
     face_input = read_input(loads(face_output.read_bytes()))
     face_entries = [e for s in face_input['model']['source_maps'] for e in s['entries']]
     face_power = sum(row['value_SI'] for row in face_input['spatial']['surfaces'])
+    fd_output = attempt/'spatial-fd.json'
+    if not invoke(['td-prepare-spatial', face_source, 'network.dwg', fd_output, '--backend', receipt_path,
+                   '--work', attempt/'spatial-fd-cli', '--properties', 'fixture.tdp', '--length-unit', 'mm',
+                   '--temperature', '300', '--temperature-min', '250', '--temperature-max', '450',
+                   '--formulation', 'fd', '--face-load', str(face_handles[-1]), '--power-unit', 'mW']):
+        raise ValueError('backend_cartesian_fd_cli_failed')
+    fd_input = loads(fd_output.read_bytes())
+    fd_entities = fd_input['model']['entities']
     from td_sinda_time_fixture import SINDA,td_records
     timed_source=attempt/'time-source';timed_source.mkdir()
     timed_created,_=runtime.run('create-network',network_packet(td_records()),attempt/'time-create')
@@ -513,6 +521,12 @@ raise SystemExit(main())
                        and len(face_input['spatial']['surfaces'])==8 and abs(face_power-4.8e-5)<1e-15
                        and (face_source/'network.dwg').read_bytes()==face_dwg
                        and (face_source/'fixture.tdp').read_bytes()==spatial_tdp,
+                   'dwg-cartesian-fd-cli':fd_input['contract_version']=='1.0.0'
+                       and sum(e['kind']=='node' for e in fd_entities)==8
+                       and sum(e['kind']=='conductor' for e in fd_entities)==12
+                       and abs(sum(e['power']['value'] for e in fd_entities if e['kind']=='load')-4.8e-5)<1e-15
+                       and abs(sum(e['capacity']['value'] for e in fd_entities if e['kind']=='node')-9.6e-5)<1e-15
+                       and (face_source/'network.dwg').read_bytes()==face_dwg,
                    'td-sinda-time-load-cli':
                        len(td_tables)==1 and td_tables[0]['period_s']==1 and td_tables[0]['points']==[[0,2],[.5,6],[1,4]]
                        and {table.get('period_s'):table['points'] for table in sinda_tables}

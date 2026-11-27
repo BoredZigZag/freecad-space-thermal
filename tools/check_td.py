@@ -59,7 +59,7 @@ def main():
            'tests/test_td_native_model.py','tests/test_td_property_model.py','tests/test_td_property_laws.py','tests/test_td_material_input.py',
            'tests/fixtures/thermal/td-material-input.json','tests/fixtures/thermal/transient-enthalpy.json',
            'tests/test_sinda_arrays.py','tests/test_td_geometry.py','tests/td_geometry_fixture.py',
-           'tests/test_td_spatial.py','python/fcst_app/discretization.py',
+           'tests/test_td_spatial.py','tests/test_td_thermal_geometry.py','python/fcst_app/discretization.py',
            'tests/test_td_sinda_time.py','tests/td_sinda_time_fixture.py',
            'tests/test_td_project_inventory.py',
            'tools/probe_independent_dwg.py','ci/dwg-backend.json','python/fcst_exchange/dwg-profile.json',
@@ -68,7 +68,7 @@ def main():
     paths += [p.relative_to(ROOT).as_posix() for p in sorted((ROOT/'python/fcst_exchange').glob('*.py'))]
     report={'schema_version':1,'work_package':'WP-08','candidate':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
             'gate':evaluate(expected,records),'cases':records,'input_sha256':{p:sha256((ROOT/p).read_bytes()).hexdigest() for p in paths},
-            'scope':'Independent TD/SINDA exchange, TD project inventory, native time-power inputs, material laws and static conduction meshes; full-model qualification pending',
+            'scope':'Independent TD/SINDA exchange, project inventory, native time-power inputs, material laws, Cartesian FD and first-order conduction; full-model qualification pending',
             'qualified':False,'qualification_holds':manifest['qualification_holds'],
             'optional_coverage':manifest['optional_coverage']}
     args.report.parent.mkdir(parents=True,exist_ok=True);args.report.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')

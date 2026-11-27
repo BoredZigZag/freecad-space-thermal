@@ -528,6 +528,40 @@ profile. Time tables, expressions, named domains and combined markers are held.
 Other source loads and case settings remain outside this preparation path.
 [OpenTD connection and marker semantics](https://developer.synopsys.com/docs/opentd-2024-r2/getting-started/creating-td-model/connections-handles-markers-domains.md)
 
+### Prepare saved FD and FE thermal models
+
+Pass `--formulation fd` for a saved Cartesian rectangle or FD brick. The result
+contains actual source-numbered thermal nodes, axial conductances and
+control-volume capacities. Centered nodes use the stored cell boundaries.
+Edge nodes use midpoint control volumes truncated at the body boundaries.
+Reciprocally shared primary nodes accumulate storage and parallel links when
+all owning bodies are selected in the same preparation. The path accepts
+constant conductivities, including independently scaled local axes, and
+temperature-dependent specific heat for a single material at a node. The
+optional literal face load is distributed by the selected control-volume areas.
+
+Pass `--formulation elements` to import saved linear triangles, quadrilaterals,
+tetrahedra and bricks. Ordered node handles define the cells, and shared handles
+give a single thermal node across the selected elements. A node accumulates
+storage from each attached material. Quadrilateral and brick mappings use
+shape-function weights at the integration points. The path accepts supported
+isotropic TDP laws and can retain FE importer references while using the saved
+connectivity. An empty inactive aggregate card on a basic material is accepted.
+
+Both modes require `--node-temperature-unit K`, `degC`, or `degF` when a selected
+body includes a saved constant-temperature node. The caller-declared kelvin
+temperature still initializes diffusive nodes. Use `spatial-solve` for either
+output. The default `--formulation fe` remains the first-order mesh generated
+from the geometry of a rectangle or brick.
+
+Source comparison for the Cartesian path covered seven saved TD 6.3 rectangles
+and checked 151 capacities and 240 conductances against their generated SINDA
+deck. One further rectangle uses an active property expression. The saved FE
+path imported 103 source quadrilaterals and 127 nodes from an original drawing
+and passed a native uniform-temperature steady solve.
+Analytic fixtures cover all four supported FE topologies and the FD thermal
+transient. [Scope and verification evidence](../plans/evidence/WP-08.json)
+
 Remaining independent implementation includes further surface, solid and mesh
 classes, automatic mesh regeneration, complete material and optical assignments,
 source geometry-to-node and face coupling, additional material-derived node

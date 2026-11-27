@@ -322,6 +322,15 @@
     "holds": ["Centered source IDs are cell provenance; equivalent TD finite-difference numerical results still need reference evidence", "Other load modes, thermal attachments and full-model reverse exchange remain open"],
     "qualified": false
   },
+  "cartesian_fd_and_saved_linear_elements": {
+    "implementation_delivery": "partial",
+    "scope": "Native centered and edge Cartesian FD with closed shared primary nodes, literal brick-face or one-side sheet power, constant directional conductivity, and fixed-temperature source nodes. Saved linear triangle, quadrilateral, tetrahedron and brick conduction with shared nodes and isotropic TDP laws.",
+    "source_comparison": "A saved TD 6.3 drawing and its generated SINDA deck agree for 151 node capacities and 240 conductances across seven rectangles at relative tolerance 2e-5. The eighth rectangle is held on an active property expression. The acquired FE tutorial drawing prepared 103 quadrilaterals and 127 nodes, including seven fixed-temperature nodes. Equal-weight mappings failed native preparation on the irregular quads. Shape-function weights passed native preparation. An assumed Celsius boundary interpretation reported energy imbalance. Reading the saved temperatures as kelvin with the drawing length in inches gave the intended uniform-temperature initial and boundary state and passed the native steady solve. Numerical source-solver parity remains open.",
+    "acceptance": "Owned filer cases verify centered and edge grids, shared owner closure, preserved constant-temperature boundaries, face power and mixed FE storage. The independent DWG gate reuses the owned brick source for a fresh FD CLI. The Windows spatial gate checks the FD two-half transient and four-topology FE affine flux, storage and conservation.",
+    "timing_review": "The previous passing Foundation run 46067421599 used cold caches. Windows Debug was on the critical path and radiation remained its largest driver stage at 253.968 s, followed by major spatial and thermal stages. The new FD oracle can use the transient entry point's native preparation, removing a redundant preparatory process. Five alternating warm local Release pairs returned identical transient samples. Median process time was 96.87 ms with separate preparation and 51.68 ms through the single transient entry point. This comparison excludes downloads, builds and hosted runner variance.",
+    "holds": ["Complete curved and higher-order conduction, wedge and pyramid solve support, and additional FD layouts and secondary node groups", "Active material overlays and variable FD conductance", "Geometry-attached contactors, optical and radiation bindings, and general source loads", "Full native source comparison and Q1 qualification"],
+    "qualified": false
+  },
   "cad_synchronization_follow_up": {
     "status": "conditionally_accepted",
     "scope": "Native TD Direct/SpaceClaim and TD Designer/Discovery synchronization and mesh regeneration",

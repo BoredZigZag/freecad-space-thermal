@@ -119,7 +119,7 @@ def _count(n):
 
 @dataclass(frozen=True)
 class MeshRegion:
-    """A disconnected structured mesh region with one material."""
+    """A mesh region with one material and optional shared source points."""
 
     prefix: str
     topology: str
@@ -129,6 +129,8 @@ class MeshRegion:
     nodal_volumes: list
     thickness: float
     material: dict
+    point_keys: tuple = ()
+    cell_nodal_volumes: tuple = ()
 
     def identifier(self, name):
         return identity(self.prefix + name)
@@ -140,8 +142,8 @@ def _quantity(value, unit):
 
 def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix='',
                  source_maps=(), assumptions=(), limitations=(), material_frames=(),
-                 material_laws=(), tensor_laws=(), surfaces=()):
-    """Prepare disconnected regions as a single mesh with explicit material assignments.
+                 material_laws=(), tensor_laws=(), surfaces=(), shared_points=None):
+    """Prepare regions as a single mesh with explicit material assignments.
 
     The native reader independently recomputes geometry, mappings and capacity.
     Point positions are global metres. Prescribed indices address the flattened points.
@@ -153,17 +155,23 @@ def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix
         dict(id=mesh, kind='mesh', frame_id=frame, role='conduction', artifact=dict(path='meshes/conduction.json', sha256='0'*64, byte_length=0)),
     ]
     entities, points, cells, mappings, materials = [], [], [], [], {}
+    shared_nodes, shared_groups = {}, {}
     types = dict(tri3='triangle', quad4='quadrilateral', tet4='tetrahedron', hex8='hexahedron')
     prescribed = prescribed or {}
     for region in regions:
         positions, connectivity = region.positions, region.connectivity
-        if (region.topology not in types or len(points) + len(positions) > 16384
+        if (region.topology not in types or not region.point_keys and len(points)+len(positions)>16384
                 or len(cells) + len(connectivity) > 32768):
             raise ValueError('unsupported_element')
-        if len(region.volumes) != len(connectivity) or len(region.nodal_volumes) != len(positions):
+        if (len(region.volumes) != len(connectivity) or len(region.nodal_volumes) != len(positions)
+                or region.cell_nodal_volumes and len(region.cell_nodal_volumes)!=len(connectivity)):
             raise ValueError('spatial_shape')
         submodel = region.identifier('submodel')
-        entities.append(dict(id=submodel, kind='submodel'))
+        if region.point_keys:
+            if shared_points is None or len(region.point_keys) != len(positions) or len(set(region.point_keys)) != len(positions):
+                raise ValueError('spatial_shared_points')
+        else:
+            entities.append(dict(id=submodel, kind='submodel'))
         material = region.material
         material_id = material['id']
         if material_id not in materials:
@@ -173,16 +181,44 @@ def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix
             raise ValueError('spatial_material_identity')
         rho = material['density']['value']
         cp = material['specific_heat']['value']
-        point_ids = [region.identifier(f'point-{i}') for i in range(len(positions))]
-        node_ids = [region.identifier(f'node-{i}') for i in range(len(positions))]
-        start = len(points)
+        point_ids, node_ids = [], []
         for i, (p, v) in enumerate(zip(positions, region.nodal_volumes)):
-            index = start + i
-            t = prescribed.get(index, temperature(index, p) if callable(temperature) else temperature)
-            entities.append(dict(id=node_ids[i], kind='node', submodel_id=submodel,
-                classification='prescribed' if index in prescribed else 'capacitive', temperature=q(t,'K'),
-                capacity=q(0 if index in prescribed else _number(v)*rho*cp,'J/K')))
-            points.append(dict(id=point_ids[i], node_id=node_ids[i], position=list(p)))
+            index = len(points)
+            fixed = None
+            if region.point_keys:
+                key = region.point_keys[i]
+                point, node, group, fixed = shared_points[key]
+                if group['id'] not in shared_groups:
+                    shared_groups[group['id']] = group
+                    entities.append(group)
+                elif shared_groups[group['id']] != group:
+                    raise ValueError('spatial_shared_submodel')
+                submodel = group['id']
+            else:
+                key = None
+                point, node = region.identifier(f'point-{i}'), region.identifier(f'node-{i}')
+            point_ids.append(point)
+            node_ids.append(node)
+            prior = shared_nodes.get(key)
+            if prior is not None:
+                node_entity, position = prior
+                if position != p or prescribed or callable(temperature):
+                    raise ValueError('spatial_shared_points')
+                if fixed is None:
+                    node_entity['capacity']['value'] += _number(v)*rho*cp
+                continue
+            if index >= 16384:
+                raise ValueError('unsupported_element')
+            if index in prescribed:
+                fixed = prescribed[index]
+            t = fixed if fixed is not None else temperature(index, p) if callable(temperature) else temperature
+            node_entity = dict(id=node, kind='node', submodel_id=submodel,
+                classification='prescribed' if fixed is not None else 'capacitive', temperature=q(t,'K'),
+                capacity=q(0 if fixed is not None else _number(v)*rho*cp,'J/K'))
+            if key is not None:
+                shared_nodes[key] = node_entity, p
+            entities.append(node_entity)
+            points.append(dict(id=point, node_id=node, position=list(p)))
         for i, (indices, volume) in enumerate(zip(connectivity, region.volumes)):
             element = region.identifier(f'element-{i}')
             entities.append(dict(id=element, kind='element', mesh_id=mesh, material_id=material_id, frame_id=frame,
@@ -190,10 +226,15 @@ def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix
             cells.append(dict(element_id=element, topology=region.topology,
                               point_ids=[point_ids[j] for j in indices], thickness_m=region.thickness))
             provenance = sha256(canonical(list(indices))).hexdigest()
-            area = (volume/region.thickness if region.thickness else volume**(2/3)) / len(indices)
-            for j in indices:
+            area = volume/region.thickness if region.thickness else volume**(2/3)
+            weights = ([_number(v)/volume for v in region.cell_nodal_volumes[i]] if region.cell_nodal_volumes
+                       else [1/len(indices)]*len(indices))
+            if len(weights)!=len(indices):
+                raise ValueError('spatial_shape')
+            for j, weight in zip(indices,weights):
+                mapped_area = area*weight if region.cell_nodal_volumes else area/len(indices)
                 mappings.append(dict(id=region.identifier(f'map-{i}-{j}'), from_id=element, to_id=node_ids[j],
-                                     weight=1/len(indices), area=q(area,'m2'), provenance=provenance))
+                                     weight=weight, area=q(mapped_area,'m2'), provenance=provenance))
     entities[1:1] = [*mesh_entities, *material_frames]
     model = read('model', dict(contract_version='1.0.0', minimum_reader='1.0.0',
         project_id=identity(prefix + 'project'), revision=0, entities=entities,
