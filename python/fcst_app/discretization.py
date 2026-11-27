@@ -140,7 +140,7 @@ def _quantity(value, unit):
 
 def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix='',
                  source_maps=(), assumptions=(), limitations=(), material_frames=(),
-                 material_laws=(), tensor_laws=()):
+                 material_laws=(), tensor_laws=(), surfaces=()):
     """Prepare disconnected regions as a single mesh with explicit material assignments.
 
     The native reader independently recomputes geometry, mappings and capacity.
@@ -200,7 +200,7 @@ def from_regions(regions, *, temperature, prescribed=None, rotation=None, prefix
         assumptions=['Fixed geometry; reference density; row-sum storage', *assumptions],
         limitations=['First-order spatial profile', *limitations], source_maps=list(source_maps),
         mappings=mappings, attachments=[], audit={'timestamp':'2026-01-01'}, gui={'selection':[]}))
-    spatial = dict(length_unit='m', mesh_revision='0'*64, points=points, cells=cells, surfaces=[], contacts=[])
+    spatial = dict(length_unit='m', mesh_revision='0'*64, points=points, cells=cells, surfaces=list(surfaces), contacts=[])
     if tensor_laws:
         spatial['tensor_laws'] = list(tensor_laws)
     return seal(dict(contract_version='2.0.0', model=model, material_laws=list(material_laws), node_storage=[],

@@ -130,6 +130,29 @@ def check(worker, report, native_build):
         warm=field(variable,lambda p:400)
         near(sum(warm['capacity_J_per_K']),48e-9*20*40+192e-9*10*50,1e-12)
         near(sum(warm['storage_change_J']),48e-9*20*3500+192e-9*10*5000,1e-12)
+
+    def td_face_power():
+        from fcst_app.discretization import read_input
+        from fcst_exchange.td_spatial import prepare_spatial
+        sys.path.insert(0, str(ROOT/'tests'))
+        from td_geometry_fixture import spatial_preview, spatial_source_records
+
+        with tempfile.TemporaryDirectory() as directory:
+            staged = spatial_preview(Path(directory), records=spatial_source_records())
+            value, _ = prepare_spatial(staged, 'fixture.tdp', 'mm', temperature=300, temperature_range=(250, 450),
+                                       source_node_ids=True, face_load_handle=110, power_unit='mW')
+        value = read_input(value)
+        initial = field(value, lambda _: 300)
+        power, capacity, duration = 4.8e-5, 9.6e-5, 2
+        near(sum(initial['load_in_W']), power, 1e-13)
+        near(sum(initial['capacity_J_per_K']), capacity, 1e-13)
+        result = run(dict(thermal_input=value, transient=dict(start=0, end=duration, output_times=[0,duration],
+                          maximum_step=.1, include_steps=False)), '--thermal-transient')
+        final = result['samples'][-1]
+        assert final['valid']
+        mean_temperature = math.fsum(t*c for t, c in zip(final['temperature_K'], initial['capacity_J_per_K'])) / capacity
+        near(mean_temperature, 300 + power*duration/capacity, 1e-6)
+        near(sum(final['storage_change_J']), power*duration, 1e-10)
     def tensor():
         v=brick(tensor=[[2,0,0],[0,3,0],[0,0,4]],rotation=[[0,-1,0],[1,0,0],[0,0,1]])
         out=field(v)
@@ -314,7 +337,8 @@ def check(worker, report, native_build):
     cases=dict(zip(policy['required_cases'],[fd,patches,tensor,jacobian,enthalpy,surface,convection,contacts,reduced,steady_refine,
         spatial_refine,time_refine,reordering,invalid_mesh,invalid_mappings,invalid_materials,invalid_contacts,stale,offline]))
     cases.update({'temperature-tensor-law':tensor_law,'spatial-transient-heating':spatial_heating,
-                  'mixed-material-storage':mixed_storage,'td-material-mesh':td_mesh})
+                  'mixed-material-storage':mixed_storage,'td-material-mesh':td_mesh,
+                  'td-brick-face-power':td_face_power})
     for name,fn in cases.items():
         started=time.monotonic()
         try:fn();status='passed'

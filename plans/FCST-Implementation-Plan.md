@@ -109,6 +109,13 @@ TST-021 scans exact adapter and CLI code, synthetic fixture bytes, bounded verdi
 scalar timings, outgoing history, approved metadata and any final GitHub prose.
 TDP originals, bindings, prepared models and raw worker results remain local.
 
+The WP-08 saved-node and brick-face power slice runs three new TD adapter cases,
+the real vendor-free DWG CLI, and the `td-brick-face-power` analytic transient in
+both Windows configurations. TST-021 clears exact sources, synthetic filer
+fixtures, coverage and source locks, bounded verdicts, timing scalars, outgoing
+history, approved metadata and GitHub prose. Saved drawings, decoded local
+inventories, prepared inputs and raw solver results remain local.
+
 WP-09 now applies TST-021 to exact owned codecs, CLI, acquisition/profile locks,
 synthetic D-deck/TMD/XML fixtures, bounded `esatan.json` summaries and final GitHub
 prose. Both Windows drivers execute the frozen unattended cases and clear the
@@ -698,7 +705,10 @@ homogeneous bricks with volume-weighted nodal capacity. It binds basic
 isotropic and orthotropic TDP temperature laws to transformed material axes
 and supports constant, axis-aligned laminates and series/parallel aggregates
 of basic materials. The input uses generated FCST nodes and disconnected bodies.
-Finite-difference source numbering, native curved and finite-element physics,
+The optional source-map path binds complete saved FD node numbering by position,
+with edge IDs on native nodes and centered IDs on elements. A selected literal
+total-power record can heat one brick face with area-proportional weights and
+retained source provenance. General FD numbering, native curved and finite-element physics,
 independent regeneration from TD drawing geometry, multilayer assignments, and
 coupling to source contacts, loads, optical properties, radiation and case
 controls remain open.

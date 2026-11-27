@@ -14,6 +14,7 @@ from .td_geometry import BrickPayload
 from .td_geometry_mesh import LENGTH_UNITS, primitive_grid, selected_geometry, world_point
 from .td_properties import parse_properties
 from .td_spatial_material import bind_profile, material_profile
+from .td_spatial_source import brick_face_surfaces, face_power, node_source_entries, saved_node_groups
 from .vendor_paths import path_name
 
 
@@ -72,13 +73,21 @@ def _region(prefix, material, thickness, grid):
                       volumes, nodal, thickness, material)
 
 
-def prepare_spatial(staged, properties, length_unit, *, temperature, temperature_range, handles=()):
-    """Build an independent conduction-only input from captured DWG/TDP bytes."""
+def prepare_spatial(staged, properties, length_unit, *, temperature, temperature_range, handles=(),
+                    source_node_ids=False, face_load_handle=None, power_unit=None):
+    """Build a native conduction input and optionally bind saved TD identities and a face load."""
     geometry = selected_geometry(staged, handles)
     if staged.snapshot.native['version'] != 'AC1032':
         reject('td_spatial_container_version_unmapped')
     if length_unit not in LENGTH_UNITS:
         reject('td_geometry_length_unit')
+    if (face_load_handle is None) != (power_unit is None):
+        reject('td_spatial_face_power_unit')
+    scale = LENGTH_UNITS[length_unit]
+    groups = saved_node_groups(staged.snapshot, geometry) if source_node_ids else {}
+    selected_face = face_power(staged.snapshot, face_load_handle, power_unit) if face_load_handle is not None else None
+    if selected_face and selected_face[0] not in {handle for handle, _ in geometry}:
+        reject('td_spatial_face_load_target')
     if (len(temperature_range) != 2
             or not all(type(x) in (int, float) and math.isfinite(x) for x in (temperature, *temperature_range))
             or not 0 < temperature_range[0] < temperature_range[1]
@@ -91,14 +100,18 @@ def prepare_spatial(staged, properties, length_unit, *, temperature, temperature
     entries = {entry.name.casefold(): entry for entry in parse_properties(library, 'tdp').entries}
     source_revision = staged.original.source_hash
     property_revision = sha256(library).hexdigest()
-    selection = sha256(canonical([properties, [str(handle) for handle, _ in geometry]])).hexdigest()
+    selection_input = [properties, [str(handle) for handle, _ in geometry]]
+    if source_node_ids or selected_face:
+        selection_input.append([source_node_ids, str(face_load_handle) if selected_face else '', power_unit or ''])
+    selection = sha256(canonical(selection_input)).hexdigest()
     prefix = f'td-spatial-{source_revision}-{selection}-'
     profiles, bindings, frames = {}, {}, {}
     material_laws, tensor_laws, regions, bodies, material_sources = [], [], [], [], []
+    node_sources, surfaces = [], []
     mapping_count = 0
     for handle, payload in geometry:
         grid = primitive_grid(payload, length_unit)
-        name, thickness, multipliers = _constant_assignment(payload, LENGTH_UNITS[length_unit])
+        name, thickness, multipliers = _constant_assignment(payload, scale)
         key = name.casefold()
         if key in ('', 'default') or key not in entries:
             reject('td_spatial_material_missing')
@@ -135,19 +148,37 @@ def prepare_spatial(staged, properties, length_unit, *, temperature, temperature
         region = _region(f'td-spatial-{source_revision}-{handle}-', bindings[binding], thickness, grid)
         regions.append(region)
         bodies.append(dict(namespace='TD.DWG', handle=str(handle), entity_id=region.identifier('submodel')))
+        if source_node_ids:
+            node_sources.extend(node_source_entries(region, grid, handle, groups[handle], scale))
+        if selected_face and selected_face[0] == handle:
+            _, marker, power = selected_face
+            surfaces = brick_face_surfaces(region, grid[0], marker, power, face_load_handle)
+            bodies.append(dict(namespace='TD.DWG.FACE-LOAD', handle=f'{face_load_handle}.{handle}.{marker}',
+                               entity_id=region.identifier('submodel')))
+    node_keys = {(e['submodel_handle'].casefold(), e['node_number']) for e in node_sources}
+    if len(node_keys) != len(node_sources):
+        reject('td_spatial_source_node_identity_collision')
     sources = [
         dict(id=identity(prefix + 'source-dwg'), version='1.0.0', source_revision=source_revision,
-             source_tool='Thermal Desktop DWG', source_version='AC1032', entries=bodies),
+             source_tool='Thermal Desktop DWG', source_version='AC1032', entries=bodies + node_sources),
         dict(id=identity(prefix + 'source-tdp'), version='1.0.0', source_revision=property_revision,
              source_tool='Thermal Desktop property text', source_version='UNICODE bracket-tagged profile 1',
              entries=material_sources),
     ]
+    limitations = ['Independent bodies with FCST-generated nodes and insulated boundaries',
+                   'Conduction only; source loads, radiation, contact and case controls excluded']
+    if selected_face:
+        limitations = ['Independent bodies with one explicitly selected literal face load',
+                       'Other boundaries are insulated; radiation, contact and case controls excluded']
+    if source_node_ids:
+        limitations.append('Saved centered FD node IDs identify FCST elements for provenance')
     value = from_regions(regions, temperature=temperature, prefix=prefix, source_maps=sources,
                          assumptions=['Caller-declared temperature and property validity interval in kelvin',
                                       'Linear interpolation of active TDP temperature tables within the declared interval'],
-                         limitations=['Independent bodies with FCST-generated nodes and insulated boundaries',
-                                      'Conduction only; source loads, radiation, contact and case controls excluded'],
-                         material_frames=frames.values(), material_laws=material_laws, tensor_laws=tensor_laws)
+                         limitations=limitations,
+                         material_frames=frames.values(), material_laws=material_laws, tensor_laws=tensor_laws,
+                         surfaces=surfaces)
     staged.original.check_current()
     return value, dict(objects=len(regions), materials=len(bindings), points=len(value['spatial']['points']),
-                       cells=len(value['spatial']['cells']), vendor_runtime_required=False, qualified=False)
+                       cells=len(value['spatial']['cells']), source_nodes=len(node_sources),
+                       face_loads=int(bool(surfaces)), vendor_runtime_required=False, qualified=False)

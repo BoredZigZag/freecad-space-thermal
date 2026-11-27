@@ -45,6 +45,10 @@ def parsers(commands):
     geometry.add_argument('--temperature', type=float, required=True, help='Initial temperature in kelvin')
     geometry.add_argument('--temperature-min', type=float, required=True, help='Material validity minimum in kelvin')
     geometry.add_argument('--temperature-max', type=float, required=True, help='Material validity maximum in kelvin')
+    from fcst_exchange.td_spatial_source import POWER_UNITS
+    geometry.add_argument('--source-node-ids', action='store_true', help='Require complete saved FD node identity mappings')
+    geometry.add_argument('--face-load', help='Decimal DWG handle of one literal total-power load on a single brick face')
+    geometry.add_argument('--power-unit', choices=POWER_UNITS, help='Source power unit, required with --face-load')
     inventory = commands.add_parser('td-inspect-project')
     inventory.add_argument('root')
     inventory.add_argument('entry', help='DWG path relative to root')
@@ -385,7 +389,10 @@ def execute(args):
                 from fcst_app.persistence import encode
                 from fcst_exchange.td_spatial import prepare_spatial
                 result, report = prepare_spatial(staged, args.properties, args.length_unit, handles=handles,
-                    temperature=args.temperature, temperature_range=(args.temperature_min, args.temperature_max))
+                    temperature=args.temperature, temperature_range=(args.temperature_min, args.temperature_max),
+                    source_node_ids=args.source_node_ids,
+                    face_load_handle=source_edit_handle(args.face_load) if args.face_load is not None else None,
+                    power_unit=args.power_unit)
                 raw = encode(result)
                 if len(raw) > Limits().file_bytes:
                     reject('td_spatial_input_limit')

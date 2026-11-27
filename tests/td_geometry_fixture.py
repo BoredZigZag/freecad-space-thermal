@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Owned analytic serialization records, without acquired model fields or bytes."""
 from copy import deepcopy
+from itertools import product
 from fcst_exchange.td_surface import ATTRIBUTE_LAYOUT,SOLID_LAYOUT
 
 
@@ -112,14 +113,41 @@ def spatial_law_properties():
                        'entries': [{'vectors': {}, **entry} for entry in entries]})
 
 
-def spatial_preview(root, fields=None, properties=None):
+def spatial_source_records(*, centered=True, marker=1, wrong_position=False, wrong_owner=False,
+                           duplicate_number=False, duplicate_position=False, time_table=()):
+    from fcst_exchange.td_geometry import brick_payload
+    from fcst_exchange.td_writer import load_payload, node_payload
+
+    _, brick = spatial_fields()
+    brick['attributes']['subdivision'][1]['boundaries'] = (0, .25, 1)
+    # Independent drawing-space positions for the translated 4 x 6 x 8 mm
+    # brick. Store the records in reverse order so list order cannot bind them.
+    x, y, z = ((21, 23), (30.75, 33.75), (42, 46)) if centered else (
+        (20, 22, 24), (30, 31.5, 36), (40, 44, 48))
+    points = [(u, v, w) for w, v, u in product(z, y, x)]
+    nodes = []
+    for index, point in reversed(list(enumerate(points))):
+        if index == 1 and duplicate_position:
+            point = points[0]
+        if index == 0 and wrong_position:
+            point = (-10, -10, -10)
+        number = 100 if index == 1 and duplicate_number else 100 + 2 * index
+        nodes.append(node_payload('OWNED FD', number, 300, 0, 'capacitive', position=point,
+                                  association=None if index == 0 and wrong_owner else 1))
+    brick['attributes']['references_a'] = (tuple(range(2, 2+len(nodes))), ())
+    return [brick_payload(brick), *nodes, load_payload(.048, 1, marker=marker, time_table=time_table)]
+
+
+def spatial_preview(root, fields=None, properties=None, *, records=None):
     from fcst_exchange.independent_td import DwgPreview
     from fcst_exchange.source_tree import capture_project
     from fcst_exchange.td_geometry import rectangle_payload, brick_payload
     from td_fixture import drawing
 
-    rectangle, brick = fields or spatial_fields()
+    if records is None:
+        rectangle, brick = fields or spatial_fields()
+        records = [rectangle_payload(rectangle), brick_payload(brick)]
     (root / 'fixture.dwg').write_bytes(b'AC1032-owned')
     (root / 'fixture.tdp').write_bytes(spatial_properties() if properties is None else properties)
     return DwgPreview(capture_project(root, 'fixture.dwg'),
-                      drawing([rectangle_payload(rectangle), brick_payload(brick)]))
+                      drawing(records))

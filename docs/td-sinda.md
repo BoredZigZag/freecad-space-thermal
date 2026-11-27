@@ -492,8 +492,8 @@ thickness. Initial temperature and the material validity interval are in
 kelvin. The output records the source revisions and maps each DWG handle to
 its generated submodel.
 
-The mesh uses FCST-generated nodes with volume-weighted thermal capacity.
-Bodies are independent and have insulated boundaries. Basic material
+The mesh uses FCST-generated conduction nodes with volume-weighted thermal
+capacity. Bodies are independent and the default boundaries are insulated. Basic material
 conductivity can be isotropic or orthotropic. Orthotropic axes follow the
 transformed primitive axes. The converter binds active temperature-only
 conductivity and specific-heat tables using piecewise-linear interpolation on
@@ -503,11 +503,30 @@ constant basic-material aggregates with exact series or parallel weighting per
 axis. The volumetric heat capacity accounts for the mass of each constituent.
 Pressure-dependent tables, variable composites, active layering, advection and
 dynamic geometry remain held. Curved and finite-element bodies have geometry
-export support. Their native thermal reconstruction, source node numbering on
-finite-difference primitives, contacts, loads, radiation and case settings
-remain open. Use repeated `--handle` arguments to select bodies when the complete
+export support. Their native thermal reconstruction, contacts, radiation and case
+settings remain open. Use repeated `--handle` arguments to select bodies when the complete
 selection exceeds the 1 MiB spatial input limit.
 The owned DWG reader and the FCST worker require no vendor runtime or license.
+
+Add `--source-node-ids` to require complete saved primary `RcNode` attachments
+on every selected body. The importer checks the reverse association and matches
+the stored position in the transformed grid. Edge nodes map to FCST conduction
+vertices in `TD.DWG.FD-NODE`. Centered nodes map to their containing FCST elements
+in `TD.DWG.FD-CELL` for provenance. Each entry retains the DWG handle, submodel
+and source node number. Incomplete lattices, offsets, secondary node groups,
+shared nodes and duplicate submodel/number pairs are held. The solver uses the
+first-order mesh in both modes.
+
+Add `--face-load LOAD_HANDLE --power-unit mW` (or `W`) to bind one selected
+literal `RcHeatLoad` v17 total-power record to a single face of a selected FD
+brick. The documented markers `1`, `2`, `4`, `8`, `16`, and `32` select
+XMIN, XMAX, YMIN, YMAX, ZMIN, and ZMAX in local brick coordinates. The adapter
+distributes power over the face triangles in proportion to their area and records
+the load handle, brick handle, and marker in the `TD.DWG.FACE-LOAD` source entry.
+The supported load uses one entity connection and the reviewed constant field
+profile. Time tables, expressions, named domains and combined markers are held.
+Other source loads and case settings remain outside this preparation path.
+[OpenTD connection and marker semantics](https://developer.synopsys.com/docs/opentd-2024-r2/getting-started/creating-td-model/connections-handles-markers-domains.md)
 
 Remaining independent implementation includes further surface, solid and mesh
 classes, automatic mesh regeneration, complete material and optical assignments,

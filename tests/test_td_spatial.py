@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 from collections import Counter
+import math
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -7,7 +8,7 @@ import unittest
 from fcst_app.discretization import read_input
 from fcst_exchange import ExchangeError
 from fcst_exchange.td_spatial import prepare_spatial
-from td_geometry_fixture import spatial_fields, spatial_law_properties, spatial_preview, spatial_properties
+from td_geometry_fixture import spatial_fields, spatial_law_properties, spatial_preview, spatial_properties, spatial_source_records
 
 
 class TdSpatialTests(unittest.TestCase):
@@ -125,3 +126,57 @@ class TdSpatialTests(unittest.TestCase):
             ):
                 with self.subTest(code=code), self.assertRaisesRegex(ExchangeError, code):
                     self.prepare(spatial_preview(root, properties=raw))
+
+    def test_saved_fd_cell_and_vertex_identities_use_coordinates(self):
+        with TemporaryDirectory() as tmp:
+            for centered, kind, namespace in ((True, 'element', 'TD.DWG.FD-CELL'),
+                                               (False, 'node', 'TD.DWG.FD-NODE')):
+                with self.subTest(centered=centered):
+                    staged = spatial_preview(Path(tmp), records=spatial_source_records(centered=centered))
+                    value, report = self.prepare(staged, source_node_ids=True)
+                    self.assertEqual(value, read_input(value))
+                    self.assertEqual(report['source_nodes'], 8 if centered else 27)
+                    entries = [e for s in value['model']['source_maps'] for e in s['entries'] if 'node_number' in e]
+                    targets = (value['spatial']['cells'] if centered else value['spatial']['points'])
+                    self.assertEqual({e['node_number']: e['entity_id'] for e in entries},
+                                     {100 + 2*i: t[kind+'_id'] for i, t in enumerate(targets)})
+                    self.assertEqual({(e['namespace'], e['submodel_handle']) for e in entries}, {(namespace, 'OWNED FD')})
+
+    def test_single_brick_face_power_preserves_marker_area_and_total(self):
+        with TemporaryDirectory() as tmp:
+            extents = ((.020, .024), (.030, .036), (.040, .048))
+            for i in range(6):
+                marker = 1 << i
+                with self.subTest(marker=marker):
+                    staged = spatial_preview(Path(tmp), records=spatial_source_records(marker=marker))
+                    value, report = self.prepare(staged, source_node_ids=True, face_load_handle=110, power_unit='mW')
+                    self.assertEqual(value, read_input(value))
+                    self.assertEqual(report['face_loads'], 1)
+                    surfaces = value['spatial']['surfaces']
+                    points = {row['id']: row['position'] for row in value['spatial']['points']}
+                    self.assertEqual(len(surfaces), 8)
+                    self.assertAlmostEqual(math.fsum(s['value_SI'] for s in surfaces), 4.8e-5, places=15)
+                    self.assertTrue(all(math.isclose(points[p][i//2], extents[i//2][i%2])
+                                        for s in surfaces for p in s['point_ids']))
+                    power = Counter(round(s['value_SI'], 12) for s in surfaces)
+                    self.assertEqual(power, {6e-6: 8} if i//2 == 1 else {3e-6: 4, 9e-6: 4})
+                    self.assertTrue(any(e['namespace'] == 'TD.DWG.FACE-LOAD' and e['handle'] == f'110.101.{marker}'
+                                        for s in value['model']['source_maps'] for e in s['entries']))
+                    self.assertEqual(self.prepare(staged)[0]['spatial']['surfaces'], [])
+
+    def test_spatial_rejects_incomplete_source_ids_and_unsupported_face_loads(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for fixture, error in (({'wrong_position': True}, 'node_position'),
+                                   ({'duplicate_position': True}, 'node_position'),
+                                   ({'duplicate_number': True}, 'node_identity_collision'),
+                                   ({'wrong_owner': True}, 'node_association')):
+                with self.subTest(fixture=fixture), self.assertRaisesRegex(ExchangeError, error):
+                    self.prepare(spatial_preview(root, records=spatial_source_records(**fixture)), source_node_ids=True)
+            for fixture, request, error in (({'marker': 3}, {}, 'face_selection'),
+                                           ({'time_table': ((0, 1), (1, 2))}, {}, 'face_load_mode'),
+                                           ({}, {'face_load_handle': 101}, 'face_load_missing'),
+                                           ({}, {'power_unit': None}, 'face_power_unit')):
+                with self.subTest(fixture=fixture, request=request), self.assertRaisesRegex(ExchangeError, error):
+                    self.prepare(spatial_preview(root, records=spatial_source_records(**fixture)),
+                                 **({'face_load_handle': 110, 'power_unit': 'mW'} | request))

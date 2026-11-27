@@ -718,14 +718,17 @@ def selected_geometry(staged, handles, *, inventory=None):
     selected = set(handles)
     if len(selected) != len(handles):
         reject('td_geometry_duplicate_handle')
-    if inventory is None:
-        inventory = decode_drawing(staged.snapshot, handles=selected or None)
-    geometry = {p.record['handle']: p for p in inventory.payloads if isinstance(p, (RectangleEnvelope, RectanglePayload))}
     if not selected:
         geometry_classes = {row['number'] for row in staged.snapshot.native['classes']
                             if row['cppname'] in GEOMETRY_CLASSES or row['cppname'] in UNMAPPED_GEOMETRY_CLASSES}
         selected = {row['handle'] for row in staged.snapshot.native['objects'] if row['type'] in geometry_classes}
-    if not selected or not selected <= geometry.keys():
+    if not selected:
+        reject('td_geometry_selection')
+    if inventory is None:
+        inventory = decode_drawing(staged.snapshot, handles=selected)
+    geometry = {p.record['handle']: p for p in inventory.payloads
+                if isinstance(p, (RectangleEnvelope, RectanglePayload))}
+    if not selected <= geometry.keys():
         reject('td_geometry_selection')
     return [(handle, geometry[handle]) for handle in sorted(selected)]
 

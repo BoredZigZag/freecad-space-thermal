@@ -315,7 +315,8 @@ raise SystemExit(main())
     # Complete owned surface/solid streams are exercised in a real new container
     # and edited through the vendor-denied CLI, not just a Python envelope.
     sys.path.insert(0,str(ROOT/'tests'))
-    from td_geometry_fixture import rectangle_fields,brick_fields,spatial_fields,spatial_properties,spatial_law_properties
+    from td_geometry_fixture import (rectangle_fields, brick_fields, spatial_fields, spatial_properties,
+                                     spatial_law_properties, spatial_source_records)
     from fcst_exchange.td_geometry import rectangle_payload,brick_payload
     rectangle=rectangle_fields();rectangle['attributes']['references_a']=((1,),(0,))
     brick=brick_fields();brick['attributes']['references_a']=((1,),(0,))
@@ -411,6 +412,24 @@ raise SystemExit(main())
         raise ValueError('backend_spatial_variable_cli_failed')
     variable=read_input(loads(variable_output.read_bytes()))
     tensor_laws=variable['spatial']['tensor_laws']
+    face_records = spatial_source_records()
+    face_created, _ = runtime.run('create-network', network_packet(face_records), attempt/'spatial-face-create')
+    face_dwg = face_created['derived.dwg']
+    face_source = attempt/'spatial-face-source'
+    face_source.mkdir()
+    (face_source/'network.dwg').write_bytes(face_dwg)
+    (face_source/'fixture.tdp').write_bytes(spatial_tdp)
+    face_preview = adapter.preview(face_source, 'network.dwg', attempt/'spatial-face-preview')
+    face_handles = verify_network(face_preview.snapshot, face_records)
+    face_output = attempt/'spatial-face.json'
+    if not invoke(['td-prepare-spatial', face_source, 'network.dwg', face_output, '--backend', receipt_path,
+                   '--work', attempt/'spatial-face-cli', '--properties', 'fixture.tdp', '--length-unit', 'mm',
+                   '--temperature', '300', '--temperature-min', '250', '--temperature-max', '450',
+                   '--source-node-ids', '--face-load', str(face_handles[-1]), '--power-unit', 'mW']):
+        raise ValueError('backend_spatial_face_power_cli_failed')
+    face_input = read_input(loads(face_output.read_bytes()))
+    face_entries = [e for s in face_input['model']['source_maps'] for e in s['entries']]
+    face_power = sum(row['value_SI'] for row in face_input['spatial']['surfaces'])
     from td_sinda_time_fixture import SINDA,td_records
     timed_source=attempt/'time-source';timed_source.mkdir()
     timed_created,_=runtime.run('create-network',network_packet(td_records()),attempt/'time-create')
@@ -486,6 +505,14 @@ raise SystemExit(main())
                        and [m[0][0] for m in tensor_laws[0]['tensors_W_per_mK']]==[2,6,14]
                        and (boundary_edited/'variable.tdp').read_bytes()==variable_tdp
                        and (boundary_source/'network.dwg').read_bytes()==boundary_raw,
+                   'dwg-spatial-node-and-face-power-cli':
+                       {e['node_number']: e['entity_id'] for e in face_entries if e['namespace']=='TD.DWG.FD-CELL'}
+                           =={100+2*i: c['element_id'] for i,c in enumerate(face_input['spatial']['cells'])}
+                       and any(e['namespace']=='TD.DWG.FACE-LOAD' and e['handle']==f'{face_handles[-1]}.{face_handles[0]}.1'
+                               for e in face_entries)
+                       and len(face_input['spatial']['surfaces'])==8 and abs(face_power-4.8e-5)<1e-15
+                       and (face_source/'network.dwg').read_bytes()==face_dwg
+                       and (face_source/'fixture.tdp').read_bytes()==spatial_tdp,
                    'td-sinda-time-load-cli':
                        len(td_tables)==1 and td_tables[0]['period_s']==1 and td_tables[0]['points']==[[0,2],[.5,6],[1,4]]
                        and {table.get('period_s'):table['points'] for table in sinda_tables}

@@ -30,7 +30,8 @@
     "temperature-tensor-law",
     "spatial-transient-heating",
     "mixed-material-storage",
-    "td-material-mesh"
+    "td-material-mesh",
+    "td-brick-face-power"
   ],
   "criteria": {
     "patch_absolute": 1e-09,

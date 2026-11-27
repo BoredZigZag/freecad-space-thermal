@@ -313,6 +313,15 @@
     "deferred": ["Original DWG comparisons for legacy FE, quadratic solids, TdMesherVA, and the specified conics"],
     "qualified": false
   },
+  "saved_node_and_face_power": {
+    "implementation_delivery": "bounded",
+    "scope": "Opt-in complete saved FD source identities on reviewed rectangle and brick grids, plus one explicitly selected literal total-power RcHeatLoad v17 on a single brick face",
+    "basis": "Local saved DWG inventories establish forward and reverse node attachments and centered coordinates. The public OpenTD connection documentation establishes the brick face markers. The native CLI and physics checks use independently owned inputs.",
+    "acceptance": "The TD driver verifies coordinate matching, preserved submodel and node numbers, single-face masks, nonuniform area weights and rejection modes. The independent DWG gate generates and reopens an owned drawing. Both spatial configurations check 48 microwatts of integrated power and one kelvin of capacity-weighted warming after two seconds.",
+    "timing_review": "Passing warm Foundation run 43622348235 followed Unit tests into the 619 s Windows Debug job, then the aggregate gate. Debug radiation was the largest stage at 304.688 s, spatial discretization took 238.016 s, and TD exchange was 13.782 s Debug and 11.016 s Release. The tested exchange hypothesis was to decode only geometry for an unfiltered geometry selection. Five alternating in-process pairs on an unchanged drawing snapshot returned identical geometry and measured 801.62 to 481.44 ms median selection time. The small owned snapshot measured 4.43 to 1.52 ms. This comparison isolates selection rather than hosted runtime. Numerical workloads and the existing baseline are retained.",
+    "holds": ["Centered source IDs are cell provenance; equivalent TD finite-difference numerical results still need reference evidence", "Other load modes, thermal attachments and full-model reverse exchange remain open"],
+    "qualified": false
+  },
   "cad_synchronization_follow_up": {
     "status": "conditionally_accepted",
     "scope": "Native TD Direct/SpaceClaim and TD Designer/Discovery synchronization and mesh regeneration",
