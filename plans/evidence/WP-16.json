@@ -1,6 +1,6 @@
 {
   "work_package": "WP-16",
-  "status": "in_progress",
+  "status": "complete",
   "scope": "v1 owned spatial physics, pinned CAD generation, and kernel-confined native worker acceptance",
   "tested_worktree_base": "59473271a7f85490109feaf953cece17372cacde",
   "previous_delivery": {
@@ -58,10 +58,14 @@
     "scope": "Paired exterior CAD face contact, area-weighted thermal-node mapping, mesh refinement and reassignment, portable receipt, and an independent two-solid resistance oracle"
   },
   "native_closure_evidence": {
-    "candidate": "db4d0569c9ab228122cdcee9f4f057bd989d8529",
-    "github_run": 46160611720,
+    "candidate": "f98627d7dc076c9f8faebed12748fd4e6b845ceb",
+    "github_run": 46164868584,
+    "pull_request": 45,
+    "merge_commit": "0c3625f14f0a0c1ce5f6b86b3c1c89e21e6a1482",
     "passed_configurations": ["windows-debug", "windows-release"],
     "host_cases_per_configuration": 26,
+    "spatial_cases_per_configuration": 26,
+    "confined_native_cases_per_configuration": 71,
     "status": "passed"
   },
   "blockers": [],
@@ -69,6 +73,5 @@
     "WP-19 owns v1 clean-machine release installation, rollback and installer-level FEM-REUSE-006",
     "WP-10 owns v2 imported Q1 element/property evidence and paired source profiles per inventory/gaps.json"
   ],
-  "full_wp16_qualified": false,
   "publication": "TST-021 clears exact outgoing source/license/schema/history/approved identity, scalar evidence and final GitHub prose; originals, generated BREP/UNV/geo/host files, denial paths, profile identifiers, databases, raw logs and build trees remain local"
 }
