@@ -25,6 +25,11 @@ seconds (7.984–8.156). Provisioning alone took 5.375 seconds (5.172–5.422).
 This measures duplicate startup overhead. The retained CI baseline remains
 tied to its existing passing candidate.
 
+A local Release trial completed the full GUI case list and wrote the P0 receipt,
+then reached the process deadline during DLL shutdown. That trial retains a
+failed supervisor verdict. The isolated Windows test macro now exits after
+closing the final receipt and returning the actual test outcome.
+
 Both Windows configurations retain all existing acceptance cases, fixed seeds,
 sample counts, scaling sizes and numerical tolerances. This change does not create
 a smaller qualification tier or move required acceptance to a scheduled workflow.

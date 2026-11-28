@@ -366,13 +366,22 @@ def main():
 
 
 def run():
+    from ctypes import WinDLL, wintypes
+
     (folder/'started.json').write_text('{"phase":"tests_started"}\n')
+    status=0
     try:
         main()
     except BaseException:
         (folder/'payload-error.log').write_text(traceback.format_exc())
-        os._exit(1)
-    os._exit(0)
+        status=1
+    # The macro owns this disposable Windows process. FreeCAD and the array
+    # DLLs can stall in process detach after the final receipt has been closed.
+    kernel=WinDLL('kernel32', use_last_error=True)
+    kernel.GetCurrentProcess.restype=wintypes.HANDLE
+    kernel.TerminateProcess.argtypes=(wintypes.HANDLE,wintypes.UINT)
+    kernel.TerminateProcess(kernel.GetCurrentProcess(),status)
+    os._exit(1)
 
 
 QtCore.QTimer.singleShot(500,run)
