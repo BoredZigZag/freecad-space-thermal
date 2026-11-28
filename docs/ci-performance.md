@@ -533,6 +533,28 @@ small native solve and exercises the same dialog launch. It uses the existing
 unit, host and publication stages and introduces no additional downloads or
 mesher runs. Hosted stage timings include the new assertions.
 
+## Native and interoperability closure
+
+Passing run 46160611720 used warm download caches in both configurations.
+The critical path went through the 83 s unit job, the 653 s Debug job and the
+26 s Foundation gate. Debug and Release drivers took 574.109 s with three
+acceptance workers and 291.781 s with two. The largest Debug acceptance stage
+was radiation at 308.031 s. Planning took 0.140 s in Debug and 0.125 s in Release.
+[Passing Foundation run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46160611720)
+
+A fixed-duration replay tested a hypothetical 20% reduction in Debug radiation
+time while preserving the existing SUNDIALS serialization. Both configured
+and observed-duration dispatch modeled 525.140 s. Both moved to 524.534 s with
+the hypothetical reduction. The replay excludes contention and preparation.
+The configured worker counts, stage order and passing baseline are retained.
+
+Six alternating local pairs of 4,000 validations of the same loaded registers
+measured medians of 22.003 microseconds for the earlier scope check and 58.087
+microseconds with the new ownership checks. Ranges were 21.179–25.210 and
+56.250–62.050 microseconds. Both accepted the revised register. The new
+assertions run in the existing unit and planning stages with no additional
+test stages or changes to solver coverage.
+
 ## WP-18 campaign acceptance
 
 The latest passing Foundation checkpoint inspected before implementation was

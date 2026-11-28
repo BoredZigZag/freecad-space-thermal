@@ -19,7 +19,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "python"))
 from project_files import markdown_files
-from fcst_tools.delivery import COMMITTED_WORK_PACKAGES, target_release, validate_foundation_acceptance, validate_scope
+from fcst_tools.delivery import (
+    COMMITTED_WORK_PACKAGES, target_release, validate_foundation_acceptance, validate_release_assignments, validate_scope,
+)
 PLANS = ROOT / "plans"
 
 
@@ -190,6 +192,8 @@ def main() -> None:
     require(not validate_scope(scope, list(packages.values()),
             document("plans/evidence/WP-01.json"), document("inventory/gaps.json"),
             document("CMakePresets.json"), document("ci/host-profile.json")), "Delivery scope drift")
+    release_errors = validate_release_assignments(scope, trace, profile_plan)
+    require(not release_errors, f"Release assignment drift: {', '.join(release_errors)}")
 
     github = document("ci/github.json")
     backlog = document("plans/github-backlog.json")["issues"]

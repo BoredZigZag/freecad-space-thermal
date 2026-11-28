@@ -69,6 +69,6 @@ The acceptance driver exercises eclipse timing, a SciPy reduced-network
 temperature reference, an analytic projected body disk, chamber exchange, joint
 and attitude projection, time refinement and stale motion and optics checkpoints.
 The current profile uses a circular trajectory, hard umbra, a fixed Sun vector
-and independent single-axis joints. TD/RadCAD and ESATAN numerical comparisons
-require paired vendor captures of equivalent missions and remain a qualification
-hold. Synthetic analytical results carry no vendor qualification.
+and independent single-axis joints. WP-17 uses independent native cases for
+closure. WP-10 owns the paired TD/RadCAD and ESATAN captures of equivalent
+missions for v2.

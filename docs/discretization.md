@@ -143,9 +143,11 @@ fail closed. This profile uses exterior ownership, including for paired contact
 assignments. Netgen generation,
 higher-order meshes and integration-point fields remain outside this profile.
 
-For v2, mandatory imported Q1 element/property and source-ecosystem qualification
-requires the licensed source runs and paired evidence tracked in the inventory.
-Complete offline release qualification remains shared with WP-19 for v1.
+WP-16 closes on native spatial, pinned-host and confined-worker evidence.
+WP-19 owns the [clean-machine installer and rollback tests](../plans/FCST-Implementation-Plan.md#offline-release-qualification)
+for the v1 release. WP-10 owns v2 imported Q1 element/property and
+source-ecosystem qualification, including the licensed and paired runs in the
+inventory.
 
 `ci/discretization-acceptance.json` freezes the native cases, tolerances and
 mesh/time refinement sequences. Candidate/source/worker-bound evidence runs in

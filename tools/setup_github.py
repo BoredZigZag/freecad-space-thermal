@@ -76,9 +76,12 @@ def main():
         for package in packages:
             title = package["id"] + ": " + package["title"]
             ids = [row["requirement_id"] for row in trace if row["primary_work_package"] == package["id"]]
+            release = target_release(scope, package["id"])
+            closure = ("Close on this package's native acceptance evidence. WP-19 owns the v1 release installation gate."
+                       if release == "v1" else "Track the scoped interoperability evidence here. v2 release closure follows v1.")
             body = (f'Work package: {package["id"]}\n\n'
-                    f'Target release is **{target_release(scope, package["id"])}**. '
-                    'Q0, P0, Q1 and Q2 are technical checkpoints.\n\n'
+                    f'Target release is **{release}**. Q0, P0, Q1 and Q2 are technical checkpoints.\n\n'
+                    f'{closure}\n\n'
                     f'First delivery: {package["first_delivery"]}; completion gate: {package["completion_gate"]}.\n\n'
                     f'Prerequisites: {package["depends_on"] or "None"}.\n\n'
                     f'Deliverables: {package["outputs"]}.\n\n'

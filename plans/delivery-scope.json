@@ -19,7 +19,18 @@
     "current_development_line": "v0.x",
     "completed_native_scope": "v1",
     "thermal_software_interoperability": "v2",
+    "closure_order": ["v1", "v2"],
     "v2_only_work_packages": ["WP-08", "WP-09", "WP-10", "WP-21"],
+    "shared_v2_evidence_owners": {
+      "INT-001": "WP-10",
+      "RAD-005": "WP-21",
+      "RAD-010": "WP-21",
+      "TST-014": "WP-10",
+      "TST-015": "WP-10",
+      "VNV-001": "WP-10",
+      "VNV-011": "WP-10",
+      "VNV-013": "WP-21"
+    },
     "deferral_reason": "Insufficient engineering source documents for thermal software interoperability qualification"
   },
   "deferred_platforms": {

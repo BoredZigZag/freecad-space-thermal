@@ -1,7 +1,7 @@
 {
   "work_package": "WP-20",
   "status": "in_progress",
-  "scope": "Native advanced fluid, heat-pipe, spectral optics and bounded source logic under development",
+  "scope": "Native advanced fluid, heat-pipe, spectral optics and native event and logic behavior under development",
   "pull_request": "https://github.com/BoredZigZag/freecad-space-thermal/pull/40",
   "candidate": "1dc9980af398ab1a5bbd4d0e9fb4ffd4ed287343",
   "checks": [
@@ -13,7 +13,9 @@
     }
   ],
   "blockers": [
-    "GAP-ADVANCED remains open for mandatory advanced source cases and licensed reference observations.",
     "Heat-pipe validation across charges and transient hardware conditions remains open."
+  ],
+  "follow_up": [
+    "WP-21 owns GAP-ADVANCED for mandatory v2 source cases and licensed reference observations."
   ]
 }

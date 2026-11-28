@@ -38,7 +38,7 @@
       "id": "GAP-RIGHTS",
       "category": "redistribution",
       "description": "All originals are held locally; MIT repository examples retain separate metadata/content review; community SINDA and acquired AcubeSAT native project declare no redistribution license",
-      "owner_work_package": "WP-19",
+      "owner_work_package": "WP-10",
       "status": "blocked",
       "supporting_work_packages": [
         "WP-07",
@@ -59,11 +59,13 @@
       "id": "GAP-ADVANCED",
       "category": "fixture_coverage",
       "description": "No selected example establishes required FLUINT/two-phase fluid, detailed heat-pipe, advanced optical or full customer/legacy coverage",
-      "owner_work_package": "WP-20",
+      "owner_work_package": "WP-21",
       "status": "blocked",
       "required_gate": "Q1/Q2",
       "supporting_work_packages": [
-        "WP-12"
+        "WP-10",
+        "WP-12",
+        "WP-20"
       ]
     },
     {
@@ -78,7 +80,7 @@
       "id": "GAP-RESULTS",
       "category": "numerical_reference",
       "description": "No paired TD tutorial source result; retained upstream SINDA/ESATAN outputs require schema/provenance review and licensed reproduction; owned solver comparisons belong to later packages",
-      "owner_work_package": "WP-19",
+      "owner_work_package": "WP-10",
       "status": "blocked",
       "supporting_work_packages": [
         "WP-08",
@@ -100,5 +102,5 @@
       "decision": "The normative standard says registered login is required; archive/dictionary not acquired through a bypass"
     }
   ],
-  "scope_disposition": "Open qualification obligations owned by later packages; they do not block the acquired WP-01 baseline or native Q0 development."
+  "scope_disposition": "Open compatibility obligations assigned to v2 work packages. The acquired inventory and all native v1 work packages close on their own evidence."
 }

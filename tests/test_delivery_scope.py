@@ -4,7 +4,9 @@ import csv
 import json
 import unittest
 from pathlib import Path
-from fcst_tools.delivery import package_from_title, validate_foundation_acceptance, validate_scope
+from fcst_tools.delivery import (
+    package_from_title, validate_foundation_acceptance, validate_release_assignments, validate_scope,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -47,6 +49,7 @@ class DeliveryScopeTests(unittest.TestCase):
         for field, value in [("current_development_line", "v1"),
                              ("completed_native_scope", "v2"),
                              ("thermal_software_interoperability", "v1"),
+                             ("closure_order", ["v2", "v1"]),
                              ("v2_only_work_packages", ["WP-08", "WP-09", "WP-21"])]:
             with self.subTest(field=field):
                 changed = copy.deepcopy(self.args)
@@ -58,6 +61,30 @@ class DeliveryScopeTests(unittest.TestCase):
                 package = next(row for row in changed[1] if row["id"] == native)
                 package["depends_on"] += ";" + deferred
                 self.assertIn("v1_package_depends_on_v2_interoperability", validate_scope(*changed))
+        changed = copy.deepcopy(self.args)
+        native = next(row for row in changed[1] if row["id"] == "WP-16")
+        native["automated_suites"] += ";SUITE-VENDOR"
+        changed[3]["gaps"][0]["owner_work_package"] = "WP-19"
+        self.assertIn("v1_package_requires_vendor_suite", validate_scope(*changed))
+        self.assertIn("qualification_gap_not_assigned", validate_scope(*changed))
+
+        def indexed_rows(file, key):
+            with (ROOT / file).open(encoding="utf-8", newline="") as stream:
+                return {row[key]: row for row in csv.DictReader(stream)}
+
+        trace = indexed_rows("plans/requirement-traceability.csv", "requirement_id")
+        profiles = indexed_rows("plans/compatibility-test-plan.csv", "profile_id")
+        scope = copy.deepcopy(self.args[0])
+        self.assertEqual(validate_release_assignments(scope, trace, profiles), [])
+        trace["VNV-012"]["primary_work_package"] = "WP-19"
+        trace["VNV-013"]["supporting_work_packages"] = "WP-08"
+        profiles["ESA-NATIVE"]["primary_work_package"] = "WP-16"
+        self.assertEqual(validate_release_assignments(scope, trace, profiles), [
+            "compatibility_profile_has_native_owner", "shared_v2_evidence_owner_mismatch",
+            "v2_requirement_has_native_owner",
+        ])
+        del scope["product_releases"]["shared_v2_evidence_owners"]["TST-014"]
+        self.assertIn("shared_v2_evidence_owner_mismatch", validate_release_assignments(scope, trace, profiles))
 
     def test_foundation_handoff_cannot_be_omitted_or_depend_on_its_consumers(self):
         self.assertEqual(validate_scope(*self.args), [])
