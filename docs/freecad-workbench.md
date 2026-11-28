@@ -117,6 +117,7 @@ logs, preferences and operational databases stay local. Existing engineering
 originals and restricted evidence remain unchanged.
 
 WP-16 retains production FD/FE, contact physics, mesher generation and full
-spatial assignment qualification. WP-14/15 retain MCP and integrated P0 parity;
-WP-17/18 retain production environment/campaign workflows. These host tests do
-not qualify TD/ESATAN compatibility or grant a complete Q1 release.
+spatial assignment qualification. WP-14/15 retain MCP and integrated P0 parity.
+WP-17/18 retain production environment and campaign workflows. These host tests
+contribute to native Q1 evidence for v1. TD/ESATAN compatibility is qualified
+separately for v2. See the [release checklist](../plans/FCST-Implementation-Plan.md#5-release-checklists-executed-by-the-gate-driver).

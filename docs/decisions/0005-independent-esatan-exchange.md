@@ -69,10 +69,11 @@ fields stay explicitly unresolved. Never invent an interpreted binary schema.
    installations, assemblies, processes, license services and conversion servers
    are absent. Attempted vendor use fails acceptance. No manual test execution
    or prior vendor-side export is assigned to the user.
-7. Compare owned-engine results with independent analytic/reference baselines and
-   complete the paired TD/ESA common profile. Optional source-tool comparisons
-   remain separately labeled evidence. Missing reference or schema evidence holds
-   the relevant compatibility claim; it does not authorize a runtime dependency.
+7. Compare owned-engine results with independent analytic and reference baselines.
+   Complete the paired TD/ESA common profile for v2, including the required
+   source-tool comparisons. Label source-tool and owned-engine evidence with
+   their respective backends. Missing required reference or schema evidence holds
+   the affected v2 compatibility claim.
 
 ## Unattended acceptance to implement with the feature
 
