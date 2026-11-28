@@ -24,6 +24,12 @@ GitHub is the required development and delivery platform: the authoritative sour
 
 Online publication must exclude private/personal information. This covers code and documentation as well as commit metadata, issues/PRs/comments/posts, screenshots, logs, evidence and release assets. The standing [repository instructions](../AGENTS.md) preserve this user requirement for later implementation and publication work. TST-021 makes its automated checks a required WP-02 deliverable before the first online publication.
 
+WP-18 extends campaign acceptance through `tools/check_thermal.py` in both
+Windows configurations. TST-021 clears the exact case manager, report logic,
+synthetic checks, source locks, staged bytes, history, approved identities,
+bounded case verdicts, scalar timings and GitHub prose. Keep full campaign
+manifests, observations, requests, results and rendered reports local.
+
 ## 1. Boundaries and decisions to establish first
 
 WP-16 extends the publication-privacy boundary to exact spatial solver/adapters,
@@ -1189,7 +1195,13 @@ captures remain required for vendor qualification.
 
 **Outputs:** case manager, sweep/sensitivity/correlation tools and report generator. **Completion:** deterministic campaign replay and synthetic holdout checks pass; every plot/table matches queried result data and the correct immutable revision.
 
-The Windows application CLI runs bounded steady and transient campaigns and generates JSON and HTML reports. The synthetic replay and result-binding case runs in both Foundation thermal stages. Under TST-021, preflight clears the exact outgoing implementation, history, approved metadata and bounded case and timing summaries. Campaign inputs, full outputs, reports and raw worker diagnostics stay local. See [campaign commands](../docs/campaigns.md) and [CI performance](../docs/ci-performance.md).
+The Windows application CLI runs bounded steady and transient campaigns and
+generates JSON and HTML reports from a pinned campaign hash. The synthetic
+acceptance checks named-case overlays and analytic steady temperatures,
+independent uncertainty, transient replay and derivative refinement, holdout
+predictions, output-query binding for plots and tables, versioned limits and
+artifact tamper rejection. Both Foundation thermal stages require the case.
+[Campaign commands](../docs/campaigns.md) · [Completion evidence](evidence/WP-18.json) · [CI performance](../docs/ci-performance.md)
 
 ### Step 19 — WP-19: qualify native Q1 and prepare the v1 release
 

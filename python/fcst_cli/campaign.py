@@ -19,6 +19,7 @@ def parsers(commands):
     report.add_argument("directory")
     report.add_argument("limits")
     report.add_argument("--html", help="Create a human-readable report at a new path")
+    report.add_argument("--campaign-sha256", help="Require the manifest hash recorded by campaign-run")
 
 
 def html_report(report):
@@ -57,7 +58,7 @@ def execute(args):
         if args.command == "campaign-run":
             return run_campaign(read_json(args.thermal_input), read_json(args.specification), args.directory,
                                 args.worker, transient=read_json(args.transient) if args.transient else None)
-        report = report_campaign(args.directory, read_json(args.limits))
+        report = report_campaign(args.directory, read_json(args.limits), campaign_sha256=args.campaign_sha256)
     except (KeyError, TypeError, AttributeError, IndexError):
         reject("campaign_document")
     if args.html:

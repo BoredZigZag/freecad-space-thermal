@@ -65,20 +65,25 @@ def label(value):
     return value
 
 
-def parameter_targets(envelope, parameters):
+def parameter_targets(envelope, parameters, case_id=None):
     model = envelope.get("model", {})
     entities = {item["id"]: item for item in model["entities"]}
+    overlays = {(row["entity_id"], row["field"]): row["value"]
+                for row in entities.get(case_id, {}).get("overlays", [])}
     targets = {}
     occupied = set()
     for name, spec in parameters.items():
         label(name)
         fields(spec, ("entity", "field", "min", "max", "distribution"), ("step",))
         key = (label(spec["entity"]), label(spec["field"]))
-        target = entities.get(key[0], {}).get(key[1])
+        source = entities.get(key[0], {}).get(key[1])
+        target = overlays.get(key, source)
         low, high = number(spec["min"]), number(spec["max"])
         if (key in occupied or not isinstance(target, dict) or set(target) != {"unit", "value"}
                 or low >= high or spec["distribution"] not in ("uniform", "triangular")):
             reject("campaign_parameter")
+        if not isinstance(source, dict) or source.get("unit") != target["unit"]:
+            reject("campaign_parameter_unit")
         number(target["value"], low, high)
         occupied.add(key)
         targets[name] = target
@@ -104,9 +109,9 @@ def factor(matrix, count):
     return lower
 
 
-def schedule(envelope, spec):
+def schedule(envelope, spec, *, legacy=False):
     fields(spec, ("seed", "parameters", "samples", "budget"),
-           ("correlation", "variants", "sensitivity", "observations", "fidelity_losses"))
+           ("correlation", "variants", "sensitivity", "uncertainty", "observations", "fidelity_losses"))
     for entry in sequence(spec.get("fidelity_losses", []), 256):
         label(entry)
     seed = integer(spec["seed"], 0, 2**32 - 1)
@@ -121,11 +126,14 @@ def schedule(envelope, spec):
     if not isinstance(params, dict) or len(params) > 16:
         reject("campaign_parameter")
     names = sorted(params)
-    targets = parameter_targets(envelope, params)
-    baseline = {name: targets[name]["value"] for name in names}
     base_case = envelope.get("case_id")
+    targets = parameter_targets(envelope, params, None if legacy else base_case)
+    baseline = {name: targets[name]["value"] for name in names}
     jobs = [("baseline", baseline, base_case)]
     variants = spec.get("variants", {})
+    case_ids = {e["id"] for e in envelope["model"]["entities"] if e["kind"] == "case"}
+    if not legacy and (base_case is not None or case_ids) and base_case not in case_ids:
+        reject("campaign_case")
     if not isinstance(variants, dict) or len(variants) > 64:
         reject("campaign_variants")
     for name, changes in sorted(variants.items()):
@@ -135,11 +143,12 @@ def schedule(envelope, spec):
         if not isinstance(values, dict) or not values.keys() <= params.keys():
             reject("campaign_variants")
         case = changes.get("case_id", base_case)
-        if "case_id" in changes and not any(
-                e["kind"] == "case" and e["id"] == label(case) for e in envelope["model"]["entities"]):
+        if "case_id" in changes and label(case) not in case_ids:
             reject("campaign_case")
         values = {key: number(value, params[key]["min"], params[key]["max"]) for key, value in values.items()}
-        jobs.append(("variant/" + name, baseline | values, case))
+        defaults = baseline if legacy or case == base_case else {
+            key: target["value"] for key, target in parameter_targets(envelope, params, case).items()}
+        jobs.append(("variant/" + name, defaults | values, case))
     samples = integer(spec["samples"], 0, 512)
     matrix = spec.get("correlation", [[int(i == j) for j in range(len(names))] for i in range(len(names))])
     lower = factor(matrix, len(names))
@@ -158,10 +167,17 @@ def schedule(envelope, spec):
         jobs.append((f"sample/{i}", values, base_case))
     if "sensitivity" in spec:
         fields(spec["sensitivity"], ("node", "time_s", "absolute_tolerance", "relative_tolerance"))
-        label(spec["sensitivity"]["node"])
-        number(spec["sensitivity"]["time_s"], 0)
         number(spec["sensitivity"]["absolute_tolerance"], 0)
         number(spec["sensitivity"]["relative_tolerance"], 0, 1)
+    if "uncertainty" in spec:
+        fields(spec["uncertainty"], ("node", "time_s"))
+    node_ids = {e["id"] for e in envelope["model"]["entities"] if e["kind"] == "node"}
+    for response in (spec[key] for key in ("sensitivity", "uncertainty") if key in spec):
+        if label(response["node"]) not in node_ids:
+            reject("campaign_sensor_mapping")
+        number(response["time_s"], 0)
+    if not legacy and any(row["node"] not in node_ids for row in sensor_rows(spec)):
+        reject("campaign_sensor_mapping")
     for name, parameter in sorted(params.items()):
         if "step" not in parameter:
             continue
@@ -176,6 +192,35 @@ def schedule(envelope, spec):
     if len(jobs) > budget["jobs"]:
         reject("campaign_job_budget")
     return jobs, matrix
+
+
+def case_power(envelope, case_id, transient):
+    if case_id is None:
+        return None
+    entities = envelope["model"]["entities"]
+    case = next(row for row in entities if row["id"] == case_id)
+    if case["mode"] != ("steady" if transient is None else "transient"):
+        reject("campaign_case_mode")
+    if any(row["kind"] in {"radiation", "geometry", "face", "mesh", "facet", "element"} for row in entities):
+        reject("campaign_case_environment")
+    # Nodal cases have no geometry-derived environmental power, as in host review.
+    return {case["environment_id"]: [0.0 for row in entities if row["kind"] == "node"]}
+
+
+def build_request(source, parameters, values, case_id, transient, power, *, legacy=False):
+    envelope = deepcopy(source)
+    if case_id is not None:
+        envelope["case_id"] = case_id
+    for name, target in parameter_targets(envelope, parameters, None if legacy else case_id).items():
+        target["value"] = values[name]
+    if transient is None and power is None:
+        return envelope, envelope
+    request = {"thermal_input": envelope}
+    if transient is not None:
+        request["transient"] = transient
+    if power is not None:
+        request["environment_power_W"] = power
+    return envelope, request
 
 
 def sensor_rows(spec):
@@ -235,7 +280,7 @@ def run_campaign(thermal_input, spec, directory, worker, *, transient=None):
         reject("unsupported_worker_platform")
     directory, worker = Path(directory), Path(worker).resolve()
     jobs, matrix = schedule(thermal_input, spec)
-    sensor_rows(spec)
+    powers = {case: case_power(thermal_input, case, transient) for case in {item[2] for item in jobs}}
     budget = spec["budget"]
     if len(encode(thermal_input)) > MAX_BYTES or len(encode(spec)) > MAX_BYTES:
         reject("campaign_size")
@@ -248,13 +293,7 @@ def run_campaign(thermal_input, spec, directory, worker, *, transient=None):
     remaining = int(budget["artifact_bytes"])
     records = []
     for index, (name, values, case_id) in enumerate(jobs):
-        envelope = deepcopy(thermal_input)
-        if case_id is not None:
-            envelope["case_id"] = case_id
-        targets = parameter_targets(envelope, spec["parameters"])
-        for key, value in values.items():
-            targets[key]["value"] = value
-        request = envelope if transient is None else {"thermal_input": envelope, "transient": transient}
+        envelope, request = build_request(thermal_input, spec["parameters"], values, case_id, transient, powers[case_id])
         raw = encode(request)
         remaining -= len(raw)
         if len(raw) > MAX_BYTES or remaining <= 0:
@@ -278,26 +317,27 @@ def run_campaign(thermal_input, spec, directory, worker, *, transient=None):
     if digest(worker.read_bytes()) != worker_hash:
         reject("campaign_worker_changed")
     status = "passed" if all(run["status"] == "passed" for run in records) else "incomplete"
-    manifest = dict(version=1, status=status, mode=mode, project_id=source["project_id"], revision=source["revision"],
+    manifest = dict(version=2, status=status, mode=mode, project_id=source["project_id"], revision=source["revision"],
                     source_model_hash=source_hash, worker_sha256=worker_hash, specification=spec,
                     correlation_order=sorted(spec["parameters"]), latent_correlation=matrix, runs=records)
     if len(encode(manifest)) > min(remaining, MAX_BYTES):
         reject("campaign_artifact_budget")
     # A directory without the final manifest is an incomplete attempt.
-    write_json(directory / "campaign.tmp", manifest)
+    manifest_hash = write_json(directory / "campaign.tmp", manifest)
     (directory / "campaign.tmp").rename(directory / "campaign.json")
-    return manifest
+    return dict(manifest, campaign_sha256=manifest_hash)
 
 
-def temperature_series(result):
-    if "nodes" in result:
-        return [0], {row["node_id"]: [row["temperature_K"]] for row in result["nodes"]}
+def temperature_series(result, mode, requested):
+    if mode == "steady":
+        return [0], {row["node_id"]: [row["temperature_K"]] for row in result["nodes"]
+                     if row["node_id"] in requested}
     samples = result["samples"]
     if not samples or any(not row["valid"] for row in samples):
         reject("campaign_invalid_samples")
     return [row["time_s"] for row in samples], {
         node: [row["temperature_K"][index] for row in samples]
-        for index, node in enumerate(result["node_ids"])
+        for index, node in enumerate(result["node_ids"]) if node in requested
     }
 
 
@@ -344,22 +384,27 @@ def limit_inputs(limits):
     return nodes
 
 
-def report_campaign(directory, limits):
+def report_campaign(directory, limits, *, campaign_sha256=None):
     directory = Path(directory)
     nodes = limit_inputs(limits)
     manifest_path = directory / "campaign.json"
     with manifest_path.open("rb") as stream:
         raw = stream.read(MAX_BYTES + 1)
-    if len(raw) > MAX_BYTES:
+    manifest_hash = digest(raw)
+    if len(raw) > MAX_BYTES or (campaign_sha256 is not None and manifest_hash != campaign_sha256):
         reject("campaign_artifact")
     manifest = loads(raw)
-    if manifest["version"] != 1 or manifest["mode"] not in ("steady", "transient"):
+    mode = manifest["mode"]
+    if manifest["version"] not in (1, 2) or mode not in ("steady", "transient"):
         reject("campaign_artifact")
+    legacy = manifest["version"] == 1
     spec = manifest["specification"]
     observations = sensor_rows(spec)
-    response = spec.get("sensitivity")
+    training = [row for row in observations if row["split"] == "training"]
+    sensitivity = spec.get("sensitivity")
+    uncertainty_response = spec.get("uncertainty", sensitivity)
     summaries, sensitivities, responses, sampled = [], {}, {}, []
-    baseline, fitted, winner = None, None, None
+    baseline_series, fitted_series, winner = None, None, None
     run_records = sequence(manifest["runs"], 512)
     if not run_records or len(run_records) * len(nodes) > 65536:
         reject("campaign_report_size")
@@ -368,7 +413,7 @@ def report_campaign(directory, limits):
         if run["run_id"] != run_id:
             reject("campaign_result_binding")
         request = read_json(directory / (run_id + "-input.json"), expected=run["request_sha256"])
-        envelope = request["thermal_input"] if manifest["mode"] == "transient" else request
+        envelope = request.get("thermal_input", request)
         model = envelope["model"]
         if (semantic_hash(model) != run["model_hash"] or model["project_id"] != manifest["project_id"]
                 or model["revision"] != manifest["revision"]):
@@ -376,31 +421,44 @@ def report_campaign(directory, limits):
         if index == 0:
             if run["name"] != "baseline" or run["model_hash"] != manifest["source_model_hash"]:
                 reject("campaign_result_binding")
-            jobs, matrix = schedule(envelope, spec)
+            jobs, matrix = schedule(envelope, spec, legacy=legacy)
             if (len(jobs) != len(run_records) or matrix != manifest["latent_correlation"]
                     or manifest["correlation_order"] != sorted(spec["parameters"])):
                 reject("campaign_result_binding")
             source_envelope = envelope
-            configuration = request.get("transient")
-        if (run["name"], run["inputs"], run["case_id"]) != jobs[index] or request.get("transient") != configuration:
+            configuration = request["transient"] if mode == "transient" else None
+            powers = {case: None if legacy else case_power(envelope, case, configuration)
+                      for case in {item[2] for item in jobs}}
+        if (run["name"], run["inputs"], run["case_id"]) != jobs[index]:
             reject("campaign_result_binding")
-        expected = deepcopy(source_envelope)
-        if run["case_id"] is not None:
-            expected["case_id"] = run["case_id"]
-        for name, target in parameter_targets(expected, spec["parameters"]).items():
-            target["value"] = run["inputs"][name]
-        if expected != envelope:
+        _, expected = build_request(source_envelope, spec["parameters"], run["inputs"], run["case_id"],
+                                    configuration, powers[run["case_id"]], legacy=legacy)
+        if expected != request:
             reject("campaign_result_binding")
         result = read_json(directory / (run_id + "-result.json"), expected=run["result_sha256"])
         if result["status"] != run["status"]:
             reject("campaign_result_binding")
         summary = dict(run, outcome=result.get("outcome", result.get("reason", result.get("code"))))
+        summary["diagnostics"] = {key: result[key] for key in (
+            "reason", "code", "entity_id", "source_map_id", "preparation_hash", "configuration_id",
+            "energy_defect_W", "internal_exchange_defect_W", "scaled_residual_norm",
+            "scaled_correction_norm", "iterations", "step_count", "backend") if key in result}
         summaries.append(summary)
         if result["status"] != "passed":
             continue
         if result["model_hash"] != run["model_hash"]:
             reject("campaign_result_binding")
-        times, series = temperature_series(result)
+        is_candidate = (bool(observations) and not run["name"].startswith("sensitivity/")
+                        and run["case_id"] == source_envelope.get("case_id"))
+        response = sensitivity if run["name"].startswith("sensitivity/") else (
+            uncertainty_response if run["name"].startswith("sample/") else None)
+        requested = set(nodes)
+        if is_candidate:
+            requested.update(row["node"] for row in observations)
+        if response:
+            requested.add(response["node"])
+        times, series = temperature_series(result, mode, requested)
+        summary["output_grid"] = dict(start_s=times[0], end_s=times[-1], samples=len(times))
         summary["limits"] = []
         for node, limit in nodes.items():
             if node not in series:
@@ -410,48 +468,48 @@ def report_campaign(directory, limits):
             margin = min(low - limit["min_K"], limit["max_K"] - high)
             summary["limits"].append(dict(node=node, min_K=low, max_K=high, available_margin_K=margin,
                                           passed=margin >= limit["margin_K"]))
-        summary["diagnostics"] = {key: result[key] for key in (
-            "energy_defect_W", "internal_exchange_defect_W", "scaled_residual_norm",
-            "scaled_correction_norm", "iterations", "step_count", "backend") if key in result}
-        if "samples" in result:
+        if mode == "transient":
             summary["diagnostics"]["final_run_energy"] = result["samples"][-1]["run_energy"]
-        if response and run["name"].startswith(("sensitivity/", "sample/")):
+        if response:
             if response["node"] not in series:
                 reject("campaign_sensor_mapping")
-            temperature = interpolate(times, series[response["node"]], response["time_s"])[0]
-            responses[run["name"]] = temperature
+            temperature, bracket = interpolate(times, series[response["node"]], response["time_s"])
+            summary["response_K"] = temperature
+            summary["response_bracket_s"] = bracket
             if run["name"].startswith("sample/"):
-                summary["response_K"] = temperature
                 sampled.append(temperature)
-        if (observations and not run["name"].startswith("sensitivity/")
-                and run["case_id"] == source_envelope.get("case_id")):
-            compared = compare(observations, times, series)
-            score = objective(compared, "training")
+            else:
+                responses[run["name"]] = temperature
+        if is_candidate:
+            score = objective(compare(training, times, series), "training")
             summary["training_mean_squared_normalized_residual"] = score
             if index == 0:
-                baseline = compared
+                baseline_series = times, series
             if winner is None or score < winner[0]:
-                winner, fitted = (score, run_id), compared
+                winner, fitted_series = (score, run_id), (times, series)
     for name, param in spec["parameters"].items():
         if "step" not in param:
             continue
         keys = [f"sensitivity/{name}/{suffix}" for suffix in ("minus", "plus", "half_minus", "half_plus")]
+        cases = [run["run_id"] for run in summaries if run["name"] in keys]
         if any(key not in responses for key in keys):
-            sensitivities[name] = {"status": "incomplete", "step": param["step"]}
+            sensitivities[name] = dict(status="incomplete", step=param["step"], runs=cases)
             continue
         minus, plus, half_minus, half_plus = (responses[key] for key in keys)
         step = param["step"]
         central = (plus - minus) / (2 * step)
         refined = (half_plus - half_minus) / step
-        sensitivities[name] = dict(step=step, derivative=central, refined_derivative=refined,
-                                   runs=[run["run_id"] for run in summaries if run["name"] in keys],
+        sensitivities[name] = dict(method="central_difference", step=step, refined_step=step / 2,
+                                   derivative=central, refined_derivative=refined, runs=cases,
                                    status="passed" if math.isclose(
-                                       central, refined, abs_tol=response["absolute_tolerance"],
-                                       rel_tol=response["relative_tolerance"]) else "failed")
+                                       central, refined, abs_tol=sensitivity["absolute_tolerance"],
+                                       rel_tol=sensitivity["relative_tolerance"]) else "failed")
     fit = None
     if observations:
         fit = {"status": "incomplete"}
-        if baseline is not None and fitted is not None:
+        if baseline_series is not None and fitted_series is not None:
+            baseline = compare(observations, *baseline_series)
+            fitted = compare(observations, *fitted_series)
             selected = next(run for run in summaries if run["run_id"] == winner[1])
             fit = dict(status="complete", baseline_run="run-0000", fitted_run=winner[1],
                        parameter_changes={key: {"before": value, "after": selected["inputs"][key]}
@@ -462,13 +520,18 @@ def report_campaign(directory, limits):
                        baseline=baseline, fitted=fitted,
                        metrics={name: {split: objective(rows, split) for split in ("training", "holdout")}
                                 for name, rows in (("baseline", baseline), ("fitted", fitted))})
-    uncertainty = dict(requested=spec["samples"], successful=len(sampled), mean_K=fmean(sampled),
-                       population_stddev_K=pstdev(sampled), min_K=min(sampled), max_K=max(sampled)) if sampled else None
+    uncertainty = None
+    if uncertainty_response and spec["samples"]:
+        uncertainty = dict(requested=spec["samples"], successful=len(sampled),
+                           node=uncertainty_response["node"], time_s=uncertainty_response["time_s"])
+        if sampled:
+            uncertainty.update(mean_K=fmean(sampled), population_stddev_K=pstdev(sampled),
+                               min_K=min(sampled), max_K=max(sampled))
     model = source_envelope["model"]
     status = "passed" if all(run["status"] == "passed" for run in summaries) else "incomplete"
     if status != manifest["status"]:
         reject("campaign_result_binding")
-    return dict(campaign_sha256=digest(raw), status=status, project_id=manifest["project_id"], revision=manifest["revision"],
+    return dict(campaign_sha256=manifest_hash, status=status, mode=mode, project_id=manifest["project_id"], revision=manifest["revision"],
                 source_model_hash=manifest["source_model_hash"], worker_sha256=manifest["worker_sha256"],
                 limits=limits, limits_sha256=digest(encode(limits)), configuration=configuration,
                 assumptions=model.get("assumptions", []), limitations=model.get("limitations", []),
