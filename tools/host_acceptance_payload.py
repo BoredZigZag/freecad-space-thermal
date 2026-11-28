@@ -356,8 +356,13 @@ def main():
     Gui.activeDocument().activeView().saveImage(str(folder/'network.png'),900,650,'Current')
     passed('HOST-RENDER')
     session.close(); App.closeDocument(session.doc.Name)
+    mark('p0_integration')
+    sys.path.append(str(Path(os.environ['FCST_HOST_ROOT'])/'tools'))
+    from p0_host_payload import check as check_p0
+    p0=check_p0(folder,wait,rejects,os.environ['FCST_HOST_WORKER'])
+    passed('WP15-HOST-RADIATION')
     (folder/'host.json').write_text(json.dumps(dict(host_version=['1','1','4'],python_abi='cp311',
-        cases=cases,spatial_solver_qualified=False,scope='WP-13 host workflows and supported FEM field display; production spatial physics remains WP-16'),indent=2)+'\n')
+        cases=cases,p0=p0,spatial_solver_qualified=False,scope='Host workflows, FEM field display and P0 radiation integration'),indent=2)+'\n')
 
 
 def run():

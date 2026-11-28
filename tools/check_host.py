@@ -21,6 +21,9 @@ def input_hashes():
     paths=[p for folder in ('python/fcst_host','python/fcst_app','python/fcst_contracts','freecad/FCST') for p in (ROOT/folder).rglob('*') if p.suffix in ('.py','.json')]
     paths += [ROOT/p for p in ('tools/check_host.py','tools/host_acceptance_payload.py','tools/install_workbench.py','tools/profile_support.py','tools/host_smoke.py','tools/host_smoke_payload.py','ci/host-acceptance.json','ci/host-reuse.json','ci/fem-reuse.json','ci/host-profile.json','tests/test_host.py','engine/src/contracts.cpp','tests/fixtures/contracts/network.json','tests/fixtures/spatial/solid-surface-rotated.json')]
     paths += [ROOT/'tools/cad_acceptance_payload.py',ROOT/'ci/cad-mesher.json',ROOT/'LICENSE',*(ROOT/'LICENSES').glob('*.txt')]
+    paths += [ROOT/name for name in ('tools/p0_fixture.py','tools/p0_host_payload.py',
+                                     'python/fcst_tools/p0.py','ci/p0-acceptance.json',
+                                     'tests/fixtures/radiation/p0-two-surfaces.json')]
     return {p.relative_to(ROOT).as_posix():sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
 
 
@@ -38,16 +41,16 @@ def check(worker, report):
     frozen_inputs=input_hashes()
     candidate=revision()
     import host_smoke
-    host_smoke.main()
+    _, _, _, command = host_smoke.provision()
     policy=json.loads((ROOT/'ci/host-acceptance.json').read_bytes())
     profile=json.loads((ROOT/'ci/host-profile.json').read_bytes())
     folder=ROOT/'.local/wp13'/uuid.uuid4().hex; folder.mkdir(parents=True)
     (folder/'tmp').mkdir()
-    addon=install(folder/'Mod')
-    hosts=list((ROOT/'.local/host/Windows/bundle').rglob('FreeCAD.exe'))
-    hosts=[p for p in hosts if p.parent.name.lower()=='bin']
-    if len(hosts)!=1: raise ValueError('ambiguous_host')
-    host=hosts[0]
+    addon=install(folder/'Mod',radiation=True)
+    host=command.with_name('FreeCAD.exe')
+    from fcst_app.persistence import save_package
+    from p0_fixture import scaffold
+    save_package(scaffold(), folder/'p0-scaffold.fcst')
     graphics=policy['graphics'];software=host.parent/'opengl32sw.dll';alias=host.parent/'opengl32.dll'
     if sha256(software.read_bytes()).hexdigest()!=graphics['sha256']:raise ValueError('host_graphics_lock')
     if alias.exists():

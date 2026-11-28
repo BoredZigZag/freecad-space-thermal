@@ -32,7 +32,8 @@
     "FEM-REUSE-003",
     "WP16-CAD-PROFILES",
     "WP16-CAD-PERSISTENCE",
-    "WP16-CAD-COMMAND"
+    "WP16-CAD-COMMAND",
+    "WP15-HOST-RADIATION"
   ],
   "criteria": {
     "temperature_absolute_K": 0.01,
@@ -57,6 +58,7 @@
     "multi_document",
     "dataset_restore",
     "final_render",
-    "cad_mesher"
+    "cad_mesher",
+    "p0_integration"
   ]
 }

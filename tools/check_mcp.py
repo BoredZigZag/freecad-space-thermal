@@ -296,14 +296,27 @@ def main():
     records=[];logs=ROOT/'.local/mcp-logs';logs.mkdir(parents=True,exist_ok=True)
     policy=json.loads((ROOT/'ci/mcp-acceptance.json').read_bytes())
     names=policy['required_cases']
+    p0_case = 'WP15-CLI-MCP-RADIATION'
     for name in names:
+        if name == p0_case:
+            continue
         stream=io.StringIO();result=unittest.TextTestRunner(stream=stream).run(unittest.TestSuite([MCPAcceptance(name)]))
         (logs/(name+'.log')).write_text(stream.getvalue(),encoding='utf-8')
         records.append(dict(id=name,status='passed' if result.wasSuccessful() and not result.skipped else 'failed'))
         print(name+': '+records[-1]['status'],flush=True)
+    import traceback
+    from p0_profiles import check as check_p0
+    p0 = None
+    with tempfile.TemporaryDirectory(dir=logs) as folder:
+        try:
+            p0 = check_p0(Path(folder).resolve()/'p0', WORKER, Client)
+        except Exception:
+            (logs/(p0_case+'.log')).write_text(traceback.format_exc(), encoding='utf-8')
+    records.append(dict(id=p0_case,status='passed' if p0 is not None else 'failed'))
+    print(p0_case+': '+records[-1]['status'],flush=True)
     report=dict(work_package='WP-14',protocols=[PROTOCOL,'2025-11-25'],sdk='mcp==1.26.0',
         candidate=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
-        scope='Local typed automation and native thermal CLI parity; no vendor or integrated P0 qualification',
+        scope='Local typed automation, native thermal parity and the P0 radiation fixture', p0=p0,
         native_worker_sha256=sha256(WORKER.read_bytes()).hexdigest(),
         input_sha256=input_hashes(),
         gate=evaluate(names,records),cases=records)

@@ -20,7 +20,7 @@ from .policy import Policy
 def runtime_identity(worker):
     root=Path(__file__).resolve().parents[1]
     files=[*Path(__file__).parent.glob('*.py'),root/'fcst_host/review.py',
-        *[root/'fcst_app'/name for name in ('jobs.py','store.py','persistence.py','arrays.py','process_limits.py')],
+        *[root/'fcst_app'/name for name in ('jobs.py','store.py','persistence.py','arrays.py','process_limits.py','radiation_case.py')],
         root/'fcst_contracts/__init__.py',root/'fcst_contracts/bundle.json']
     from fcst_app.persistence import encode
     sources={p.relative_to(root).as_posix():sha256(p.read_bytes()).hexdigest() for p in sorted(files)}

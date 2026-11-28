@@ -346,14 +346,19 @@ jobs:
         run: python tools/check_foundation_handoff.py --reports .local/handoff-reports --report .local/handoff.json
       - name: Compare verified CI timings with recorded baseline
         run: python tools/summarize_ci_performance.py --reports .local/handoff-reports --report .local/ci-performance.json
+      - name: Qualify the experimental native P0 demonstration
+        env:
+          PYTHONPATH: python
+        run: python -m fcst_cli qualify --gate P0 --reports .local/handoff-reports --report .local/p0.json
       - name: Clear final handoff report
-        run: python tools/publication_preflight.py --file .local/handoff.json --file .local/ci-performance.json
+        run: python tools/publication_preflight.py --file .local/handoff.json --file .local/ci-performance.json --file .local/p0.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: foundation-handoff
           path: |
             .local/handoff.json
             .local/ci-performance.json
+            .local/p0.json
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 30

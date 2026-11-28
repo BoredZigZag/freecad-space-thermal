@@ -70,13 +70,18 @@ radiation, thermal coupling, fixed statistical ensembles and million-facet scali
 authorization/audit/paging, modern and legacy client profiles, and native
 geometry-free conduction jobs with portable FCST packages. The online WP-12
 card and the local WP-14 card were stale; both now use Complete. Completion
-here does not grant full project Q1 or licensed vendor qualification. Integrated
-two-node/two-surface GUI/CLI/MCP radiation parity remains WP-15; production mesh
-submission is WP-16, moving environments WP-17 and advanced optics WP-20.
-WP-14 declares radiation/mesh submission, vendor conversion, viewport capture
-and network MCP unavailable in its delivered profiles.
+here does not grant full project Q1 or licensed vendor qualification.
+[WP-15](p0-demonstration.md) adds the experimental two-node/two-surface
+GUI/CLI/MCP radiation case. Production mesh submission is WP-16, moving
+environments WP-17 and advanced optics WP-20.
 
 ## Publication privacy (TST-021)
+
+WP-15 clears the synthetic two-surface source, its numerical criteria and the
+exact `p0.json`, `host.json` and `mcp.json` receipts. The gate verifies case
+coverage, criteria, fixture, candidate and worker identity, and parity and
+recovery verdicts. Generated projects, bulk mesh data, screenshots, operational
+databases, and raw native and GUI diagnostics remain local.
 
 WP-13's [FreeCAD workbench](freecad-workbench.md) runs installed, isolated host
 acceptance in both Windows presets. Scan exact host adapters, synthetic templates,

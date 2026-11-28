@@ -120,6 +120,7 @@
     "test_gate.GateTests.test_correct_coverage_passes",
     "test_gate.GateTests.test_duplicate_and_substituted_coverage_rejected",
     "test_gate.GateTests.test_missing_and_zero_cases_rejected",
+    "test_gate.GateTests.test_p0_rejects_substituted_results_and_false_recovery",
     "test_gate.GateTests.test_skeleton_never_claims_solver_implementation",
     "test_gate.GateTests.test_skipped_blocked_and_failed_rejected",
     "test_host.HostTests.test_candidate_gate_rejects_missing_duplicate_skipped_and_substituted_evidence",

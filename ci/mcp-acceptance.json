@@ -27,7 +27,8 @@
     "test_preview_apply_replay_undo_and_scope",
     "test_separate_legacy_handshake_and_notifications",
     "test_tool_discovery_is_bounded_complete_and_stable",
-    "test_wire_malformed_duplicate_nonfinite_batch_and_oversize"
+    "test_wire_malformed_duplicate_nonfinite_batch_and_oversize",
+    "WP15-CLI-MCP-RADIATION"
   ],
   "analytic_temperature_tolerance_K": 0.0003,
   "analytic_energy_tolerance_J": 1e-05,

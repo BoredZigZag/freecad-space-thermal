@@ -1,0 +1,16 @@
+{
+  "vertices_m": [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 0.5], [0, 1, 0.5], [1, 0, 0.5]],
+  "normals": [[0, 0, 1], [0, 0, -1]],
+  "area_m2": 0.5,
+  "temperature_K": [310, 290],
+  "capacity_J_K": [40, 60],
+  "conductance_W_K": 2,
+  "load_W": 5,
+  "edited_load_W": 8,
+  "background_K": 250,
+  "solar_flux_W_m2": 0,
+  "solar_absorptivity": 0.4,
+  "ir_emissivity": 1,
+  "material": {"density_kg_m3": 1000, "specific_heat_J_kg_K": 200, "conductivity_W_m_K": 10},
+  "duration_s": 2
+}
