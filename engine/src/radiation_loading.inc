@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Included inside namespace fcst, using the shared bounded strict JSON parser.
 namespace {
-void validate_radiation_mapping(const thermal::Data& d,const std::vector<radiation::Facet>& facets,
-                                const J* mission=nullptr) {
+void validate_radiation_mapping(const thermal::Data& d,const std::vector<radiation::Facet>& facets) {
   if(d.radiation.size()!=1 || d.active_environment_ids.size()!=1 || d.radiation[0].environment_id!=d.active_environment_ids[0] || d.radiation[0].method!="diffuse") fail("radiation_mapping");
   std::set<std::string> expected(d.radiation[0].facet_ids.begin(),d.radiation[0].facet_ids.end()),actual;
   for(const auto& f:facets) { actual.insert(f.id); if(f.node>=d.nodes.size()) fail("radiation_mapping"); }
@@ -10,10 +9,6 @@ void validate_radiation_mapping(const thermal::Data& d,const std::vector<radiati
   if(actual!=expected) fail("radiation_mapping");
   auto canonical=Parser{d.canonical_snapshot}.parse(); Entities entities;
   for(const auto& entity:canonical.at("entities").arr()) entities.emplace(entity.at("id").str(),entity);
-  if(d.case_id) {
-    const auto& selected=entities.at(*d.case_id);
-    if(selected.has("mission") && (!mission || selected.at("mission")!=*mission))fail("environment_case");
-  }
   for(const auto& f:facets) {
     const auto& declared=entities.at(f.id);
     const auto& declared_optics=entities.at(declared.at("optics_id").str());
@@ -40,11 +35,11 @@ std::string inspect_environment(const J& value,const std::vector<radiation::Face
   const auto& data=model.data();
   std::vector<radiation::Facet> active;
   for(const auto& f:facets)if(std::find(excluded.begin(),excluded.end(),f.id)==excluded.end())active.push_back(f);
-  const auto& m=value.at("mission");
-  validate_radiation_mapping(data,active,&m);
+  validate_radiation_mapping(data,active);
   const auto& id=data.active_environment_ids.front();
   auto env=std::find_if(data.environments.begin(),data.environments.end(),[&](const auto& e){return e.id==id;});
   if(env==data.environments.end() || env->time_scale!="TAI")fail("environment_epoch");
+  const auto& m=value.at("mission");
   execution_keys(m,{"sun_direction_inertial","maximum_interval_s","attitude"},
                    {"orbit","albedo","body_exitance_W_m2","joints","case_optics"});
   auto case_facets=facets;

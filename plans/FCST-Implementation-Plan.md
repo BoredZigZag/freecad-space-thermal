@@ -1159,9 +1159,9 @@ consumes the native evidence and runs FEM-REUSE-006 using the release assets.
 The [native environment engine](../docs/environment-engine.md) implements the
 circular TAI trajectory profile and transient loading history. Foundation runs
 the analytical and independent temperature checks in both Windows configurations
-through the radiation acceptance driver. Portable transient cases bind a mission,
-an environment and their active loads and controls to shared model and source
-identities. The driver reopens flight and chamber variants, checks native
+through the radiation acceptance driver. Version-4 portable packages bind a
+mission artifact to a transient case, its environment and shared model and
+source identities. The driver reopens flight and chamber variants, checks native
 exchange after articulation and rejects stale checkpoints and substituted saved
 missions. TST-021 scans the exact candidate and
 bounded timing and acceptance summaries. Paired TD/RadCAD and ESATAN mission

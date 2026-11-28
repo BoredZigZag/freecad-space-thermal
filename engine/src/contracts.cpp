@@ -294,13 +294,8 @@ struct Expressions {
 };
 void check_model(const J& m) {
   Entities es; std::set<std::string> ids{m.at("project_id").str()};
-  std::map<std::string,std::vector<const J*>> radiation_by_environment;
   for(auto key:{"entities","source_maps","mappings","attachments"}) for(const auto& e:m.at(key).arr()) {
-    if(!ids.insert(e.at("id").str()).second) fail("duplicate_id");
-    if(std::string_view(key)=="entities") {
-      es.emplace(e.at("id").str(),e);
-      if(e.at("kind").str()=="radiation")radiation_by_environment[e.at("environment_id").str()].push_back(&e);
-    }
+    if(!ids.insert(e.at("id").str()).second) fail("duplicate_id"); if(std::string_view(key)=="entities") es.emplace(e.at("id").str(),e);
   }
   const std::map<std::string,std::string> refs={{"submodel_id","submodel"},{"frame_id","frame"},{"geometry_id","geometry"},{"mesh_id","mesh"},{"material_id","material"},{"optics_id","optics"},{"from_node_id","node"},{"to_node_id","node"},{"node_id","node"},{"sensor_node_id","node"},{"load_id","load"},{"environment_id","environment"},{"expression_id","expression"}};
   const std::map<std::string,std::pair<std::string,double>> fields={{"temperature",{"temperature",0}},{"capacity",{"capacity",0}},{"conductance",{"conductance",0}},{"power",{"power",-INFINITY}},{"density",{"density",0}},{"specific_heat",{"specific_heat",0}},{"conductivity",{"conductivity",0}},{"area",{"area",0}},{"background_temperature",{"temperature",0}},{"solar_flux",{"flux",0}},{"start",{"time",-INFINITY}},{"end",{"time",-INFINITY}},{"time_origin",{"time",-INFINITY}},{"on_below",{"temperature",0}},{"off_above",{"temperature",0}}};
@@ -335,25 +330,6 @@ void check_model(const J& m) {
     if(kind=="optics") { for(auto k:{"solar_absorptivity","ir_emissivity","specular_fraction","transmissivity"}) if(e.at(k).num()>1) fail("range"); if(e.at("specular_fraction").num()+e.at("transmissivity").num()>1) fail("range"); }
     if(kind=="case") {
       if(e.at("start").at("value").num()>e.at("end").at("value").num()) fail("range");
-      if(e.has("mission")) {
-        const auto& environment_id=e.at("environment_id").str();
-        const auto& environment=target(es,environment_id,"environment");
-        const auto& groups=radiation_by_environment[environment_id];
-        if(e.at("mode").str()!="transient" || environment.at("time_scale").str()!="TAI" ||
-           groups.size()!=1 || groups.front()->at("method").str()!="diffuse")fail("reference");
-        std::set<std::string> active,moving,optical,joint_ids;
-        for(const auto& key:groups.front()->at("facet_ids").arr())active.insert(key.str());
-        for(const auto& key:groups.front()->at("excluded_facet_ids").arr())active.erase(key.str());
-        if(active.empty())fail("reference");
-        const auto& mission=e.at("mission");
-        if(mission.has("joints"))for(const auto& joint:mission.at("joints").arr()) {
-          if(!joint_ids.insert(joint.at("id").str()).second)fail("duplicate_id");
-          for(const auto& key:joint.at("facets").arr())if(!moving.insert(key.str()).second)fail("duplicate_id");
-        }
-        if(mission.has("case_optics"))for(const auto& item:mission.at("case_optics").arr())
-          if(!optical.insert(item.at("facet_id").str()).second)fail("duplicate_id");
-        for(const auto* facet_ids:{&moving,&optical})for(const auto& key:*facet_ids)if(!active.contains(key))fail("reference");
-      }
       for(const auto& o:e.at("overlays").arr()) { const auto& t=target(es,o.at("entity_id").str(),"node load conductor"); auto field=o.at("field").str(); if(!t.has(field)) fail("reference"); quantity(o.at("value"),fields.at(field).first,fields.at(field).second); }
     }
     if(kind=="control" && e.at("on_below").at("value").num()>=e.at("off_above").at("value").num()) fail("range");
@@ -417,7 +393,7 @@ std::string sha256(const std::string& bytes);
 #include "spatial.inc"
 J read(const std::string& kind,J j) {
   if(!j.isobj()) fail("schema");
-  J version(kind=="manifest3"?"3.0.0":(kind=="spatial" || kind=="manifest2")?"2.0.0":"1.0.0");
+  J version(kind=="manifest4"?"4.0.0":kind=="manifest3"?"3.0.0":(kind=="spatial" || kind=="manifest2")?"2.0.0":"1.0.0");
   if(!j.has("contract_version") || j.at("contract_version")!=version || (j.has("minimum_reader") && j.at("minimum_reader")!=version)) fail("version");
   if(kind=="operation" && (!j.has("operation") || !contains(bundle().at("operations"),j.at("operation")))) fail("unsupported_operation");
   if(!bundle().at("schemas").has(kind)) fail("schema"); const auto& schema=bundle().at("schemas").at(kind); validate(schema,j,schema);
@@ -428,7 +404,7 @@ J read(const std::string& kind,J j) {
   artifacts(j);
   if(kind=="model") check_model(j);
   if(kind=="spatial") check_spatial(j);
-  if(kind=="manifest" || kind=="manifest2" || kind=="manifest3") {
+  if(kind=="manifest" || kind=="manifest2" || kind=="manifest3" || kind=="manifest4") {
     std::map<std::string,J> by_id; std::set<std::string> paths;
     for(const auto& r:j.at("artifacts").arr()) {
       auto path=r.at("artifact").at("path").str(); std::transform(path.begin(),path.end(),path.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});

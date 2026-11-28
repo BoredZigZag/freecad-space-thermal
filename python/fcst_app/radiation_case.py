@@ -3,12 +3,53 @@
 from math import hypot, isclose
 from uuid import UUID
 
-from fcst_contracts import normalize, verify_artifact
+from fcst_contracts import loads, normalize, read, verify_artifact
 from .arrays import read_arrays
 from .persistence import reject
 
 
 SAMPLING = {"seed": 29, "samples": 16384, "maximum_entries": 4096}
+
+
+def mission_path(case_id):
+    return f"missions/{case_id}.json"
+
+
+def validate_mission_artifact(raw, model, record, model_artifact_id):
+    document = read('mission', loads(raw))
+    case_id = document['case_id']
+    if (document['project_id'] != model['project_id'] or record['artifact']['path'] != mission_path(case_id)
+            or model_artifact_id not in record['dependencies']):
+        reject('mission_binding')
+    entities = {e['id']: e for e in model['entities']}
+    case = entities.get(case_id, {})
+    if case.get('kind') != 'case' or case['mode'] != 'transient':
+        reject('mission_case')
+    environment_id = case['environment_id']
+    configs = [e for e in entities.values() if e['kind'] == 'radiation' and e['environment_id'] == environment_id]
+    if len(configs) != 1 or configs[0]['method'] != 'diffuse' or entities[environment_id]['time_scale'] != 'TAI':
+        reject('mission_case')
+    active = set(configs[0]['facet_ids']) - set(configs[0]['excluded_facet_ids'])
+    mission = document['mission']
+    joints = mission.get('joints', [])
+    moving = [key for joint in joints for key in joint['facets']]
+    optical = [item['facet_id'] for item in mission.get('case_optics', [])]
+    ids = [joint['id'] for joint in joints]
+    if (any(len(set(keys)) != len(keys) for keys in (moving, optical, ids))
+            or not active or not set(moving + optical) <= active):
+        reject('mission_facets')
+    return mission
+
+
+def read_case_mission(manifest, model, case_id, read_artifact):
+    path = mission_path(case_id)
+    record = next((r for r in manifest['artifacts']
+                   if r['role'] == 'mission' and r['artifact']['path'] == path), None)
+    if record is None:
+        return None
+    raw = read_artifact(path)
+    verify_artifact(record['artifact'], raw)
+    return validate_mission_artifact(raw, model, record, manifest['model_artifact_id'])
 
 
 def facets(model, read_mesh, selected=None):
@@ -71,11 +112,10 @@ def facets(model, read_mesh, selected=None):
     return result
 
 
-def transient_request(model, envelope, options, read_mesh):
+def transient_request(model, envelope, options, read_mesh, mission=None):
     entities = {e["id"]: e for e in normalize(model)["entities"]}
     case = entities[envelope["case_id"]]
     environment = entities[case["environment_id"]]
-    mission = case.get("mission")
     configurations = [e for e in entities.values() if e["kind"] == "radiation" and e["environment_id"] == environment["id"]]
     if (len(configurations) != 1 or (mission is None and environment["solar_flux"]["value"] != 0)
             or environment["time_scale"] != "TAI"

@@ -31,7 +31,8 @@ def input_hashes():
              'tools/p0_fixture.py', 'tests/fixtures/radiation/p0-two-surfaces.json',
              'python/fcst_app/radiation_case.py', 'python/fcst_host/review.py',
              'python/fcst_cli/solve.py', 'python/fcst_cli/__main__.py', 'python/fcst_app/persistence.py',
-             'python/fcst_contracts/__init__.py', 'python/fcst_contracts/bundle.json', 'engine/src/contracts.cpp']
+             'python/fcst_contracts/__init__.py', 'python/fcst_contracts/bundle.json', 'engine/src/contracts.cpp',
+             'spec/schemas/manifest-v4.schema.json', 'spec/schemas/mission-v1.schema.json']
     return {p: digest(ROOT/p) for p in paths}
 
 
@@ -315,7 +316,9 @@ def check_environment(execute, worker, steady_fixture, work):
 
 
 def check_portable_missions(execute, worker, work, run):
-    from fcst_app.persistence import Package
+    from fcst_app.persistence import Package, encode
+    from fcst_app.radiation_case import mission_path, read_case_mission
+    from fcst_contracts import ContractError
     from fcst_host import review
     from p0_fixture import CASE, LOAD, NODES, SURFACES, edits, quantity, scaffold
 
@@ -335,29 +338,35 @@ def check_portable_missions(execute, worker, work, run):
     control_id = review.uid(143)
     entities[control_id] = dict(id=control_id, kind='control', sensor_node_id=NODES[0], load_id=LOAD,
                                 on_below=quantity(400, 'K'), off_above=quantity(410, 'K'))
-    flight.update(end=quantity(4, 's'), mission=mission, control_ids=[control_id],
+    flight.update(end=quantity(4, 's'), control_ids=[control_id],
                   overlays=[dict(entity_id=LOAD, field='power', value=quantity(7, 'W'))])
     chamber_id, chamber_env, chamber_group = [review.uid(n) for n in (140, 141, 142)]
     entities[chamber_env] = dict(environment, id=chamber_env, solar_flux=quantity(0, 'W/m2'),
                                  background_temperature=quantity(320, 'K'))
     entities[chamber_group] = dict(radiation, id=chamber_group, environment_id=chamber_env)
-    entities[chamber_id] = dict(flight, id=chamber_id, environment_id=chamber_env, load_ids=[], control_ids=[], overlays=[],
-                               mission=dict(sun_direction_inertial=[0, 0, 1], maximum_interval_s=4,
-                                            attitude=mission['attitude'],
-                                            case_optics=[dict(mission['case_optics'][0], ir_emittance=.85, condition='EOL')]))
+    entities[chamber_id] = dict(flight, id=chamber_id, environment_id=chamber_env, load_ids=[], control_ids=[], overlays=[])
+    chamber_mission = dict(sun_direction_inertial=[0, 0, 1], maximum_interval_s=4, attitude=mission['attitude'],
+                           case_optics=[dict(mission['case_optics'][0], ir_emittance=.85, condition='EOL')])
     model['entities'] = list(entities.values())
     model['source_maps'] = [dict(id=review.uid(144), version='1.0.0', source_revision='0'*64,
                                  source_tool='synthetic', source_version='1.0',
                                  entries=[dict(namespace='example', handle='panel', entity_id=SURFACES[0])])]
     artifacts = [(r['id'], r['role'], r['artifact']['path'], seed.files[r['artifact']['path']], r['dependencies'])
                  for r in seed.manifest['artifacts'] if r['role'] == 'mesh']
+    model_artifact_id = seed.manifest['model_artifact_id']
+    for number, case_id, value in [(145, CASE, mission), (146, chamber_id, chamber_mission)]:
+        document = dict(contract_version='1.0.0', project_id=model['project_id'], case_id=case_id, mission=value)
+        artifacts.append((review.uid(number), 'mission', mission_path(case_id), encode(document), [model_artifact_id]))
     path = work/'mission.fcst'
-    path.write_bytes(Package.create(model, artifacts).zip_bytes())
+    path.write_bytes(Package.create(model, artifacts, model_artifact_id=model_artifact_id).zip_bytes())
     package = Package.open(path)
-    require(package.model['source_maps'] == model['source_maps'])
+    require(package.model['source_maps'] == model['source_maps'] and package.manifest['contract_version'] == '4.0.0')
+    native_manifest = execute(worker, ['--contract', 'manifest4'], 'portable-manifest', encode(package.manifest))
+    require(native_manifest.returncode == 0 and json.loads(native_manifest.stdout)['status'] == 'passed')
+    saved_mission = read_case_mission(package.manifest, package.model, CASE, package.files.__getitem__)
     flag, flight_request = review.request(package.model, review.DEFAULT_SETTINGS, CASE,
-                                          read_mesh=package.files.__getitem__)
-    require(flag == '--environment-transient')
+                                          read_mesh=package.files.__getitem__, mission=saved_mission)
+    require(flag == '--environment-transient' and flight_request['mission'] == mission)
     hot = run(flight_request, 'portable-flight')
     cli = execute(sys.executable, ['-c', 'import sys; sys.path.insert(0, "python"); '
                                   'from fcst_cli.__main__ import main; sys.exit(main())',
@@ -375,8 +384,16 @@ def check_portable_missions(execute, worker, work, run):
     require(hot['samples'][-1]['duty_cycles'][control_id] == 1 and not chamber['samples'][-1]['duty_cycles'])
     require(hot['environment_dependency_sha256'] != chamber['environment_dependency_sha256']
             and all(r['solar_W'] == 0 and not r['eclipsed'] for r in chamber['loading_history']))
-    flight_request['mission'] = dict(flight_request['mission'], maximum_interval_s=1)
-    require(run(flight_request, 'portable-reject-substituted-mission', False).get('code') == 'environment_case')
+    # Put valid chamber bytes under the flight path while keeping the original
+    # manifest. Reopening must fail before native work is dispatched.
+    substituted = dict(package.files)
+    substituted[mission_path(CASE)] = substituted[mission_path(chamber_id)]
+    try:
+        Package(package.manifest, substituted)
+    except ContractError as error:
+        require(error.diagnostic.code == 'artifact')
+    else:
+        require(False)
 
 
 def check(subject, native, worker, output):

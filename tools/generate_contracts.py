@@ -110,8 +110,7 @@ def build():
     }, ("orbit", "albedo", "body_exitance_W_m2", "joints", "case_optics"))
     entity("case", {"mode": enum("steady", "transient"), "start": q, "end": q,
                     "environment_id": uuid, "load_ids": arr(uuid, uniqueItems=True), "control_ids": arr(uuid, uniqueItems=True),
-                    "overlays": arr(obj({"entity_id": uuid, "field": enum("temperature", "power", "conductance"), "value": q})),
-                    "mission": mission}, ("mission",))
+                    "overlays": arr(obj({"entity_id": uuid, "field": enum("temperature", "power", "conductance"), "value": q}))})
     entity("control", {"sensor_node_id": uuid, "load_id": uuid, "on_below": q, "off_above": q})
     ast = {"oneOf": [obj({"op": {"const": "literal"}, "quantity": q}),
                      obj({"op": {"const": "symbol"}, "expression_id": uuid}),
@@ -218,6 +217,15 @@ def build():
     m3=schemas['manifest3'];m3['$id']='urn:fcst:contract:manifest:3.0.0'
     for key in ('contract_version','minimum_reader'):m3['properties'][key]={'const':'3.0.0'}
     m3['properties']['artifacts']['items']['properties']['role']['enum'].append('conduction_input')
+    schemas['manifest4'] = deepcopy(m3)
+    m4 = schemas['manifest4']
+    m4['$id'] = 'urn:fcst:contract:manifest:4.0.0'
+    for key in ('contract_version', 'minimum_reader'):
+        m4['properties'][key] = {'const': '4.0.0'}
+    m4['properties']['artifacts']['items']['properties']['role']['enum'].append('mission')
+    schemas['mission'] = {'$schema': 'https://json-schema.org/draft/2020-12/schema',
+                          '$id': 'urn:fcst:contract:mission:1.0.0',
+                          **obj({'contract_version': version, 'project_id': uuid, 'case_id': uuid, 'mission': mission})}
     return {"version": "1.0.0", "units": units, "si": si, "dimensions": dims,
             "schemas": schemas, "hdf5": hdf, "operations": list(args), "entity_kinds": list(entities)}
 
@@ -233,7 +241,7 @@ def outputs():
           'namespace fcst { inline constexpr std::string_view contract_bundle_parts[] = {\n' +
           ',\n'.join('R"FCST(' + chunk + ')FCST"' for chunk in chunks) + '\n}; }\n')
     for name, schema in bundle["schemas"].items():
-        filename={'manifest2':'manifest-v2','manifest3':'manifest-v3','spatial':'spatial-v2'}.get(name,name+'-v1')
+        filename={'manifest2':'manifest-v2','manifest3':'manifest-v3','manifest4':'manifest-v4','spatial':'spatial-v2'}.get(name,name+'-v1')
         yield "spec/schemas/" + filename + ".schema.json", json.dumps(schema, indent=2) + "\n"
     yield "spec/contracts/hdf5-v1.json", json.dumps(bundle["hdf5"], indent=2) + "\n"
     from thermal_schema import schema as thermal_schema

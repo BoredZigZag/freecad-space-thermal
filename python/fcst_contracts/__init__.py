@@ -284,11 +284,7 @@ def check_model(model):
         if record["id"] in ids or record["id"] == model["project_id"]:
             fail("duplicate_id")
         ids.add(record["id"])
-    radiation_by_environment = {}
-    for item in model["entities"]:
-        entities[item["id"]] = item
-        if item["kind"] == "radiation":
-            radiation_by_environment.setdefault(item["environment_id"], []).append(item)
+    entities = {item["id"]: item for item in model["entities"]}
     def target(key, kinds):
         if key not in entities or entities[key]["kind"] not in kinds.split():
             fail("reference")
@@ -359,21 +355,6 @@ def check_model(model):
             if kind == "case":
                 if e["start"]["value"] > e["end"]["value"]:
                     fail("range")
-                if "mission" in e:
-                    groups = radiation_by_environment.get(e["environment_id"], [])
-                    if (e["mode"] != "transient" or target(e["environment_id"], "environment")["time_scale"] != "TAI"
-                            or len(groups) != 1 or groups[0]["method"] != "diffuse"):
-                        fail("reference")
-                    active = set(groups[0]["facet_ids"]) - set(groups[0]["excluded_facet_ids"])
-                    mission = e["mission"]
-                    moving = [key for joint in mission.get("joints", []) for key in joint["facets"]]
-                    optical = [item["facet_id"] for item in mission.get("case_optics", [])]
-                    joint_ids = [joint["id"] for joint in mission.get("joints", [])]
-                    for keys in (moving, optical, joint_ids):
-                        if len(set(keys)) != len(keys):
-                            fail("duplicate_id")
-                    if not active or not set(moving + optical) <= active:
-                        fail("reference")
                 for overlay in e["overlays"]:
                     o = target(overlay["entity_id"], "node load conductor")
                     field = overlay["field"]
@@ -427,7 +408,8 @@ def read(kind, document):
     value = deepcopy(document)
     if not isinstance(value, dict):
         fail("schema")
-    expected_version = "3.0.0" if kind=='manifest3' else "2.0.0" if kind in {"spatial", "manifest2"} else VERSION
+    expected_version = {"manifest4": "4.0.0", "manifest3": "3.0.0", "manifest2": "2.0.0",
+                        "spatial": "2.0.0"}.get(kind, VERSION)
     if value.get("contract_version") != expected_version or "minimum_reader" in value and value["minimum_reader"] != expected_version:
         fail("version")
     if kind == "operation" and value.get("operation") not in BUNDLE["operations"]:
@@ -459,7 +441,7 @@ def read(kind, document):
     if kind == "spatial":
         from .spatial import check
         check(value)
-    if kind in {"manifest", "manifest2", "manifest3"}:
+    if kind in {"manifest", "manifest2", "manifest3", "manifest4"}:
         records = value["artifacts"]
         by_id = {r["id"]: r for r in records}
         if len(by_id) != len(records) or len({r["artifact"]["path"].lower() for r in records}) != len(records):

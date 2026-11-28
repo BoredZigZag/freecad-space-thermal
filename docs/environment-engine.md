@@ -6,12 +6,17 @@ Supply the schema-version-1 facet, sampling and thermal input records used by
 `transient` settings used by `--thermal-transient`. The selected model environment
 supplies the solar flux, background temperature, TAI epoch label and time origin.
 
-A portable `.fcst` project can store the same mission object on a transient
-`case`. Run it with `fcst solve-case mission.fcst --case <case-id> --worker <worker>`.
-The case selects its TAI environment and that environment's diffuse radiation
-configuration. The native worker checks that the submitted mission matches the
-saved case. A legacy case with zero solar flux can use the static background
-profile by omitting `mission`.
+A portable `.fcst` project stores a mission as a `mission` artifact in
+`missions/<case-id>.json`. Use the [mission schema](../spec/schemas/mission-v1.schema.json)
+for its `contract_version`, `project_id`, `case_id` and `mission` fields. The
+version-4 package manifest records its byte hash and dependency on the model
+artifact. The selected transient case supplies the TAI environment and diffuse
+radiation configuration. Run it with
+`fcst solve-case mission.fcst --case <case-id> --worker <worker>`. A case with
+zero solar flux can use the static background profile by omitting the artifact.
+When building a package through `Package.create`, provide the mission bytes as
+an artifact with role `mission` and the model artifact ID as its dependency.
+The package writer computes the byte hash and selects manifest version 4.
 
 A stationary deep-space or chamber mission can use this record.
 

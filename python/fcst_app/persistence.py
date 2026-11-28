@@ -67,7 +67,8 @@ def semantic_hash(model):
 
 
 def read_manifest(value):
-    return read('manifest3' if value.get('contract_version')=='3.0.0' else "manifest2" if value.get("contract_version") == "2.0.0" else "manifest", value)
+    kind = {'4.0.0': 'manifest4', '3.0.0': 'manifest3', '2.0.0': 'manifest2'}.get(value.get('contract_version'), 'manifest')
+    return read(kind, value)
 
 
 def safe_path(name):
@@ -145,8 +146,11 @@ class Package:
         for record in records:
             name = record["artifact"]["path"]
             suffix = Path(name).suffix.lower()
+            if record['role'] == 'mission':
+                from .radiation_case import validate_mission_artifact
+                validate_mission_artifact(self.files[name], self.model, record, self.manifest['model_artifact_id'])
             if record['role']=='conduction_input':
-                if self.manifest['contract_version']!='3.0.0' or suffix!='.fcstc':reject('storage_format')
+                if self.manifest['contract_version'] not in {'3.0.0', '4.0.0'} or suffix!='.fcstc':reject('storage_format')
                 from .discretization import read_input,assignment_payload,decode_assignment
                 try:assignment=decode_assignment(self.files[name])
                 except (ValueError,TypeError,KeyError):reject('storage_format')
@@ -236,7 +240,9 @@ class Package:
             files[name] = bytes(data)
             records.append({"id": artifact_id, "role": role, "dependencies": list(dependencies),
                             "artifact": {"path": name, "sha256": sha256(data).hexdigest(), "byte_length": len(data)}})
-        version = '3.0.0' if any(r['role']=='conduction_input' for r in records) else "2.0.0" if any(r["role"] == "spatial" for r in records) else VERSION
+        roles = {r['role'] for r in records}
+        version = next((v for role, v in [('mission', '4.0.0'), ('conduction_input', '3.0.0'), ('spatial', '2.0.0')]
+                        if role in roles), VERSION)
         return cls({"contract_version": version, "minimum_reader": version, "project_id": model["project_id"],
                     "revision": model["revision"], "model_artifact_id": model_id, "artifacts": records}, files)
 
