@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 from fcst_tools.privacy import POLICY_PATH, Scanner
-from fcst_tools.delivery import package_from_title
+from fcst_tools.delivery import package_from_title, target_release
 
 
 def cleared(payload):
@@ -50,6 +50,7 @@ def main():
     repository = config["repository"]
     prefix = "repos/" + repository
     if args.phase == "backlog":
+        scope = json.loads((ROOT / "plans/delivery-scope.json").read_text())
         if api(prefix, optional=True) is None:
             api("user/repos", {"name": repository.split("/")[1], "private": False, "has_issues": True,
                                "has_projects": True, "has_wiki": False,
@@ -76,12 +77,16 @@ def main():
             title = package["id"] + ": " + package["title"]
             ids = [row["requirement_id"] for row in trace if row["primary_work_package"] == package["id"]]
             body = (f'Work package: {package["id"]}\n\n'
+                    f'Target release is **{target_release(scope, package["id"])}**. '
+                    'Q0, P0, Q1 and Q2 are technical checkpoints.\n\n'
                     f'First delivery: {package["first_delivery"]}; completion gate: {package["completion_gate"]}.\n\n'
                     f'Prerequisites: {package["depends_on"] or "None"}.\n\n'
                     f'Deliverables: {package["outputs"]}.\n\n'
                     f'Requirements: {", ".join(ids) or "Integration of supporting requirements"}.\n\n'
                     f'Automated suites: {package["automated_suites"]}.\n\n'
-                    'Delivery scope: Windows-only Q0/P0/Q1/Q2. Optional macOS/Linux configurations are uncommitted stretch goals outside all work packages and release gates.\n\n'
+                    'The current Windows development line is v0.x. The completed native scope is v1. '
+                    'Thermal software interoperability is scheduled for v2 because required engineering '
+                    'source documents are unavailable. Optional macOS and Linux configurations are stretch goals.\n\n'
                     f'Inventory policy: {"WP-01 is complete on the acquired 55-file six-case baseline; remaining qualification gaps are owned by later packages" if package["id"] == "WP-01" else "Use the completed WP-01 inventory and retain the affected qualification/publication gates"}.\n\n'
                     'Acceptance and detailed tasks: plans/FCST-Implementation-Plan.md. '
                     'Completion requires executable evidence; no manual acceptance execution is assigned to the user. '

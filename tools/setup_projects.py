@@ -6,9 +6,11 @@ import json
 import subprocess
 from pathlib import Path
 from setup_github import api, cleared
+from fcst_tools.delivery import target_release
 
 ROOT = Path(__file__).resolve().parents[1]
 STATES = ["Planned", "Ready", "In progress", "Blocked", "Complete"]
+DESCRIPTION = "FCST work packages and technical gates. v0.x development, v1 native release, v2 thermal software interoperability."
 
 
 def gh(*args, json_output=True):
@@ -43,6 +45,7 @@ def main():
     number = str(project["number"])
     project_id = project["id"]
     backlog = json.loads((ROOT / "plans/github-backlog.json").read_text())
+    scope = json.loads((ROOT / "plans/delivery-scope.json").read_text())
     packages = read_rows(ROOT / "plans/work-packages.csv")
     trace = read_rows(ROOT / "plans/requirement-traceability.csv")
     links = {row["work_package"]: row for row in backlog["issues"]}
@@ -52,7 +55,7 @@ def main():
         raise RuntimeError("Project contains unrelated items; refusing to repurpose it")
     gh("project", "link", number, "--owner", owner, "--repo", config["repository"], json_output=False)
     gh("project", "edit", number, "--owner", owner, "--visibility", "PUBLIC", "--description",
-       "FCST work packages, requirement links, prerequisites and evidence-backed delivery states", "--format", "json")
+       DESCRIPTION, "--format", "json")
     fields = gh("project", "field-list", number, "--owner", owner, "--format", "json")["fields"]
     status_field = next(field for field in fields if field["name"] == "Status")
     if [option["name"] for option in status_field["options"]] != STATES:
@@ -69,6 +72,7 @@ def main():
         graphql("mutation($input:UpdateProjectV2FieldInput!){ updateProjectV2Field(input:$input){ projectV2Field { ... on ProjectV2SingleSelectField { id } } } }",
                 input={"fieldId": status_field["id"], "singleSelectOptions": options})
     for name, data_type, options in [("Work package", "TEXT", None), ("Completion gate", "SINGLE_SELECT", "Q0,P0,Q1,Q2"),
+                                     ("Target release", "SINGLE_SELECT", "v1,v2"),
                                      ("Prerequisites", "TEXT", None), ("Requirements", "TEXT", None), ("Owner role", "TEXT", None)]:
         if not any(field["name"] == name for field in fields):
             args = ["project", "field-create", number, "--owner", owner, "--name", name,
@@ -97,9 +101,11 @@ def main():
         # Native contract work can proceed while the vendor inventory is blocked.
         if package_id in {"WP-01", "WP-03"} and state == "Planned":
             state = "Ready"
+        release = target_release(scope, package_id)
         values = {"Status": {"singleSelectOptionId": next(option["id"] for option in fields["Status"]["options"] if option["name"] == state)},
                   "Work package": {"text": package_id},
                   "Completion gate": {"singleSelectOptionId": next(option["id"] for option in fields["Completion gate"]["options"] if option["name"] == package["completion_gate"])},
+                  "Target release": {"singleSelectOptionId": next(option["id"] for option in fields["Target release"]["options"] if option["name"] == release)},
                   "Prerequisites": {"text": package["depends_on"] or "None"},
                   "Requirements": {"text": ";".join(row["requirement_id"] for row in trace if row["primary_work_package"] == package_id) or "Integration of supporting requirements"},
                   "Owner role": {"text": package["lead"]}}
@@ -112,7 +118,8 @@ def main():
             mutations.append(key + ":updateProjectV2ItemFieldValue(input:$" + key + "){projectV2Item{id}}")
             variables[key] = {"projectId": project_id, "itemId": item["id"], "fieldId": fields[name]["id"], "value": value}
         graphql("mutation(" + ",".join(declarations) + "){" + " ".join(mutations) + "}", **variables)
-        records.append({"work_package": package_id, "issue": issue_url, "item_id": item["id"], "state": state})
+        records.append({"work_package": package_id, "issue": issue_url, "item_id": item["id"],
+                        "state": state, "target_release": release})
         print(package_id + ": " + state, flush=True)
     record = {"repository": config["repository"], "owner": owner, "project_id": project_id,
               "number": project["number"], "title": project["title"], "url": project["url"],

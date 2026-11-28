@@ -6,11 +6,12 @@
 |---|---|
 | Document | FCST-SYS-SPEC-001 |
 | Revision | 0.9 — independent TD and ESATAN import and export |
+| Release-scope amendment | 2026-11-27 — v0.x development, v1 native completion, v2 interoperability |
 | Prepared | 2026-10-27 |
 | Product name | FreeCAD Space Thermal (FCST), working name |
 | User decisions | Open-source add-on and independently maintained C++ engine; Python integration; existing solvers may be starting points; local-first; equal priority for Thermal Desktop and ESATAN-TMS; NASA/ESA refers to existing-tool file compatibility |
 | Intended audience | Thermal analysts, implementation engineers, and software testers |
-| Current evidence | Design and implemented foundation/SINDA subset; independent DWG thermal codecs and production solver unimplemented |
+| Current evidence | v0.x native and adapter development with automated evidence for implemented subsets |
 | Change owner | Product owner for scope; thermal and software leads for numerical and compatibility test criteria |
 
 **Decision:** implement an independently maintained **C++ numerical engine**, with **Python for FreeCAD integration, automation/MCP, tests, and reference prototypes**. A versioned application/model/job interface connects these components and permits other front ends. Rust remains an optional implementation experiment; it is not a required production dependency. The default implementation is C++ unless the Q0 comparison checkpoint produces evidence for an explicitly accepted change.
@@ -25,7 +26,7 @@
 
 Naming: **FLUINT** is the fluid-network solver paired with SINDA and used with Thermal Desktop; **Ansys Fluent** is a separate CFD product. This specification uses SINDA/FLUINT for the primary suite and retains Fluent as an optional CFD/conjugate-heat-transfer comparator where useful, without adding universal Fluent-file compatibility or a full CFD solver requirement. [S13, S23, S24]
 
-The end-state requirement is backward compatibility with existing Thermal Desktop and ESA-tool models. That requirement is made testable through a controlled legacy-model inventory, explicit source-version profiles, semantic coverage reports, and execution/re-export qualification. A universal claim covering every historical proprietary file cannot be made before those profiles and fixtures are tested. Unsupported required models block the corresponding release; they are not silently removed from scope.
+The v2 target includes backward compatibility with existing Thermal Desktop and ESA-tool models. Qualification requires a controlled legacy-model inventory, explicit source-version profiles, semantic coverage reports, and execution/re-export evidence. Unsupported required models block the affected v2 qualification.
 
 **Scope clarification:** NASA/ESA refers to the thermal-analysis tools and existing files used by their teams. The requirement is to open, preserve, edit, run, and exchange those models as specified below. Agency certification, standards compliance, software-assurance classifications, clause-by-clause audits, and formal authority sign-offs are outside this product scope. Numerical checks and file round-trip tests remain ordinary engineering acceptance criteria because they establish whether conversion and solving work correctly.
 
@@ -48,8 +49,8 @@ The product shall support spacecraft and instrument thermal model creation, cond
 Primary workflows:
 
 1. Build a new thermal model from scratch as a geometry-free network or from FreeCAD geometry/imported mechanical CAD; save, reopen, edit and solve its own `.fcst` project using the owned engine without vendor thermal software.
-2. Open an existing Thermal Desktop or ESATAN-TMS model package, inspect conversion fidelity, edit supported entities, solve, compare, and return a validated derivative to the source ecosystem.
-3. Exchange GMM, TMM, and applicable results with European thermal tools using the required STEP-TAS datasets and vendor-specific adapters.
+2. In v2, open an existing Thermal Desktop or ESATAN-TMS model package, inspect conversion fidelity, edit supported entities, solve, compare, and return a validated derivative to the source ecosystem.
+3. In v2, exchange GMM, TMM, and applicable results with European thermal tools using the required STEP-TAS datasets and vendor-specific adapters.
 4. Predict and correlate thermal-balance/TVAC tests, retaining the original and correlated baselines.
 5. Use an AI assistant for authorized model editing, review, setup, execution, and reporting through typed operations.
 6. Run the same project locally in the GUI, in batch, or in an automated verification campaign without an AI provider.
@@ -78,7 +79,7 @@ STEP-TAS documentation, including ECSS-E-ST-31-04C, is used solely to understand
 
 ### 3.1 Product acceptance requirements
 
-Tables throughout this document form the product requirement register. **Shall** is mandatory for the indicated release gate; **should** is a recommendation; **may** is optional. `P` means a product design requirement. References identify technical sources. Verification: `T` test, `A` analysis, `I` inspection, `D` demonstration.
+Tables throughout this document form the product requirement register. **Shall** is mandatory at the indicated technical gate for the product release specified in §12. **Should** is a recommendation and **may** is optional. `P` means a product design requirement. References identify technical sources. Verification codes are `T` for test, `A` for analysis, `I` for inspection, and `D` for demonstration.
 
 | ID | Requirement | Verification / acceptance | Basis | Gate |
 |---|---|---|---|---|
@@ -267,6 +268,8 @@ For Q1 and Q2 native acceptance, the thermal solve runs on the owned engine. The
 Revision 0.9 extends vendor-free file conversion to original ESATAN projects, companions, decks and results. WP-09 remains planned; vendor APIs and pre-exported interchange files cannot substitute for direct source-format implementation.
 
 ## 7. Backward compatibility contract
+
+All thermal-software compatibility profiles and their qualification in this section are assigned to v2. General-purpose FreeCAD geometry and mechanical CAD workflows are part of the native scope.
 
 ### 7.1 Meaning and limits
 
@@ -490,18 +493,18 @@ Performance is a product target, separate from physical correctness. At Q0, free
 
 ## 12. Delivery and release gates
 
-| Gate | Required outcome | Release claim allowed |
+The incomplete product remains on the **v0.x** development line. **v1** requires completion and unattended qualification of the current native Windows scope, including its planned advanced native physics and logic. The product advances to **v2** for interoperability with Thermal Desktop/SINDA, ESATAN-TMS, and the other thermal simulation tools already in scope. Engineering source documents needed for interoperability qualification are unavailable. Q0, P0, Q1 and Q2 identify technical checkpoints and retain their existing requirement and evidence IDs.
+
+| Checkpoint | Native evidence for v1 | Interoperability evidence for v2 |
 |---|---|---|
-| Q0 — requirements/interface baseline | Acquired inventory with explicit assigned version/rights/dependency/schema gaps, native canonical/interface contracts, Windows numerical criteria/hardware/prototype decision and test plan; vendor runtime/schema closure remains with affected compatibility gates | Design/prototype only |
-| P0 — vertical slice | Build and save a two-node/two-surface model, conduction/radiation/transient result, visualization, typed API and MCP, and one synthetic fixture from each ecosystem | Experimental demonstration; no qualification or general compatibility claim |
-| Q1 — tested owned core, equal ecosystem gate | All Q1 requirements; core physics and required imported core cases solved by the owned C++ engine; both source profiles, necessary STEP-TAS datasets, changed-model round trips, cross-tool exchange, and offline installation | Precisely named/versioned tested profiles and owned core capabilities; reference backends remain separately labeled |
-| Q2 — backward compatibility and owned-solver closure | Every required legacy profile, custom logic, advanced physics, ESA-tool path, editing/re-export need, and fixture passes; required thermal solving uses the owned engine; all Q2 requirements closed | Full backward compatibility and independent solving within the published inventory; proprietary source-file conversion may still use declared vendor tools |
+| Q0 — requirements and interfaces | Native contracts, Windows numerical criteria, hardware, prototype decision, and test plan | Acquired inventory, assigned gaps for versions, rights, dependencies and schemas, and closure of gaps for affected profiles before qualification |
+| P0 — vertical slice | Create, save, reopen and solve a two-node/two-surface model. Demonstrate conduction, radiation, transient results, visualization, typed API and MCP | One synthetic fixture from each ecosystem through the limited adapter paths as early development evidence |
+| Q1 — owned core and paired profiles | Qualify core owned-engine physics, native model workflows, performance, and clean offline installation | Required imported core cases solved by the owned engine, both source profiles, necessary STEP-TAS datasets, controlled-edit round trips, and both cross-tool directions |
+| Q2 — advanced physics and legacy closure | Qualify the planned advanced native physics and logic with independent correctness evidence | Pass remaining mandatory legacy profiles, source-logic translation, corpus-specific comparisons, and required editing and re-export on the declared tools |
 
-Thermal Desktop and ESATAN-TMS have equal staffing, fixture acquisition, and acceptance priority. No delivery shall call itself backward compatible with both if only one passes. SYSTEMA/THERMICA and older ESA tooling are required Q2 profile families; inventory may promote them to Q1 when necessary for the first user's delivery.
+Thermal Desktop and ESATAN-TMS have equal staffing, fixture acquisition, and acceptance priority within v2. Joint compatibility claims require both profiles to pass. SYSTEMA/THERMICA and older ESA tooling are required Q2 profile families within v2. Inventory findings may require them earlier in v2 qualification.
 
-Required engineering deliverables: product requirements; canonical entity/result schema and API documentation; adapter documentation and compatibility matrix; physics/method descriptions; numerical and file-compatibility tests/results; source fixtures/manifests; conversion reports; security tests; source/build/dependency/license bundle; analyst/developer/MCP documentation; migration, backup, rollback, and example projects.
-
-Suggested implementation order: freeze canonical identities/units and paired source fixtures; evaluate reusable solver work without coupling the product model to it; prove source→canonical→source for both ecosystems; implement/test the owned conduction/transient engine and CPU radiation; add environments/controls/correlation; scale and automate; close remaining native legacy/advanced cases. Calendar estimates require the fixture inventory and staffing plan and are deliberately not invented here.
+v1 deliverables include requirements, canonical schemas, API and method documentation, native numerical and security evidence, source/build/dependency/license bundles, analyst/developer/MCP documentation, and migration, backup, rollback and example projects. v2 additionally requires adapter documentation, a tested compatibility matrix, interchange fixtures and manifests, conversion reports, and file-compatibility evidence. Both releases require candidate-bound automated acceptance and publication privacy clearance.
 
 ## 13. Open decisions and acquisition dependencies
 

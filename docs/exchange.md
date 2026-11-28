@@ -10,6 +10,7 @@ The registered executable reference profile is **fcst-network/1**. This public
 synthetic grammar exercises the SDK; it does not claim SINDA, Thermal Desktop,
 ESATAN or STEP-TAS language compatibility. Those version-specific implementations
 and source-tool reopen/run comparisons remain with WP-08, WP-09 and WP-10.
+Those packages qualify the vendor profiles and STEP-TAS exchange for **v2**.
 `Registry` receives trusted adapter objects from application code. It never imports
 plugins, scripts, commands or policy from a source project or filename extension.
 

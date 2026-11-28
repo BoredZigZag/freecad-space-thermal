@@ -1,6 +1,13 @@
 # FreeCAD Space Thermal — specification package
 
-Design baseline **0.9**, amended **29 October 2026**.
+Design baseline **0.9**, with a release-scope amendment dated **27 November 2026**.
+
+FCST is currently in the **v0.x** development line. **v1** is the first completed
+release of the current native Windows scope. Interoperability with Thermal
+Desktop/SINDA, ESATAN-TMS, and other thermal simulation software is scheduled
+for **v2** because the engineering source documents needed to qualify it are
+unavailable. The [implementation plan](plans/FCST-Implementation-Plan.md#5-release-checklists-executed-by-the-gate-driver)
+defines the evidence required for each release.
 
 The [native spatial profile](docs/discretization.md) adds FD rods, first-order
 shell/solid conduction, material enthalpy/tensors, explicit loads/contacts and
@@ -11,7 +18,7 @@ the remaining production CAD mesher and imported Q1 qualification obligations.
 
 Project development uses [the GitHub source repository](https://github.com/BoredZigZag/freecad-space-thermal), Issues/Projects, pull requests, GitHub Actions automated testing, and Releases. The [implementation plan](plans/FCST-Implementation-Plan.md) specifies required checks, scoped vendor runners, and evidence-backed release gates. The WP-02 skeleton provides C++20/CMake worker and Python package foundations with [shared local/CI verification commands](docs/development.md); solving and compatibility remain unimplemented. [WP-02 evidence](plans/evidence/WP-02.json) records completed foundation acceptance and the separate remaining Q0/product obligations. Active host and dependency packaging probes run on Windows; no production numerical backend is adopted.
 
-Track the 22 work packages in the [FCST implementation project](https://github.com/users/BoredZigZag/projects/1), including the inserted WP-05.5, with requirement IDs, delivery gates, prerequisites and evidence-backed states.
+Track the 22 work packages in the [FCST implementation project](https://github.com/users/BoredZigZag/projects/1). The **Target release** field identifies the first product release that requires a package. **Completion gate** records the technical checkpoint. The project also records prerequisites, requirement IDs and evidence-backed states.
 
 [FreeCAD FEM reuse](docs/decisions/0003-freecad-fem-reuse.md) is a required assessment before overlapping WP-13 host and WP-16 mesh work. Evaluate existing mesh, selection/material/load and result tools before replacing them; retain the standalone owned engine. FEM is currently a design reference, with no implemented FEM integration or adopted FEM source. Component selection, pinned API/license checks and unattended host/mesh acceptance remain planned.
 
@@ -25,7 +32,7 @@ WP-08/WP-09/WP-10. Both Windows CI configurations run its frozen unattended case
 [Completion evidence](plans/evidence/WP-07.json) records the two 165-check Windows
 drivers, 33 exchange acceptance cases, security regressions and foundation handoff.
 
-WP-08 requires [fully independent TD/SINDA import and export](docs/decisions/0004-independent-thermal-exchange.md).
+WP-08 is part of v2 and requires [fully independent TD/SINDA import and export](docs/decisions/0004-independent-thermal-exchange.md).
 The direct SINDA subset imports, edits and writes new models without vendor installations.
 A corrected independent native DWG backend supports container inspection, exact
 source-tree retention, typed node/conductor/heat-load payloads, direct property
@@ -38,7 +45,7 @@ additional formats and full-model DWG qualification remain open. The existing Op
 harness. Q1 remains unqualified; public CI exercises
 runtime-independent contracts without proprietary software or data.
 
-WP-09 now provides [independent ESATAN constant D-deck conversion](docs/esatan.md),
+WP-09 is part of v2 and now provides [independent ESATAN constant D-deck conversion](docs/esatan.md),
 byte-preserving native syntax inventories, bound TMD temperature/power queries and
 streaming XML inspection without a vendor installation, API, license or service.
 The full LFS XML was recovered from the original GitLab repository with exact hash
@@ -56,9 +63,9 @@ source runtime and owned-engine/paired qualification remain open. WP-09 is in pr
 
 **Publication privacy:** remove private/personal information before any online code, documentation, issue/PR/comment/post, log, image or release upload. The [standing repository instructions](AGENTS.md) and plan requirement TST-021 require checks before publication, sanitized outputs and separate preservation of authorized engineering originals.
 
-This package specifies an open-source, local-first FreeCAD add-on and independently maintained **C++ numerical engine**, with **Python FreeCAD, API/MCP, automation, and test interfaces**, for spacecraft thermal engineering. Thermal Desktop/SINDA and ESATAN-TMS interoperability have equal priority. NASA/ESA compatibility means compatibility with thermal model files and workflows used by their teams. The specification covers file exchange, preserved model semantics, numerical behavior, and API/MCP automation.
+This package specifies an open-source, local-first FreeCAD add-on and independently maintained **C++ numerical engine**, with **Python FreeCAD, API/MCP, automation, and test interfaces**, for spacecraft thermal engineering. Thermal Desktop/SINDA and ESATAN-TMS interoperability have equal priority in v2. NASA/ESA compatibility means compatibility with thermal model files and workflows used by their teams. The specification covers file exchange, preserved model semantics, numerical behavior, and API/MCP automation.
 
-**Independent native workflow:** users must be able to build a new thermal model, save it as an FCST `.fcst` project, reopen, edit and solve it with the owned engine, and inspect its results without Thermal Desktop, SINDA/FLUINT, ESATAN, their licenses or an imported vendor file. Backward compatibility is an additional required capability provided by adapters. The legacy-model inventory scopes compatibility verification; it does not define or block development of native model creation and solving.
+**Independent native workflow:** users must be able to build a new thermal model, save it as an FCST `.fcst` project, reopen, edit and solve it with the owned engine, and inspect its results without Thermal Desktop, SINDA/FLUINT, ESATAN, their licenses or an imported vendor file. The legacy-model inventory scopes v2 adapter qualification.
 
 The accepted baseline is **C++20 with CMake**, with exact compiler and dependency builds frozen at Q0. Python owns the host-facing interfaces and test orchestration; the numerical engine remains usable without FreeCAD. WP-04 tests SUNDIALS in the separate numerical checkpoint. PETSc, Embree, Open CASCADE and pybind11 remain documented candidates; a production stack requires its own qualification. Their selection and supported combinations require implementation evidence. A Q0 prototype gate compares numerical correctness, sparse scaling, deployment, and engineering effort at equivalent accuracy; language comparisons use the same numerical backend where applicable. Rust is an optional comparison prototype, not a production dependency or a parallel implementation requirement. Changing the accepted C++ baseline requires an explicit decision supported by that evidence.
 

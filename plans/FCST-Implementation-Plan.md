@@ -1,10 +1,10 @@
 # FreeCAD Space Thermal: implementation and build plan
 
-Plan revision 1.7, 29 October 2026. Based on specification FCST-SYS-SPEC-001 revision 0.9 and the user's additional requirements for unattended testing, GitHub project delivery, removal of private/personal information before anything is put online, explicit independence of native model creation, files and solving, assessment of FreeCAD FEM reuse, and an inserted WP-05.5 foundation reconciliation package.
+Plan revision 1.8, 27 November 2026. Based on specification FCST-SYS-SPEC-001 revision 0.9 as amended. This revision assigns the completed native scope to v1 and thermal software interoperability to v2.
 
 This is an implementation plan, not evidence of implemented physics or file compatibility. The workspace contains the specification, 121 registered requirements, 12 proposed compatibility profiles, three draft JSON schemas and two schema examples. WP-02 now adds a native worker/application skeleton, local/CI verification and publication-privacy preflight; it implements no thermal solving or file compatibility. [WP-02 evidence](evidence/WP-02.json) records completed foundation acceptance and remaining Q0/product obligations. The specification remains the design baseline; the automated-test requirements below add delivery obligations without relaxing its acceptance criteria.
 
-The [delivery scope](delivery-scope.json) is Windows-only for Q0/P0/Q1/Q2. WP-01 is Complete at the acquired baseline; licensed/source/schema qualification remains with later packages. macOS and Linux configurations are optional stretch goals outside all work packages, committed milestones and release gates; see [stretch goals](stretch-goals.md). FCST remains a FreeCAD add-on/workbench with a standalone engine, not a modified FreeCAD build.
+The [delivery scope](delivery-scope.json) is Windows-only for Q0/P0/Q1/Q2. The incomplete product is **v0.x**. **v1** requires completion of the current native Windows scope. **v2** carries Thermal Desktop/SINDA, ESATAN-TMS, STEP-TAS thermal exchange and other in-scope thermal software interoperability because required engineering source documents are unavailable. WP-01 is complete at the acquired baseline and its outstanding qualification gaps apply to v2. macOS and Linux are optional [stretch goals](stretch-goals.md). FCST is a FreeCAD add-on/workbench with a standalone engine.
 
 Read this plan alongside the [specification](../spec/FreeCAD-Space-Thermal-Specification.md), [requirements](../spec/requirements.csv), [compatibility profiles](../spec/compatibility-profiles.csv), and [source register](../spec/sources.md). Execution records are provided by the [work-package register](work-packages.csv), [automated-test requirements](automated-test-requirements.csv), [test-suite register](test-suites.csv), [compatibility test plan](compatibility-test-plan.csv), and [requirement traceability](requirement-traceability.csv).
 
@@ -16,7 +16,7 @@ The native workflow is independently required: create a model from an empty proj
 
 Executable acceptance for ARC-001/ARC-003/ARC-009 and TST-004/TST-009/TST-014: in an isolated offline installation with vendor software and adapters absent, automatically create a geometry-free two-node model, save `.fcst`, close/reopen it, verify its canonical model hash, edit a load, solve steady and transient cases with `fcst_native`, and compare temperatures, heat flows and energy balance with independent analytic oracles. Verify result persistence and reopen. SUITE-INSTALL, SUITE-PERSIST and SUITE-PHYSICS own this scenario; a vendor-backed run cannot satisfy it. This is planned acceptance, not a completed test.
 
-The first demonstration is a saved two-node/two-surface model with conduction, radiation, a transient solve, FreeCAD visualization, API/MCP access, and paired synthetic source fixtures. It is P0, an experimental vertical slice. Q1 is substantially larger: every Q1 requirement, both source ecosystems, required STEP-TAS content, changed-model round trips, bidirectional exchange, correlation, automation, installation, and qualification. Q2 closes the remaining required legacy inventory and advanced native behavior.
+The native P0 demonstration saves a two-node/two-surface model and exercises conduction, radiation, a transient solve, FreeCAD visualization and API/MCP access. v1 requires native Q1 and Q2 evidence, including advanced owned-engine behavior. Paired synthetic source fixtures, Q1 paired source qualification and Q2 legacy inventory closure contribute to v2. Section 5 defines the release criteria.
 
 Testing is part of the product build. Engineers implement fixtures, test drivers, oracles, and runners with each feature. The user is not the test operator. Human review may approve intended physics, licensed fixture access, or proposed tolerances; creating models, launching tools, comparing outputs, collecting evidence, and deciding objective pass/fail run automatically.
 
@@ -214,7 +214,7 @@ Inside FreeCAD, application dispatch runs on the host's owning thread for docume
 ### 2.1 GitHub repository and delivery setup
 
 1. **Establish the repository.** Identify the GitHub owner and intended existing/new repository, visibility and collaborator roles at Q0. Record the canonical URL in project metadata, build manifests and contributor documentation. Retain required restricted fixtures outside a public source repository and publish only material with recorded rights. The repository, Issues/Projects backlog, protections and remote configuration are implemented and checked under WP-02.
-2. **Create the executable backlog.** Represent each work package as a GitHub Issue with linked implementation/test tasks, requirement IDs, prerequisites, owner and Q0/P0/Q1/Q2 milestone. Track them in GitHub Projects with explicit planned, ready, in-progress, blocked and complete states. Link defects to affected profiles/builds, automated reproductions and release disposition. The CSV registers remain version-controlled baselines; issue/project links must identify the same work rather than introduce a competing requirement list.
+2. **Create the executable backlog.** Represent each work package as a GitHub Issue with linked implementation/test tasks, requirement IDs, prerequisites, owner and Q0/P0/Q1/Q2 milestone. In GitHub Projects, track the **Target release**, technical **Completion gate**, and evidence-backed state. The target identifies the first product release that requires the package. The issue and release checklist carry later obligations for shared packages. Link defects to affected profiles/builds, automated reproductions and release disposition. Use the version-controlled scope and CSV registers for the issue and project records.
 3. **Use pull requests for changes.** Each PR links its issue/work package, affected requirement/profile IDs, intended behavior and automated verification. Add real maintainer/team handles to CODEOWNERS after repository ownership is known. Protect the default and release branches against unchecked changes and destructive history updates; configure required checks and appropriate review ownership. Verify the selected repository visibility and account plan support the required protections at Q0. [GitHub ruleset documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)
 4. **Make automated checks decisive.** GitHub Actions runs the same local test drivers and publishes uniquely named checks. A required aggregate check compares collected cases with the expected coverage manifest and fails on missing, failed, blocked, cancelled or unexpectedly skipped required work. Configure checks after their first run establishes their identities. Changes to tests, criteria and workflows are reviewed and tested like numerical changes; the PR author cannot replace failed numerical evidence with a green documentation-only check.
 5. **Separate public and privileged runners.** Public PR checks use GitHub-hosted Windows runners and public synthetic fixtures without vendor credentials. Exact-version vendor, restricted-data and dedicated-performance workflows run from a controlled private validation repository with explicitly scoped runner access and a reviewed candidate SHA/build manifest. Keep private fixture data in authorized runner-local storage; online transfer needs explicit destination-specific permission. Never execute unreviewed PR code in a privileged context. Recreate or reset execution state and verify candidate/artifact hashes before each run; return only approved sanitized verdict summaries and safe evidence references to the source repository. This design follows GitHub's guidance on self-hosted runner access. [Runner access documentation](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/manage-access)
@@ -533,15 +533,16 @@ Each package below specifies concrete tasks and completion evidence. Its registe
 | Stage | Packages | Result |
 |---|---|---|
 | Establish Q0 | WP-01 through WP-04, plus native feasibility probes | Inventory, contracts, reference environment, criteria, automated harness and numerical decision |
-| Build foundations | WP-05 through WP-10 | Durable operations/jobs and paired import/export paths |
+| Build foundations | WP-05 through WP-07 | Durable operations, jobs and shared exchange infrastructure |
 | Reconcile foundation handoff | WP-05.5 after WP-01 through WP-05 | Evidence-backed FEM reuse subset, mesh/field contracts, storage and representative probes before dependent feature acceptance |
 | Build P0 | Minimal WP-11 through WP-14, integrated by WP-15 | Automated end-to-end two-node/two-surface demonstration |
-| Complete Q1 | Finish prior packages plus WP-16 through WP-19 | Qualified owned core, both ecosystems and unattended release evidence |
-| Complete Windows Q2 | WP-20 and WP-21 | Required advanced physics, user logic and all mandatory legacy profiles |
+| Complete native Q1 | Finish applicable native packages plus WP-16 through WP-19 | Qualified owned core and unattended native release evidence |
+| Complete native Q2 for v1 | Native WP-20 scope with WP-19 release evidence | Required advanced native physics and logic |
+| Complete interoperability for v2 | WP-08, WP-09, WP-10, WP-21 and compatibility evidence from shared packages | Qualified paired source profiles, thermal exchange, corpus-specific comparisons and remaining mandatory legacy profiles |
 
 Do acquisition and feasibility work early for both ecosystems. After contracts stabilize, TD and ESATAN adapter implementation may proceed concurrently with core numerical work. This describes engineering staffing, not a request to run implementation agents during this planning task.
 
-The dependency register allows native contract and analytic-prototype slices without WP-01. WP-01 findings must still be reconciled into the complete contracts and explicit compatibility dispositions before Q0 closes; paired source qualification belongs to Q1; adapters retain their inventory dependency. Native create/save/reopen/solve checks run as soon as their components exist, before the full P0 integration demonstration.
+The dependency register allows native contract and analytic-prototype slices without WP-01. The acquired inventory feeds contracts and explicit compatibility dispositions. Source runtime, documentation and schema closure apply to the affected v2 profiles. Native create/save/reopen/solve checks run as soon as their components exist, before the full P0 integration demonstration.
 
 ### Step 1 — WP-01: freeze the acquired inventory and explicit dispositions
 
@@ -1058,9 +1059,10 @@ Integrated two-surface parity remains WP-15, and these receipts do not grant Q1.
 2. Build/save/reopen it through CLI/API, FreeCAD and MCP operation sequences. Use fixed UUIDs or a declared identity map for parity.
 3. Compute a native conduction/radiation transient and compare against the corresponding analytic/reduced-model oracle under predeclared criteria.
 4. Verify FreeCAD contour/history values against result queries, then change one load and prove invalidation/stale-result guards work.
-5. Exercise one public synthetic fixture from each ecosystem through the declared limited adapter paths and inspect fidelity reports. A declared deck subset does not qualify a native vendor project.
-6. Cancel a solve, terminate a worker and reopen the saved project. Check that no partial solution is published as complete.
-7. Produce a single machine-readable P0 report with input/build/criteria hashes and all evidence links.
+5. Cancel a solve, terminate a worker and reopen the saved project. Check that interrupted solves publish only their actual status.
+6. Produce a single machine-readable P0 report with input/build/criteria hashes and all evidence links.
+
+The two public synthetic source fixtures belong to the v2 adapter track. WP-08 and WP-09 each exercise their fixture through the limited adapter path and report conversion fidelity. Full vendor project coverage requires Q1 compatibility evidence.
 
 **Outputs:** repeatable demonstration project and `qualify --gate P0` report. **Completion:** the full scripted demonstration passes on the selected Windows native/host profiles and named MCP client profile. P0 claims remain experimental even when every demo step passes.
 
@@ -1121,22 +1123,22 @@ captures remain required for vendor qualification.
 
 The Windows application CLI runs bounded steady and transient campaigns and generates JSON and HTML reports. The synthetic replay and result-binding case runs in both Foundation thermal stages. Under TST-021, preflight clears the exact outgoing implementation, history, approved metadata and bounded case and timing summaries. Campaign inputs, full outputs, reports and raw worker diagnostics stay local. See [campaign commands](../docs/campaigns.md) and [CI performance](../docs/ci-performance.md).
 
-### Step 19 — WP-19: qualify, scale, package and release Q1
+### Step 19 — WP-19: qualify Q1 and prepare release evidence
 
-1. Run all Q1 suites on frozen configuration profiles and all mandatory fixture/profile rows. Include changed source models and both cross-tool directions.
+1. Run native Q1 suites on frozen configuration profiles for v1. For v2, also run every mandatory compatibility fixture/profile row, including changed source models and both cross-tool directions.
 2. Run a native-only environment without vendor solvers/FreeCAD/Python for the engine suite, and separate host/API/MCP parity environments. Record actual loaded backend/build dependencies.
 3. Profile large models. Test 100,000-node inspection within 5 s after load, UI/cancellation acknowledgement within 1 s, and the 100,000-node/1,000,000-link steady sparse benchmark within 60 s/16 GiB on the frozen reference hardware. Record raw timings/memory and any explicit performance disposition separately from physics correctness.
 4. Publish million-facet radiation scaling/error curves; do not invent a throughput threshold before measurement. Verify query paging, streaming and bounded memory.
 5. Automate clean offline installation and model open/build/solve/report/uninstall/rollback on Windows. Test portable dependency closure and `.FCStd` coordinated recovery on clean machines.
 6. Add sanitizers where supported, parser/security fuzz regression, malformed packages, injection/scope checks, secret redaction, dependency/license inventories and source/build reproducibility checks.
 7. Generate analyst/developer/API/MCP documentation and runnable examples from tested interfaces. Publish supported versions/directions/features/backends from evidence, not a manually embellished support list. Produce GitHub Release assets tied to the tested candidate commit/tag, checksums, license/dependency manifests and qualification summary; retain raw evidence durably under its access policy. Run privacy preflight on final assets, rendered documentation, metadata, logs and release prose, and publish only outputs bound to a valid sanitization/clearance report.
-8. Run the gate evaluator over all 114 Q1 specification requirements and applicable automated-test requirements, considering defects and explicitly accepted dispositions. Missing/failed required tests block the gate.
+8. Evaluate all Q1 requirements and applicable delivery-test requirements according to the release assignment in section 5. Include WP-20 advanced native evidence before declaring v1 complete. Missing or failed required evidence blocks the applicable release.
 
-**Outputs:** Q1 binaries/source bundle, dependency/license hashes, support matrix, methods/API guides, examples and immutable qualification report. **Completion:** both ecosystems and every Q1 obligation pass on claimed profiles. There is no user-run manual acceptance script and no general full-suite parity claim.
+**Outputs:** Binaries and source bundle, dependency/license hashes, methods/API guides, examples and candidate-bound qualification reports. **Completion:** Native Q1 acceptance contributes to v1. Paired profiles and their support matrix contribute to v2. Acceptance is unattended for both releases.
 
 ### Step 20 — WP-20: implement required Q2 advanced owned physics and logic
 
-Plan and prototype this work from WP-01 findings; do not wait for Q1 to discover its architecture. Production tasks can proceed after their interfaces are ready. Q2 acceptance follows Q1.
+Use WP-01 findings and independent engineering references to plan and prototype this work. Production tasks can proceed after their interfaces are ready. Advanced native physics and logic qualify for v1 after native Q1. Source-language translation, corpus-based coverage, and exact vendor comparisons belong to v2.
 
 The [spectral beam prototype](../docs/radiation-engine.md#spectral-beam-prototype)
 exercises deterministic native ray and power accounting. The
@@ -1184,7 +1186,7 @@ GitHub prose. Downloaded references and raw calculations stay local.
 6. Translate required remaining source procedures to maintained native semantics with regression evidence. Any privileged executable extension uses a narrow versioned ABI and isolated, explicitly authorized execution; opaque storage or vendor execution alone cannot close required native support.
 7. Extend public model/results/worker contracts through versioned migrations and requalify affected Q1 cases.
 
-**Outputs:** required advanced engine modules, source-logic implementations and method documents. **Completion:** every mapped advanced feature passes independent correctness/conservation/refinement tests and source comparisons on the owned engine, including flow/pressure/temperature/energy quantities where applicable.
+**Outputs:** Advanced native engine modules and methods, with source-logic implementations for v2. **Completion:** The owned engine passes independent correctness, conservation and refinement tests for planned advanced native features, including flow, pressure, temperature and energy where applicable. v2 adds source comparisons for every required mapped advanced feature.
 
 ### Step 21 — WP-21: close Q2 legacy profiles and full inventory qualification
 
@@ -1294,25 +1296,22 @@ Evidence for cached unchanged tests can be reused only if the declared test-inpu
 
 ## 5. Release checklists executed by the gate driver
 
-| Gate | Automated completion evidence | Additional prerequisites |
-|---|---|---|
-| Q0 | Acquired-inventory and explicit-disposition completeness, contracts/independent readers, numerical prototype, criteria/hardware records and harness self-checks | Acquired fixture/disposition baseline and native architecture/physics decisions; source runtime/schema closure remains with affected compatibility gates |
-| P0 | Complete WP-15 scripted demo across native/host/API/MCP paths and paired synthetic fixtures, with crash/cancel/invalidation checks | Q0 baseline; demo clearly labeled experimental |
-| Q1 | Every Q1 requirement and applicable TST requirement, paired TD/ESA profiles, STEP-TAS datasets, changed-model source round trips, both cross-tool directions, native-only solve and clean offline installs | No unaccepted critical qualification-impacting defect; exact tested support matrix and performance dispositions |
-| Q2 | All Q1 regression plus every required legacy/advanced/entity/case/operation entry and Q2 native fluid/optical/logic comparisons | No unresolved required native behavior or required source editing/re-export path |
+| Product line | Required automated evidence |
+|---|---|
+| v0.x development | Q0 foundation evidence and the experimental native WP-15 P0 slice as implemented. Keep each candidate's evidence tied to its actual coverage. |
+| v1 native release | Native Q0 and P0, all native Q1 requirements and applicable automated tests, and WP-20 advanced native physics/logic at Q2. Include owned-engine correctness, native authoring and persistence, host/CLI/API/MCP parity, clean offline Windows installation and rollback, frozen performance qualification, security, and TST-021 publication clearance. |
+| v2 interoperability release | Re-run applicable v1 regressions and complete WP-08, WP-09, WP-10 and WP-21 plus the compatibility obligations of shared packages. Include both ecosystems' synthetic fixtures, paired Q1 profiles, STEP-TAS datasets, changed-model source round trips, both cross-tool directions, remaining Q2 legacy profiles and advanced source comparisons, and TST-021 publication clearance. |
 
-Before a release is declared, the driver generates a coverage table for every claimed configuration and privacy clearance for the exact outgoing release contents/prose. The product owner and engineering leads may review the evidence and any scope/disposition decisions; they do not supply manual test execution in place of it. Product claims are generated from passing coverage and cannot be broadened by editing report prose.
+The version assignment applies to all profiles in the compatibility test plan. The `INT-*` requirements, VNV-003/004/012, corpus qualification under VNV-009/013, and vendor-runner acceptance under TST-007/018 apply to v2. For shared requirements such as VNV-001/011, RAD-005/010 and TST-015, v1 still needs independent numerical and native execution evidence for the planned physics. The corpus-specific portions, licensed reference runs and missing vendor inputs apply to v2. Existing Q0/P0/Q1/Q2 IDs still identify technical checkpoints in the registers. Public CI continues running the existing source-adapter and native regressions in their configured Windows jobs.
+
+Before a release is declared, the driver generates a coverage table for every claimed configuration and privacy clearance for the exact outgoing release contents and prose. A required missing, blocked, failed or stale result and any unaccepted critical qualification-impacting defect block the applicable release. Product claims are generated from passing coverage. Acceptance runs unattended for both releases.
 
 ## 6. Staffing, critical paths and estimation
 
-Staff by responsibility: numerical/physics, geometry/radiation, host/API/MCP, TD interoperability, ESA interoperability, and automation/release. These are workstreams, not an assumed headcount. People can cover several roles, but named ownership and equal TD/ESA capacity remain necessary. The test/release owner builds shared runners/gate reporting; feature engineers own their fixtures and tests so testing does not become a final handoff.
+Assign named owners for numerical/physics, geometry/radiation, host/API/MCP, and automation/release. v2 also needs TD and ESA interoperability owners with equal qualification priority. The test/release owner builds shared runners and gate reporting. Feature engineers own their fixtures and tests.
 
-Two paths determine Q1 readiness:
-
-1. Fixtures/schema/vendor access → canonical contracts → paired source extraction/re-export → changed-model round trips and both exchange directions.
-2. Contracts/oracles/backend decision → durable snapshots/jobs → owned network/radiation → FD/FE/environments/campaigns → unattended platform qualification.
-
-FreeCAD and MCP implementations join both paths at P0 and Q1. A short numerical demo does not reduce vendor compatibility work. Advanced Q2 design starts with the inventory, and unknown user logic or two-phase behavior may dominate the later schedule.
+- v1 depends on contracts, independent oracles and backend decisions, then durable snapshots/jobs, owned network and radiation, FD/FE, environments, campaigns, advanced native physics and unattended Windows qualification. FreeCAD and MCP join the native path at P0 and Q1.
+- v2 additionally depends on engineering source documents, authorized fixtures, schemas and vendor reference access, followed by paired extraction/re-export, controlled-edit round trips, both exchange directions and remaining legacy profiles.
 
 Produce calendar estimates after WP-01 through WP-04 establish corpus size, access and measured implementation effort. Estimate each work package as: concrete feature/element/dialect count + fixture/automation work + integration/diagnostics + requalification/packaging. Record optimistic/likely/pessimistic engineering effort, available owners and external-access lead times. Recompute the dependency graph's critical path when scope changes. Do not turn this sequence into unsupported fixed delivery dates or treat automation as optional contingency work.
 

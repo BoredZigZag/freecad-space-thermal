@@ -943,3 +943,26 @@ median 14.478 s (14.317–15.051 s). Decoding the selected mesh, its elements an
 their nodes took 3.563 s (3.431–3.913 s). OBJ bytes and receipts matched. This
 is a local Python export measurement. The added tests run in the existing
 unit and TD stages without additional backend builds or corpus downloads.
+
+## v1 and v2 release scope
+
+The passing main-branch Foundation run used cold caches. Its critical path
+went through the 99 s unit job, the 594 s Debug job and the 22 s Foundation
+gate, with 725 s total elapsed. The Debug and Release drivers took 453.906 s
+with three acceptance workers and 250.015 s with two. Radiation was the
+longest Debug acceptance stage at 216.312 s. The existing planning stages
+took 0.188 s in Debug and 0.109 s in Release. [Passing Foundation run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46076287752)
+
+A fixed-duration replay tested whether a 20% reduction in Debug radiation
+time would shorten the acceptance span with the same worker count and SUNDIALS
+serialization. The configured order moved from 393.828 s to 392.910 s.
+Ordering by observed stage time modeled 367.624 s, or 352.640 s with the
+hypothetical radiation reduction. This single replay excludes setup and
+contention. Both observations are recorded for a future matched hosted test.
+
+Eight alternating local pairs of 10,000 planning scope validations on loaded
+registers measured medians of 14.74 µs before and 27.70 µs after the amendment
+(ranges 13.01–19.36 µs and 23.56–40.91 µs). Both accepted their respective
+registers. The regression test runs in the existing unit suite. The amendment
+changes product release prerequisites while retaining the configured stage
+order, timing baseline, acceptance cases and criteria.
