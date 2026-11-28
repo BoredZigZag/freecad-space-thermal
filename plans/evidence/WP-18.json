@@ -1,13 +1,19 @@
 {
   "work_package": "WP-18",
-  "status": "in_progress",
-  "scope": "Windows application CLI campaigns with immutable native requests and results, sensitivity refinement, sensor fitting and versioned reports",
+  "status": "complete",
+  "scope": "Windows application CLI campaigns with a named nodal case manager, immutable native requests and results, sensitivity and uncertainty, sensor fitting and versioned reports",
+  "contract": "docs/campaigns.md",
+  "acceptance_register": "ci/thermal-acceptance.json",
   "checks": [
     {
       "id": "campaign-synthetic-replay",
       "driver": "tools/check_thermal.py",
-      "scope": "Both configurations repeat the seeded correlated campaign, verify the independent analytic sensitivity and holdout prediction, recheck edited limits and reject altered results."
+      "status": "passed",
+      "required_presets": ["windows-debug", "windows-release"],
+      "requirements": ["PHY-008", "UX-004", "UX-005", "UX-006", "UX-007", "VNV-005"],
+      "scope": "Seeded correlated replay, independent analytic sensitivity and holdout prediction, named steady case overlays, independent uncertainty, failed-run diagnostics, exact report table and plot queries, edited limits, legacy manifest reading and rejection of altered manifests and results."
     }
   ],
-  "publication": "TST-021 clears exact sources, outgoing history, approved metadata, bounded thermal case and CI timing summaries and final GitHub prose. Full campaigns, reports, observations and operational artifacts remain local."
+  "blockers": [],
+  "publication": "TST-021 clears exact implementation and synthetic checks, source locks, outgoing history, approved metadata, bounded thermal verdicts, scalar timings and final GitHub prose. Full campaigns, reports, observations and operational artifacts remain local."
 }

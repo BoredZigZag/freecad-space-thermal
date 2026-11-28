@@ -612,6 +612,30 @@ case. The earlier timings are from sequential local runs on the same
 prebuilt Windows Debug executable with no rebuild or download in either
 sample. The hosted case timing is collected separately.
 
+For WP-18 completion, [Foundation run 46175351587](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46175351587)
+reported cold download caches and drivers of 589.141 s in Debug with three
+workers and 312.562 s in Release with two. Unit tests took 109 s, the critical
+Debug job took 652 s, and the Foundation gate took 18 s. Debug radiation was
+the largest acceptance stage at 319.266 s, followed by thermal at 259.219 s
+and spatial discretization at 253.172 s. Embree took 460.437 s within its
+overlapping 511 s job. The Debug warning compares a cold run with the warm
+baseline and includes added spatial and host work.
+
+A fixed-duration replay tested a 20% radiation-stage reduction and ordering by
+the observed stage costs, keeping all work and the same shared SUNDIALS lock.
+The configured and observed-cost Debug orders both modeled 536.438 s with
+either radiation duration. The corresponding Release estimates were 242.172 s
+and 242.704 s at observed durations and 240.548 s and 240.125 s at the reduced
+duration. The replay holds contention and preparation outside its model. It did
+not establish a shorter Debug critical path, so the scheduler and passing
+baseline remain in place.
+
+The expanded thermal case retains the 18 transient solves and adds seven
+small steady solves. Reporting keeps temperature vectors only for requested
+nodes and queries holdout rows after candidate selection. Acceptance still
+checks the same transient tolerances and each thermal stage publishes only its
+bounded verdict and timing.
+
 ## WP-20 spectral beam prototype
 
 The latest passing [Foundation run 41550990460](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/41550990460)
