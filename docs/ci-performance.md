@@ -501,6 +501,60 @@ so its implicit zero estimate put it last. Unknown stages now receive the
 largest estimate among active known stages, after equally expensive known work.
 Obsolete estimates do not inflate this fallback. Every stage still executes
 exactly once; the passing baseline and worker budgets remain unchanged.
+## WP-16 CAD face contacts
+
+The passing Foundation run 46103930121 used cold download caches. Debug and
+Release drivers took 484.359 s with three acceptance workers and 266.797 s with
+two. The hosted critical path went through the 128 s unit job, the 601 s Debug
+job and the 25 s Foundation gate. Radiation was the longest Debug acceptance
+stage at 245.109 s. Host acceptance took 194.672 s and spatial discretization
+took 197.547 s. The separate Embree job took 627 s. These observations include
+a different workload and cache state from the passing baseline.
+[Passing Foundation run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46103930121)
+
+A fixed-duration replay kept the configured worker counts and SUNDIALS
+serialization. A hypothetical 20% reduction to the longest stage moved the
+Debug acceptance span from 440.312 s to 438.852 s with the configured order.
+Dispatch by observed stage time modeled 426.655 s, or 409.593 s with that
+reduction. Release modeled 200.937 s in the configured order and 200.312 s in
+observed duration order. These replays exclude preparation and contention.
+Retain the configured order and passing baseline pending matched hosted trials.
+
+The next passing run, 46159091106 on main, also used cold caches. The critical
+path went through the 95 s unit job, the 633 s Debug job and the 21 s Foundation
+gate. Debug and Release drivers took 570.563 s and 307.110 s. Debug radiation
+took 304.484 s. All four Debug scheduling scenarios modeled 523.625 s because
+the serialized SUNDIALS stages determined the tail. This second observation
+does not establish a gain from changing the dispatch order.
+[Passing main-branch run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46159091106)
+
+The contact oracle reuses the existing pinned two-solid CAD mesh, adds one
+small native solve and exercises the same dialog launch. It uses the existing
+unit, host and publication stages and introduces no additional downloads or
+mesher runs. Hosted stage timings include the new assertions.
+
+## Native and interoperability closure
+
+Passing run 46160611720 used warm download caches in both configurations.
+The critical path went through the 83 s unit job, the 653 s Debug job and the
+26 s Foundation gate. Debug and Release drivers took 574.109 s with three
+acceptance workers and 291.781 s with two. The largest Debug acceptance stage
+was radiation at 308.031 s. Planning took 0.140 s in Debug and 0.125 s in Release.
+[Passing Foundation run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46160611720)
+
+A fixed-duration replay tested a hypothetical 20% reduction in Debug radiation
+time while preserving the existing SUNDIALS serialization. Both configured
+and observed-duration dispatch modeled 525.140 s. Both moved to 524.534 s with
+the hypothetical reduction. The replay excludes contention and preparation.
+The configured worker counts, stage order and passing baseline are retained.
+
+Six alternating local pairs of 4,000 validations of the same loaded registers
+measured medians of 22.003 microseconds for the earlier scope check and 58.087
+microseconds with the new ownership checks. Ranges were 21.179–25.210 and
+56.250–62.050 microseconds. Both accepted the revised register. The new
+assertions run in the existing unit and planning stages with no additional
+test stages or changes to solver coverage.
+
 ## WP-18 campaign acceptance
 
 The latest passing Foundation checkpoint inspected before implementation was

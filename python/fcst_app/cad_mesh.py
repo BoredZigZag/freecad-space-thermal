@@ -51,6 +51,48 @@ def _card(value):
     return out
 
 
+def _contact(boundary, by_face, faces, identifier):
+    keys = {'kind', 'from_face_id', 'to_face_id', 'area_m2', 'coefficient_SI',
+            'gap_m', 'minimum_temperature_K', 'maximum_temperature_K',
+            'maximum_power_W', 'calibration_id'}
+    if boundary.keys() != keys:
+        reject('cad_contact_card')
+    face_ids = (boundary['from_face_id'], boundary['to_face_id'])
+    if any(not isinstance(face_id, str) or face_id not in faces for face_id in face_ids):
+        reject('cad_contact_selection')
+    try:
+        calibration = uuid.UUID(boundary['calibration_id'])
+    except (ValueError, AttributeError, TypeError):
+        reject('cad_contact_card')
+    if calibration.version not in (1, 2, 3, 4, 5) or str(calibration) != boundary['calibration_id']:
+        reject('cad_contact_card')
+    numeric = keys - {'kind', 'from_face_id', 'to_face_id', 'calibration_id'}
+    if any(type(boundary[key]) not in (int, float) or not math.isfinite(boundary[key]) for key in numeric):
+        reject('cad_contact_card')
+    area = boundary['area_m2']
+    maximum_area = min(faces[face_id]['area_m2'] for face_id in face_ids)
+    # CAD area integration and mm²-to-m² conversion round independently.
+    if (area <= 0 or (area > maximum_area and not math.isclose(area, maximum_area, rel_tol=1e-12))
+            or boundary['gap_m'] != 0 or boundary['coefficient_SI'] <= 0 or boundary['maximum_power_W'] <= 0
+            or not 0 <= boundary['minimum_temperature_K'] < boundary['maximum_temperature_K']):
+        reject('cad_contact_card')
+
+    def weights(face_id):
+        areas = {}
+        for triangle in by_face[face_id]:
+            for node_id in triangle['thermal_node_ids']:
+                areas[node_id] = areas.get(node_id, 0) + triangle['area_m2'] / 3
+        total = math.fsum(areas.values())
+        return {node_id: area / total for node_id, area in sorted(areas.items())}
+
+    source, target = map(weights, face_ids)
+    if source.keys() & target.keys() or max(len(source), len(target)) > 4096:
+        reject('cad_contact_selection')
+    rows = {key: [dict(node_id=node_id, weight=weight) for node_id, weight in side.items()]
+            for key, side in (('from', source), ('to', target))}
+    return {**{key: boundary[key] for key in numeric | {'kind', 'calibration_id'}}, 'id': identifier, **rows}
+
+
 def prepare(source,brep,materials,boundaries=()):
     """Prepare constant-property region cards and explicit face assignments.
 
@@ -151,9 +193,22 @@ def prepare(source,brep,materials,boundaries=()):
     if any(not group for group in by_face.values()):reject('cad_unassigned_face')
     if {frozenset(f['nodes']) for f in source['facets']}!={key for key,group in owners.items() if len(group)==1}:
         reject('cad_boundary_coverage')
-    conditions=deepcopy(list(boundaries));prescribed={};assignments=[]
+    conditions=deepcopy(list(boundaries));prescribed={};assignments=[];contact_pairs=set()
     for i,boundary in enumerate(conditions):
-        if not isinstance(boundary,dict) or boundary.get('face_id') not in by_face:reject('cad_boundary_selection')
+        if not isinstance(boundary,dict):reject('cad_boundary_selection')
+        if boundary.get('kind') == 'contact':
+            identifier = _id(namespace, seed + ':contact:' + str(i))
+            contact = _contact(boundary, by_face, faces, identifier)
+            pair = frozenset((boundary['from_face_id'], boundary['to_face_id']))
+            if pair in contact_pairs:
+                reject('cad_contact_duplicate')
+            contact_pairs.add(pair)
+            value['spatial']['contacts'].append(contact)
+            assignments.append(dict(kind='contact', from_face_id=boundary['from_face_id'],
+                                    to_face_id=boundary['to_face_id'], contact_id=identifier))
+            continue
+        if not isinstance(boundary.get('face_id'), str) or boundary['face_id'] not in by_face:
+            reject('cad_boundary_selection')
         group=by_face[boundary['face_id']];kind=boundary.get('kind')
         if kind not in ('temperature','total_power','surface_flux','convection'):reject('unsupported_boundary')
         expected={'face_id','kind','coefficient_W_per_m2_K','ambient_temperature'} if kind=='convection' else {'face_id','kind','value'}
@@ -188,7 +243,7 @@ def prepare(source,brep,materials,boundaries=()):
         source_tool='FreeCAD FEM / Gmsh',source_version=source['mesher_version'],entries=entries)]
     model['assumptions']+=['CAD-group identities are explicit; radiation facets describe geometry only']
     value['model']=read('model',model);value=seal(value)
-    receipt=dict(contract_version='1.0.0',kind='fcst-cad-prepared',source=source,materials=cards,boundaries=conditions,
+    receipt=dict(contract_version='2.0.0' if contact_pairs else '1.0.0',kind='fcst-cad-prepared',source=source,materials=cards,boundaries=conditions,
         source_revision=source_revision,model_hash=semantic_hash(value['model']),mesh_revision=value['spatial']['mesh_revision'],
         node_map=[dict(source_tag=tag,point_id=p['id'],thermal_node_id=p['node_id']) for tag,p in sorted(point_map.items())],
         element_map=[dict(source_tag=c['tag'],element_id=cell_map[c['tag']],permutation=order) for c,order in zip(sorted(cells.values(),key=lambda c:c['tag']),orientations)],
@@ -207,6 +262,10 @@ def reconcile(receipt,geometry):
     """Any unaccepted geometry revision, split/merge/reorder/delete stays invalid."""
     if receipt['source']['geometry']!=geometry:reject('attachment_reassignment_required')
     return True
+
+
+def _face_keys(boundary):
+    return ('from_face_id', 'to_face_id') if boundary['kind'] == 'contact' else ('face_id',)
 
 
 def synchronize(previous, previous_brep, source, brep, *, region_map=None, face_map=None,
@@ -244,14 +303,15 @@ def synchronize(previous, previous_brep, source, brep, *, region_map=None, face_
             return mapping
 
         regions = transfer(region_map, set(previous['materials']), new_regions)
-        assigned_faces = {b['face_id'] for b in previous['boundaries']}
+        assigned_faces = {entry[key] for entry in previous['boundaries'] for key in _face_keys(entry)}
         new_faces = {f['id'] for f in geometry['faces']}
         if (not isinstance(face_map, dict) or face_map.keys() != assigned_faces
                 or any(not isinstance(target, str) for target in face_map.values())
                 or not set(face_map.values()) <= new_faces or len(set(face_map.values())) != len(face_map)):
             reject('attachment_reassignment_required')
         materials = {target: previous['materials'][old] for old, target in regions.items()}
-        boundaries = [{**entry, 'face_id': face_map[entry['face_id']]} for entry in previous['boundaries']]
+        boundaries = [{**entry, **{key: face_map[entry[key]] for key in _face_keys(entry)}}
+                      for entry in previous['boundaries']]
 
     return prepare(source, brep, materials, boundaries)
 

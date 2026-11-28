@@ -1,7 +1,7 @@
 {
   "work_package": "WP-16",
   "status": "in_progress",
-  "scope": "Owned spatial physics, pinned CAD generation and a clean kernel-confined native installation; mandatory imported Q1 and complete offline release remain held",
+  "scope": "v1 owned spatial physics, pinned CAD generation, and kernel-confined native worker acceptance",
   "tested_worktree_base": "59473271a7f85490109feaf953cece17372cacde",
   "previous_delivery": {
     "candidate": "59473271a7f85490109feaf953cece17372cacde",
@@ -51,9 +51,23 @@
     "Complete configured native inventory plus analytic spatial steady/transient solves in zero-capability Windows AppContainer",
     "New acceptance stages begin alongside the largest active historical estimates; no removed work, pass caching or baseline change"
   ],
-  "blockers": [
-    "Every mandatory imported Q1 element/property and source-ecosystem case: licensed source runners, exact source profiles and paired result evidence remain unavailable per inventory/gaps.json",
-    "Full clean offline installer/release FEM-REUSE-006 qualification remains shared with WP-19; kernel-confined native installation does not close that release gate"
+  "cad_contact_follow_up": {
+    "unit_case": "test_cad_mesh.CadMeshTests.test_face_contact_uses_area_weights_and_requires_explicit_reassignment",
+    "host_case": "WP16-CAD-CONTACT",
+    "required_configurations": ["windows-debug", "windows-release"],
+    "scope": "Paired exterior CAD face contact, area-weighted thermal-node mapping, mesh refinement and reassignment, portable receipt, and an independent two-solid resistance oracle"
+  },
+  "native_closure_evidence": {
+    "candidate": "db4d0569c9ab228122cdcee9f4f057bd989d8529",
+    "github_run": 46160611720,
+    "passed_configurations": ["windows-debug", "windows-release"],
+    "host_cases_per_configuration": 26,
+    "status": "passed"
+  },
+  "blockers": [],
+  "follow_up": [
+    "WP-19 owns v1 clean-machine release installation, rollback and installer-level FEM-REUSE-006",
+    "WP-10 owns v2 imported Q1 element/property evidence and paired source profiles per inventory/gaps.json"
   ],
   "full_wp16_qualified": false,
   "publication": "TST-021 clears exact outgoing source/license/schema/history/approved identity, scalar evidence and final GitHub prose; originals, generated BREP/UNV/geo/host files, denial paths, profile identifiers, databases, raw logs and build trees remain local"

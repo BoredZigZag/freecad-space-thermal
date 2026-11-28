@@ -123,8 +123,8 @@ the [COMSOL verification formulation](https://doc.comsol.com/6.4/doc/com.comsol.
 with independently generated homothetic triangulations of radii 1 and 2.
 Separate NumPy dense IR/solar solves and a scalar steady root compare actual
 native powers and temperatures. These are analytical/formulation comparisons,
-not executions of COMSOL or licensed TD/ESATAN. Vendor compatibility and overall
-project Q1 remain unqualified under their existing WP-19 gates.
+not executions of COMSOL or licensed TD/ESATAN. WP-19 owns the native Q1 release
+gate. WP-10 owns paired TD/ESATAN radiation qualification for v2.
 
 Three retained repetitions at each sample count measure 1024, 10000, 99856 and
 1000000 facets. Each repetition constructs a fresh BVH and then reuses it across
@@ -177,5 +177,6 @@ a partially reflecting cavity as the budget increases.
 
 The spectral laws are a separate versioned worker request. The dielectric
 law has an independent [pbrt formulation check](advanced-physics.md#thin-dielectric-beam). Mandatory
-source optical laws and reference results remain to be identified under
-GAP-ADVANCED before this work can qualify RAD-005.
+source optical laws and reference results remain with WP-21 under GAP-ADVANCED
+for the v2 portion of RAD-005. WP-20 verifies native optical behavior against
+independent ray and energy oracles for v1.

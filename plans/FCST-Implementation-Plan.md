@@ -1,6 +1,6 @@
 # FreeCAD Space Thermal: implementation and build plan
 
-Plan revision 1.8, 27 November 2026. Based on specification FCST-SYS-SPEC-001 revision 0.9 as amended. This revision assigns the completed native scope to v1 and thermal software interoperability to v2.
+Plan revision 1.9, 28 November 2026. Based on specification FCST-SYS-SPEC-001 revision 0.9 as amended. v1 work packages close on native evidence. v2 interoperability qualification closes after v1.
 
 This is an implementation plan, not evidence of implemented physics or file compatibility. The workspace contains the specification, 121 registered requirements, 12 proposed compatibility profiles, three draft JSON schemas and two schema examples. WP-02 now adds a native worker/application skeleton, local/CI verification and publication-privacy preflight; it implements no thermal solving or file compatibility. [WP-02 evidence](evidence/WP-02.json) records completed foundation acceptance and remaining Q0/product obligations. The specification remains the design baseline; the automated-test requirements below add delivery obligations without relaxing its acceptance criteria.
 
@@ -14,7 +14,7 @@ Build the product around a host-independent C++20 thermal engine and a versioned
 
 The native workflow is independently required: create a model from an empty project, assign nodes/properties/conductors/loads/cases, save an FCST `.fcst` file, reopen and edit it, run owned steady/transient solves, and inspect results without a vendor file, Thermal Desktop/SINDA/FLUINT, ESATAN, vendor licenses or vendor services. WP-01 scopes backward-compatibility coverage; native WP-02/WP-03/WP-04 slices start with public synthetic fixtures and analytic oracles while vendor access is acquired. Complete Q0 and compatibility claims still require their specified evidence; missing vendor access must not stop native core development.
 
-Executable acceptance for ARC-001/ARC-003/ARC-009 and TST-004/TST-009/TST-014: in an isolated offline installation with vendor software and adapters absent, automatically create a geometry-free two-node model, save `.fcst`, close/reopen it, verify its canonical model hash, edit a load, solve steady and transient cases with `fcst_native`, and compare temperatures, heat flows and energy balance with independent analytic oracles. Verify result persistence and reopen. SUITE-INSTALL, SUITE-PERSIST and SUITE-PHYSICS own this scenario; a vendor-backed run cannot satisfy it. This is planned acceptance, not a completed test.
+WP-19 owns the clean-machine release installation test for ARC-001/ARC-003/ARC-009 and TST-004/TST-009/TST-014. See [offline release qualification](#offline-release-qualification). Feature packages supply their own native evidence before that release gate.
 
 The native P0 demonstration saves a two-node/two-surface model and exercises conduction, radiation, a transient solve, FreeCAD visualization and API/MCP access. v1 requires native Q1 and Q2 evidence, including advanced owned-engine behavior. Paired synthetic source fixtures, Q1 paired source qualification and Q2 legacy inventory closure contribute to v2. Section 5 defines the release criteria.
 
@@ -40,6 +40,17 @@ proofs and request-reference persistence changes. Generated BREP/UNV/geo files,
 temporary AppContainer profiles/denial manifests, operational project databases
 and raw host/native logs remain local. The imported licensed Q1 qualification
 holds are never converted into synthetic passes.
+CAD face contacts add area-weight, remesh and reassignment checks in
+`tests/test_cad_mesh.py` and a generated two-solid resistance oracle in
+`tools/cad_acceptance_payload.py`. Both Windows drivers require the latter in
+`host.json`. Scan the exact implementation, synthetic fixtures, bounded verdicts,
+timing summaries, outgoing history and identities, and final GitHub prose.
+Original geometry, contact inputs, raw mesh files and solver outputs stay local.
+The release closure check validates v1 dependencies and suite assignments,
+v2 requirement and profile ownership, and shared evidence ownership in the
+planning and unit suites. TST-021 scans the exact register, verifier and test
+changes, bounded timing evidence, outgoing history and approved identities,
+and final GitHub prose before publication.
 
 The WP-20 spectral beam prototype adds analytic split, side, wavelength,
 energy-closure, refinement and malformed-input checks to `tools/check_radiation.py`
@@ -549,6 +560,13 @@ Each package below specifies concrete tasks and completion evidence. Its registe
 | Complete native Q2 for v1 | Native WP-20 scope with WP-19 release evidence | Required advanced native physics and logic |
 | Complete interoperability for v2 | WP-08, WP-09, WP-10, WP-21 and compatibility evidence from shared packages | Qualified paired source profiles, thermal exchange, corpus-specific comparisons and remaining mandatory legacy profiles |
 
+Close each v1 work package when its own native acceptance passes and its
+required inputs are available. The technical checkpoints still apply to the
+assigned scope. WP-19 owns the clean release installation gate. WP-10 owns
+paired Q1 interoperability evidence and WP-21 owns the advanced and legacy
+source evidence at Q2. v2 development may proceed in parallel, with v2 release
+closure requiring a passed v1 release and the applicable v1 regressions.
+
 Do acquisition and feasibility work early for both ecosystems. After contracts stabilize, TD and ESATAN adapter implementation may proceed concurrently with core numerical work. This describes engineering staffing, not a request to run implementation agents during this planning task.
 
 The dependency register allows native contract and analytic-prototype slices without WP-01. The acquired inventory feeds contracts and explicit compatibility dispositions. Source runtime, documentation and schema closure apply to the affected v2 profiles. Native create/save/reopen/solve checks run as soon as their components exist, before the full P0 integration demonstration.
@@ -564,7 +582,13 @@ The user narrowed WP-01 to the delivered baseline: 55 immutable files from four 
 
 **Outputs:** acquired inventory, source/hash manifests, feature/operation map, rights/dependency dispositions and assigned qualification gaps. **Completion:** offline metadata checks and all 55 local original-byte checks pass; no acquired row lacks provenance, ownership or a required disposition. This criterion is met and WP-01 is Complete.
 
-**Explicit later obligations:** licensed reference runtimes, exact source/dependency closure and source reopen/export/run are WP-08/WP-09; normative STEP-TAS schema/dictionary/validation is WP-10; redistribution and paired numerical-reference closure is WP-19; advanced and legacy coverage remain WP-12/WP-20/WP-21 as mapped in [inventory/gaps.json](../inventory/gaps.json). These still block the affected compatibility or publication claim. They do not reopen WP-01 or block native Q0 work. `python tools/check_inventory.py --local --qualify` remains the separate blocked compatibility-prerequisite check, not the WP-01 completion command.
+WP-08 and WP-09 own source codecs, runtime/dependency profiles and ecosystem
+reopen/export/run evidence. WP-10 owns STEP-TAS, fixture redistribution
+dispositions and paired Q1 comparisons. WP-21 owns advanced and legacy source
+coverage. The affected v2 claims require disposition of the assigned gaps.
+`python tools/check_inventory.py --local --qualify` checks the compatibility
+prerequisites separately from the acquired WP-01 inventory acceptance.
+[Inventory gaps](../inventory/gaps.json)
 
 See [WP-01 evidence](evidence/WP-01.json) and [inventory](../inventory/README.md). Closing this inventory is not a compatibility, source-run or physics qualification claim.
 
@@ -870,7 +894,7 @@ pass full semantic/dependency coverage, independent changed/new-model round trip
 offline vendor-absence and owned numerical comparisons. Paired ESA and TD coverage
 remain separate required gates; neither can compensate for the other.
 
-### Step 10 — WP-10: implement STEP-TAS and bidirectional exchange
+### Step 10 — WP-10: qualify STEP-TAS, bidirectional exchange and paired Q1 interoperability
 
 1. Bind parsing and validation to the acquired schema/dictionary version. Inventory needed entities, relationships, dataset types and direction requirements from both source corpora.
 2. Implement data types, references, units/frames, geometry/network associations and required metadata. Reject malformed relationships with source locations.
@@ -880,7 +904,18 @@ remain separate required gates; neither can compensate for the other.
 6. Compare discrete identity/topology, mapped numeric fields, case settings and equivalent numerical results in each direction. Record every approximation/loss.
 7. Generate capability statements from actual tested schema entities/datasets/versions/directions. Do not advertise a whole conformance class unless the entire class is tested.
 
-**Outputs:** schema-backed reader/writer/validator, common-profile converters and evidence. **Completion:** all mandatory Q1 datasets and both cross-tool directions pass; unrelated format-class work is not required. Required unsupported content blocks the affected profile.
+WP-10 also owns the v2 Q1 matrix, including the exact-version licensed runner
+gate, restricted fixture rights, unchanged and controlled-edit source runs in
+both ecosystems, and equivalent paired solver, spatial/material, radiation and
+mission comparisons. WP-08 and WP-09 deliver their ecosystem evidence. Reuse
+the applicable native evidence and record each source result with its own
+backend and profile. Track source-version changes and the published support
+matrix here.
+
+**Outputs:** schema-backed reader, writer and validator, common-profile
+converters, paired Q1 evidence and the supported profiles matrix.
+**Completion:** all mandatory datasets, both cross-tool directions and both
+ecosystems’ required paired Q1 cases pass against the declared profiles.
 
 ### Step 11 — WP-11: implement the owned thermal network engine
 
@@ -895,7 +930,10 @@ remain separate required gates; neither can compensate for the other.
 9. Return temperature, conductive/boundary power, storage change, residuals, events, duty cycles and step/run energy balances with validity/provenance.
 10. Add compiled-kernel profiling and backend capability records. Optional external reference solvers use separate execution modes and cannot satisfy these tests.
 
-**Outputs:** owned network assembly and steady/transient/event solvers. **Completion:** single/two-node analytic cases, nonlinear properties, algebraic/prescribed nodes, singular cases, conservation, refinement and independent source comparisons pass without FreeCAD, Python, or external thermal solvers installed.
+**Outputs:** owned network assembly and steady/transient/event solvers.
+**Completion:** single/two-node analytic cases, nonlinear properties,
+algebraic/prescribed nodes, singular cases, conservation and refinement pass in
+the engine-only profile. WP-10 owns the licensed paired network results for v2.
 
 WP-11.1/11.2 implementation: [owned thermal preparation](../docs/thermal-engine.md)
 defines the immutable typed loader, source aliases, deterministic equation indexes,
@@ -1002,7 +1040,11 @@ and measured scaling through one million facets on the tested implementation.
 7. Design sparse, hierarchical or streamed exchange storage and bounded result queries. Test approximation error instead of constructing a mandatory dense all-pairs matrix.
 8. Run fixed Monte Carlo ensembles and sample-count refinement. Assess coverage/convergence and practical error jointly; a single favorable seed is insufficient.
 
-**Outputs:** CPU radiation engine, exchange artifacts and uncertainty diagnostics. **Completion:** analytic enclosure/plate/sphere cases, black/gray/two-sided surfaces, occlusion/groups/escape, source comparisons and coupled energy checks pass. Million-facet scaling publishes build/throughput/memory/error curves before a throughput promise is made.
+**Outputs:** CPU radiation engine, exchange artifacts and uncertainty diagnostics.
+**Completion:** analytic enclosure/plate/sphere cases, black/gray/two-sided
+surfaces, occlusion/groups/escape and coupled energy checks pass. Million-facet
+scaling publishes build/throughput/memory/error curves before a throughput
+promise is made. WP-10 owns the paired source radiation comparisons for v2.
 
 ### Step 13 — WP-13: build the FreeCAD host and model-review interface
 
@@ -1084,10 +1126,11 @@ The two public synthetic source fixtures belong to the v2 adapter track. WP-08 a
 
 The [native spatial profile](../docs/discretization.md) implements FD rods,
 first-order shells/solids, material storage/tensors, contacts, area loads and
-bounded reduced components. [Evidence](evidence/WP-16.json) retains production CAD
-mesher, full FEM reuse and mandatory imported Q1 qualification as open obligations.
-Candidate/source/worker-bound acceptance runs in both Windows configurations;
-passing the bounded profile does not close WP-16/Q1. TST-021 covers exact new
+bounded reduced components. Pinned FreeCAD/Gmsh generation prepares explicit
+face loads and calibrated face-to-face contact. Candidate/source/worker-bound
+acceptance runs in both Windows configurations. WP-19 owns installer-level
+qualification and WP-10 owns imported element/property qualification.
+[WP-16 evidence](evidence/WP-16.json) records the native results. TST-021 covers exact new
 sources, schemas, synthetic fixtures, bounded reports and scalar timing summaries,
 with staged/history/identity/prose preflight before upload; raw host/model files,
 screenshots, logs and build trees remain local.
@@ -1102,7 +1145,14 @@ Complete WP-13's initial FEM mesh assessment before introducing a meshing stack.
 6. Implement limited MLI, insulation and reduced heat-pipe abstractions with parameter provenance, calibration/validity limits and explicit unsupported regimes.
 7. Run rod/slab cases, element patch tests, rotated anisotropy, manufactured solutions, contact tests and mesh/time refinement independently of vendor comparisons.
 
-**Outputs:** supported discretization library, qualified FEM reuse/replacement dispositions, mesh/attachment tooling, contact and reduced-component models. **Completion:** analytical/manufactured/conservation/refinement suites and mandatory imported Q1 element/property cases pass; unsupported element types are diagnosed before solving. Implement FEM-REUSE-003 and the spatial extensions of FEM-REUSE-001/004, plus FEM-REUSE-006 with WP-19. Verify mesh/element ordering, units, integrated loads, face-change/refinement invalidation and native engine independence. Selected external comparisons require their pinned profile evidence and never replace owned-engine checks.
+**Outputs:** supported discretization library, FEM reuse/replacement
+dispositions, mesh/attachment tooling, contact and reduced-component models.
+**Completion:** native analytic, manufactured, conservation, refinement and
+confined-worker cases pass. Verify the spatial extensions of FEM-REUSE-001/004
+and FEM-REUSE-003, including mesh/element ordering, units, integrated loads,
+face-change/refinement invalidation and pre-solve diagnostics for unsupported
+elements. Pass in both Windows configurations on the same candidate. WP-19
+consumes the native evidence and runs FEM-REUSE-006 using the release assets.
 
 ### Step 17 — WP-17: implement environments, motion and campaign events
 
@@ -1119,7 +1169,7 @@ captures remain required for vendor qualification.
 4. Build a common event schedule for heater controls, orbit/eclipse transitions and moving geometry. Define interpolation, discontinuity and event-order behavior.
 5. Cache/recompute radiation exchange only when dependency hashes and error policy permit it; quantify geometric and temporal interpolation error for articulated models.
 6. Support case overlays for hot/cold, operating/nonoperating, BOL/EOL and test/flight. Preserve shared entity/source identity across variants.
-7. Compare heating histories and temperatures with TD/RadCAD and ESATAN cases, while retaining independent geometry/flux/refinement checks.
+7. Check heating histories and temperatures against independent native geometry, flux and refinement oracles. Supply the native results to WP-10 for paired TD/RadCAD and ESATAN mission comparisons in v2.
 
 **Outputs:** environment/kinematics engine, loading histories and case definitions. **Completion:** orbit/eclipse/chamber/moving-panel fixtures meet timing, power and refinement criteria without double-counted energy; changing motion/optics invalidates affected exchange and solve artifacts.
 
@@ -1137,18 +1187,46 @@ captures remain required for vendor qualification.
 
 The Windows application CLI runs bounded steady and transient campaigns and generates JSON and HTML reports. The synthetic replay and result-binding case runs in both Foundation thermal stages. Under TST-021, preflight clears the exact outgoing implementation, history, approved metadata and bounded case and timing summaries. Campaign inputs, full outputs, reports and raw worker diagnostics stay local. See [campaign commands](../docs/campaigns.md) and [CI performance](../docs/ci-performance.md).
 
-### Step 19 — WP-19: qualify Q1 and prepare release evidence
+### Step 19 — WP-19: qualify native Q1 and prepare the v1 release
 
-1. Run native Q1 suites on frozen configuration profiles for v1. For v2, also run every mandatory compatibility fixture/profile row, including changed source models and both cross-tool directions.
+1. Run native Q1 suites on frozen configuration profiles for v1. Consume candidate-bound evidence from the native feature packages.
 2. Run a native-only environment without vendor solvers/FreeCAD/Python for the engine suite, and separate host/API/MCP parity environments. Record actual loaded backend/build dependencies.
 3. Profile large models. Test 100,000-node inspection within 5 s after load, UI/cancellation acknowledgement within 1 s, and the 100,000-node/1,000,000-link steady sparse benchmark within 60 s/16 GiB on the frozen reference hardware. Record raw timings/memory and any explicit performance disposition separately from physics correctness.
 4. Publish million-facet radiation scaling/error curves; do not invent a throughput threshold before measurement. Verify query paging, streaming and bounded memory.
 5. Automate clean offline installation and model open/build/solve/report/uninstall/rollback on Windows. Test portable dependency closure and `.FCStd` coordinated recovery on clean machines.
 6. Add sanitizers where supported, parser/security fuzz regression, malformed packages, injection/scope checks, secret redaction, dependency/license inventories and source/build reproducibility checks.
 7. Generate analyst/developer/API/MCP documentation and runnable examples from tested interfaces. Publish supported versions/directions/features/backends from evidence, not a manually embellished support list. Produce GitHub Release assets tied to the tested candidate commit/tag, checksums, license/dependency manifests and qualification summary; retain raw evidence durably under its access policy. Run privacy preflight on final assets, rendered documentation, metadata, logs and release prose, and publish only outputs bound to a valid sanitization/clearance report.
-8. Evaluate all Q1 requirements and applicable delivery-test requirements according to the release assignment in section 5. Include WP-20 advanced native evidence before declaring v1 complete. Missing or failed required evidence blocks the applicable release.
+8. Evaluate the native Q1 requirements and applicable delivery tests in section 5. The v1 release gate also consumes WP-20 advanced native evidence at Q2.
 
-**Outputs:** Binaries and source bundle, dependency/license hashes, methods/API guides, examples and candidate-bound qualification reports. **Completion:** Native Q1 acceptance contributes to v1. Paired profiles and their support matrix contribute to v2. Acceptance is unattended for both releases.
+**Outputs:** Native binaries and source bundle, license and dependency hashes,
+methods/API guides, examples, and candidate-bound qualification and release gates.
+**Completion:** Native Q1 correctness, deployment, performance, security and
+offline installation pass. The release gate publishes v1 after the applicable
+native Q2 checks also pass. WP-10 and WP-21 own the paired v2 qualification.
+
+#### Offline release qualification
+
+Start with a disposable, clean Windows environment and the exact release
+candidate assets. Provision the declared assets before disconnecting the
+environment. Execute both supported profiles unattended.
+
+- **Standalone engine.** Install the native worker, verify the actual loaded
+  backend and dependencies, and run FEM-REUSE-006 without FreeCAD, Python or
+  external thermal solvers. Verify geometry-free steady and transient results,
+  heat flow and energy balance against independent oracles.
+- **Workbench.** Install the supported host and add-on from the staged assets.
+  Create and save a native `.fcst` project, reopen it and verify its canonical
+  hash, edit a load, then solve, inspect and report the results. Verify stored
+  results and coordinated `.FCStd` recovery. Exercise the declared CLI/API/MCP
+  profiles and native result parity.
+- **Installation lifecycle.** Verify dependency closure, supported migration
+  and minimum-reader behavior, uninstall and rollback to a valid prior
+  installation. Bind the verdicts to the candidate, asset hashes, profiles and
+  dependency manifest. TST-021 clears the exact release assets and summaries.
+
+The WP-16 AppContainer evidence supplies isolated native solver acceptance.
+WP-19 still needs the installer, host and rollback evidence for the published
+Windows assets under TST-009 and TST-014.
 
 ### Step 20 — WP-20: implement required Q2 advanced owned physics and logic
 
@@ -1166,11 +1244,10 @@ portable projects with their model revision and input identity. A
 calibrated comparison against NASA hardware holds out steady tilt
 observations and retains the plain-groove discrepancy. A public SINDA/FLUINT
 rigid-tank filling observation adds one source comparison without a
-licensed executable. GAP-ADVANCED remains
-open until the mandatory advanced cases and licensed reference observations
-are identified. Keep the actual source equations, initialization, event
-semantics and validity limits in the case contracts before qualifying the
-native coupled fluid, optics and source-logic implementations.
+licensed executable. WP-21 owns the GAP-ADVANCED source corpus and licensed
+observations for v2. Native coupled fluid and optics closure requires the
+declared equations, initialization, event semantics and validity limits in the
+native case contracts and independent acceptance for each required behavior.
 
 Both Windows thermal suites run the momentum and portable replay,
 phase transition, and heat-pipe hardware cases. The TST-021 preflight
@@ -1192,17 +1269,26 @@ the exact new solver and oracle sources, graph-derived scalar
 fixtures, bounded verdicts and timings, outgoing history and final
 GitHub prose. Downloaded references and raw calculations stay local.
 
-1. Turn each required advanced corpus feature into an explicit equation/semantics contract and automated oracle/reference case. Unknown scope remains visible rather than being estimated as a small generic add-on.
-2. For required fluid networks, define pressure/flow/enthalpy states, mass/momentum/energy equations, fluid-property ranges and component laws; model pumps/valves/heat exchangers only as required by the corpus.
+1. Turn each required advanced native feature into an explicit equation or semantics contract and automated independent oracle case.
+2. For required fluid networks, define pressure, flow and enthalpy states, mass/momentum/energy equations, fluid-property ranges and the required component laws.
 3. Implement coupled thermal-fluid residual/Jacobian assembly, consistent initialization, event handling and conservation. Qualify strong/partitioned coupling choices against refinement/stability evidence rather than assuming either is sufficient.
-4. Implement required two-phase/detailed heat-pipe/other advanced behavior or a specifically accepted native equivalent. Verify regime transitions, properties and validity limits against analytical/independent cases and FLUINT/FloCAD reference runs.
+4. Implement required two-phase, detailed heat-pipe and other advanced behavior or a specifically accepted native equivalent. Verify regime transitions, properties and validity limits against independent cases. WP-21 owns the corresponding FLUINT/FloCAD reference runs for v2.
 5. Implement required specular/transmissive/spectral optical laws with independent ray/energy tests and declared estimator changes; diffuse-gray success does not close these features.
-6. Translate required remaining source procedures to maintained native semantics with regression evidence. Any privileged executable extension uses a narrow versioned ABI and isolated, explicitly authorized execution; opaque storage or vendor execution alone cannot close required native support.
+6. Verify required native controls and events with explicitly specified logic and regression evidence. Any privileged executable extension uses a narrow versioned ABI and isolated, explicitly authorized execution. WP-21 owns source-language translations for v2.
 7. Extend public model/results/worker contracts through versioned migrations and requalify affected Q1 cases.
 
-**Outputs:** Advanced native engine modules and methods, with source-logic implementations for v2. **Completion:** The owned engine passes independent correctness, conservation and refinement tests for planned advanced native features, including flow, pressure, temperature and energy where applicable. v2 adds source comparisons for every required mapped advanced feature.
+**Outputs:** Advanced native engine modules and methods. **Completion:** the
+owned engine passes independent correctness, conservation and refinement tests
+for required advanced native features, including flow, pressure, temperature
+and energy where applicable.
 
 ### Step 21 — WP-21: close Q2 legacy profiles and full inventory qualification
+
+Own v2 advanced corpus coverage, source-language translations and exact
+reference comparisons. Verify required source procedures through maintained
+native semantics and qualify each mapping against the applicable source and
+owned-engine evidence. Complete after the v1 release and the applicable v1
+regressions pass.
 
 1. Implement exact required SYSTEMA/THERMICA, THERMISOL, ESARAD, SYSBAS/VIF, TRASYS and additional customer dialect/version paths identified by the inventory.
 2. Handle GMM, mesh, TMM, properties, campaign and results jointly where required. Use owned direct schema codecs or independently deployable open-source converters per actual profile; vendor APIs supply optional external reference evidence only for TD/ESATAN paths.
@@ -1314,9 +1400,17 @@ Evidence for cached unchanged tests can be reused only if the declared test-inpu
 |---|---|
 | v0.x development | Q0 foundation evidence and the experimental native WP-15 P0 slice as implemented. Keep each candidate's evidence tied to its actual coverage. |
 | v1 native release | Native Q0 and P0, all native Q1 requirements and applicable automated tests, and WP-20 advanced native physics/logic at Q2. Include owned-engine correctness, native authoring and persistence, host/CLI/API/MCP parity, clean offline Windows installation and rollback, frozen performance qualification, security, and TST-021 publication clearance. |
-| v2 interoperability release | Re-run applicable v1 regressions and complete WP-08, WP-09, WP-10 and WP-21 plus the compatibility obligations of shared packages. Include both ecosystems' synthetic fixtures, paired Q1 profiles, STEP-TAS datasets, changed-model source round trips, both cross-tool directions, remaining Q2 legacy profiles and advanced source comparisons, and TST-021 publication clearance. |
+| v2 interoperability release | Require a passed v1 release and rerun applicable v1 regressions. Complete WP-08, WP-09, WP-10 and WP-21. Include both ecosystems' synthetic fixtures, paired Q1 profiles, STEP-TAS datasets, changed-model source round trips, both cross-tool directions, remaining Q2 legacy profiles and advanced source comparisons, and TST-021 publication clearance. |
 
-The version assignment applies to all profiles in the compatibility test plan. The `INT-*` requirements, VNV-003/004/012, corpus qualification under VNV-009/013, and vendor-runner acceptance under TST-007/018 apply to v2. For shared requirements such as VNV-001/011, RAD-005/010 and TST-015, v1 still needs independent numerical and native execution evidence for the planned physics. The corpus-specific portions, licensed reference runs and missing vendor inputs apply to v2. Existing Q0/P0/Q1/Q2 IDs still identify technical checkpoints in the registers. Public CI continues running the existing source-adapter and native regressions in their configured Windows jobs.
+All compatibility profiles and their required qualification evidence belong
+to v2. INT-001 supplies the acquired WP-01 inventory to v1, with the final
+compatibility scope freeze owned by WP-10. The other `INT-*` requirements,
+VNV-003/004/009/012 and TST-007/018 are owned by v2 packages. For shared
+requirements such as VNV-001/011/013, RAD-005/010 and TST-014/015, native
+acceptance belongs to v1 and corpus-specific evidence goes to the v2 owners in
+the [delivery scope](delivery-scope.json). Existing Q0/P0/Q1/Q2 IDs still
+identify the technical checkpoints. Public CI runs the configured source
+adapter and native regressions in both Windows jobs.
 
 Before a release is declared, the driver generates a coverage table for every claimed configuration and privacy clearance for the exact outgoing release contents and prose. A required missing, blocked, failed or stale result and any unaccepted critical qualification-impacting defect block the applicable release. Product claims are generated from passing coverage. Acceptance runs unattended for both releases.
 

@@ -31,6 +31,7 @@
     "WP16-HOST-SOLVE",
     "FEM-REUSE-003",
     "WP16-CAD-PROFILES",
+    "WP16-CAD-CONTACT",
     "WP16-CAD-PERSISTENCE",
     "WP16-CAD-COMMAND",
     "WP15-HOST-RADIATION"
@@ -43,7 +44,7 @@
     "minimum_contour_coloured_pixels_per_band": 100,
     "screenshot_role": "local supplementary rendering evidence only"
   },
-  "remaining_spatial_qualification": "The selected pinned CAD Gmsh tet4/tri3 profile, explicit mappings, native solve and portable reopen are checked. Mandatory imported Q1 and full offline release FEM-REUSE-006 remain WP-16/WP-19.",
+  "remaining_spatial_qualification": "WP-16 checks the pinned CAD Gmsh tet4/tri3 profile, explicit mappings, native solve and portable reopen. WP-19 owns release-install FEM-REUSE-006. WP-10 owns mandatory imported Q1 qualification for v2.",
   "progress_phases": [
     "fem_create",
     "fem_colour_setter",

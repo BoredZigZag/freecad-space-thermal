@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 from copy import deepcopy
 from hashlib import sha256
+import math
+from pathlib import Path
+import tempfile
 import unittest
 import uuid
 
-from fcst_app.cad_mesh import prepare,profile_hash,validate_receipt,reconcile,package
+from fcst_app.cad_mesh import prepare,profile_hash,validate_receipt,reconcile,package,synchronize
 from fcst_app.discretization import read_input
-from fcst_contracts import read
+from fcst_app.persistence import Package
+from fcst_contracts import loads, read
 
 
 def fixture():
@@ -75,6 +79,71 @@ class CadMeshTests(unittest.TestCase):
             self.assertEqual(len(value['spatial']['surfaces']),1)
         value,_=prepare(source,brep,cards,[dict(face_id=face,kind='convection',coefficient_W_per_m2_K=4,ambient_temperature=dict(value=20,unit='degC'))])
         self.assertEqual(value['spatial']['surfaces'][0]['ambient_K'],293.15)
+
+    def test_face_contact_uses_area_weights_and_requires_explicit_reassignment(self):
+        source, brep, cards = fixture()
+        faces = source['geometry']['faces'] = source['geometry']['faces'][:2]
+        source['options']['dimension'] = 2
+        source['nodes'] = [dict(tag=i, position_m=list(point)) for i, point in enumerate(
+            ((0, 0, 0), (1, 0, 0), (0, 1, 0), (0, -2, 0), (0, 0, 1), (1, 0, 1), (0, 2, 1)), 1)]
+        triangles = [(1, 2, 3), (1, 4, 2), (5, 6, 7)]
+        source['cells'] = [dict(tag=i, topology='tri3', nodes=list(nodes), region=f'Face{side + 1}')
+                           for i, (nodes, side) in enumerate(zip(triangles, (0, 0, 1)), 21)]
+        source['facets'] = [dict(tag=cell['tag'], nodes=cell['nodes'], cad_face_id=faces[side]['id'])
+                            for cell, side in zip(source['cells'], (0, 0, 1))]
+        card = {**cards['Solid1'], 'thickness': dict(value=1, unit='mm')}
+        cards = {'Face1': card, 'Face2': card}
+        start, end = (face['id'] for face in faces)
+        contact = dict(kind='contact', from_face_id=start, to_face_id=end, area_m2=1, coefficient_SI=4,
+                       gap_m=0, minimum_temperature_K=250, maximum_temperature_K=450,
+                       maximum_power_W=20, calibration_id=str(uuid.uuid4()))
+        value, receipt = prepare(source, brep, cards, [contact])
+        self.assertEqual(receipt['contract_version'], '2.0.0')
+        self.assertEqual(validate_receipt(receipt, brep), value)
+        self.assertEqual(read_input(value), value)
+        rounded = {**contact, 'area_m2': math.nextafter(1, math.inf)}
+        self.assertEqual(prepare(source, brep, cards, [rounded])[0]['spatial']['contacts'][0]['area_m2'],
+                         rounded['area_m2'])
+        packed = package(receipt, brep)
+        self.assertEqual(packed.model, value['model'])
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'contact.fcst'
+            path.write_bytes(packed.zip_bytes())
+            reopened = Package.open(path)
+        self.assertEqual(validate_receipt(loads(reopened.files['cad-mesh/prepared.json']), brep), value)
+        link, = value['spatial']['contacts']
+        node_tags = {row['thermal_node_id']: row['source_tag'] for row in receipt['node_map']}
+        for side, expected in (('from', {1: 1/3, 2: 1/3, 3: 1/9, 4: 2/9}),
+                               ('to', {5: 1/3, 6: 1/3, 7: 1/3})):
+            weights = {node_tags[row['node_id']]: row['weight'] for row in link[side]}
+            self.assertEqual(weights.keys(), expected.keys())
+            for node_tag, weight in weights.items():
+                self.assertAlmostEqual(weight, expected[node_tag])
+
+        refined = deepcopy(source)
+        refined['nodes'].append(dict(tag=8, position_m=[0, .5, 0]))
+        for key in ('cells', 'facets'):
+            refined[key][0]['nodes'] = [1, 2, 8]
+            refined[key].append({**refined[key][0], 'tag': 24, 'nodes': [8, 2, 3]})
+        refined_value, refined_receipt = synchronize(receipt, brep, refined, brep)
+        self.assertEqual(refined_receipt['boundaries'], [contact])
+        self.assertNotEqual(refined_value['spatial']['contacts'], value['spatial']['contacts'])
+        renamed = str(uuid.uuid4())
+        refined['geometry']['faces'][1]['id'] = renamed
+        next(facet for facet in refined['facets'] if facet['cad_face_id'] == end)['cad_face_id'] = renamed
+        with self.assertRaisesRegex(ValueError, 'attachment_reassignment_required'):
+            synchronize(receipt, brep, refined, brep, region_map={'Face1': 'Face1', 'Face2': 'Face2'},
+                        face_map={start: start})
+        _, rebound = synchronize(receipt, brep, refined, brep, region_map={'Face1': 'Face1', 'Face2': 'Face2'},
+                                 face_map={start: start, end: renamed})
+        self.assertEqual(rebound['boundaries'][0]['to_face_id'], renamed)
+
+        for changes in (dict(to_face_id=start), dict(to_face_id=[]), dict(area_m2=1.1), dict(gap_m=.01),
+                        dict(calibration_id='invalid'), dict(coefficient_SI=True), dict(maximum_temperature_K=200)):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, 'cad_contact_'):
+                prepare(source, brep, cards, [{**contact, **changes}])
+        with self.assertRaisesRegex(ValueError, 'cad_contact_duplicate'):
+            prepare(source, brep, cards, [contact, {**contact, 'from_face_id': end, 'to_face_id': start}])
 
     def test_profile_geometry_coverage_and_ambiguous_mapping_fail_closed(self):
         source,brep,cards=fixture()

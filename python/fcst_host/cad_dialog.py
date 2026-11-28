@@ -33,7 +33,7 @@ def open_selected():
     conditions=QtWidgets.QPlainTextEdit();conditions.setPlainText('[]')
     conditions.setObjectName('FCSTCadConditions')
     conditions.setPlaceholderText('[{"face_ref":"Face1","kind":"temperature","value":{"value":300,"unit":"K"}}]')
-    layout.addRow('Face conditions (JSON; FaceN references)',conditions)
+    layout.addRow('Face conditions and contacts (JSON)',conditions)
     status=QtWidgets.QLabel('Unassigned exterior faces are adiabatic.');layout.addRow(status)
     buttons=QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok|QtWidgets.QDialogButtonBox.Cancel);layout.addRow(buttons)
     dialog.job=None
@@ -56,12 +56,22 @@ def open_selected():
                     if job.state!='succeeded':reject(job.error or 'cad_mesher_process')
                     faces={f['ref']:f['id'] for f in job.source['geometry']['faces']};mapped=[]
                     for entry in boundaries:
-                        if not isinstance(entry,dict) or entry.get('face_ref') not in faces:reject('cad_boundary_selection')
-                        mapped.append({**{k:v for k,v in entry.items() if k!='face_ref'},'face_id':faces[entry['face_ref']]})
+                        if not isinstance(entry, dict):reject('cad_boundary_selection')
+                        keys = ('from_face', 'to_face') if entry.get('kind') == 'contact' else ('face',)
+                        row = dict(entry)
+                        for key in keys:
+                            ref = row.pop(key + '_ref', None)
+                            if not isinstance(ref, str) or ref not in faces or key + '_id' in row:
+                                reject('cad_boundary_selection')
+                            row[key + '_id'] = faces[ref]
+                        mapped.append(row)
                     _,receipt=prepare(job.source,job.brep,{r:card for r in {c['region'] for c in job.source['cells']}},mapped)
                     session=Session.from_cad(Path(tempfile.mkdtemp(prefix='fcst-host-')),receipt,job.brep)
                     show(session);dialog.accept()
-                except (ValueError,OSError):status.setText('Mesh preparation failed; check face conditions and CAD topology.')
+                except (ValueError, OSError) as error:
+                    status.setText(diagnostic(error))
+                    dialog.job = None
+                    buttons.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(True)
             status.setText('Meshing…');buttons.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False);job.start(finished)
         except (ValueError,OSError) as error:status.setText(diagnostic(error))
     buttons.accepted.connect(start);buttons.rejected.connect(cancel)
