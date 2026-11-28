@@ -297,10 +297,10 @@ temperatures and recovery verdicts. Raw meshes, portable projects, process
 output, screenshots and operational stores stay local.
 
 WP-17 executes `tools/check_radiation.py` in Debug and Release. TST-021
-covers exact mission sources, synthetic test construction, outgoing history,
+covers exact mission and portable case schemas, synthetic test construction, outgoing history,
 approved identities, final GitHub prose and the bounded `radiation.json` and
 `ci-performance.json` summaries. Keep raw loading histories, checkpoints,
-timing traces, vendor evidence and build outputs local.
+portable projects, timing traces, vendor evidence and build outputs local.
 
 Build/verification resource evidence adds only allowlisted numeric CPU seconds,
 peak process/job committed bytes, total process count and logical CPU count for
@@ -1159,7 +1159,11 @@ consumes the native evidence and runs FEM-REUSE-006 using the release assets.
 The [native environment engine](../docs/environment-engine.md) implements the
 circular TAI trajectory profile and transient loading history. Foundation runs
 the analytical and independent temperature checks in both Windows configurations
-through the radiation acceptance driver. TST-021 scans the exact candidate and
+through the radiation acceptance driver. Portable transient cases bind a mission,
+an environment and their active loads and controls to shared model and source
+identities. The driver reopens flight and chamber variants, checks native
+exchange after articulation and rejects stale checkpoints and substituted saved
+missions. TST-021 scans the exact candidate and
 bounded timing and acceptance summaries. Paired TD/RadCAD and ESATAN mission
 captures remain required for vendor qualification.
 

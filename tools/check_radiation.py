@@ -27,7 +27,11 @@ def input_hashes():
              'engine/tests/radiation_subject.cpp', 'tests/fixtures/radiation/plates.json', 'tests/fixtures/radiation/steady.json',
              'engine/include/fcst/environment.hpp', 'engine/src/environment.cpp',
              'engine/src/thermal_transient.cpp', 'engine/include/fcst/thermal_transient.hpp',
-             'engine/src/thermal_execution.inc', 'engine/src/thermal_loading.inc', 'engine/worker/main.cpp']
+             'engine/src/thermal_execution.inc', 'engine/src/thermal_loading.inc', 'engine/worker/main.cpp',
+             'tools/p0_fixture.py', 'tests/fixtures/radiation/p0-two-surfaces.json',
+             'python/fcst_app/radiation_case.py', 'python/fcst_host/review.py',
+             'python/fcst_cli/solve.py', 'python/fcst_cli/__main__.py', 'python/fcst_app/persistence.py',
+             'python/fcst_contracts/__init__.py', 'python/fcst_contracts/bundle.json', 'engine/src/contracts.cpp']
     return {p: digest(ROOT/p) for p in paths}
 
 
@@ -118,7 +122,7 @@ def check_spectral_beam(execute, worker, candidate):
     run(invalid, 'reject-direction', 'failed', 'radiation_ray')
 
 
-def check_environment(execute, worker, steady_fixture):
+def check_environment(execute, worker, steady_fixture, work):
     from scipy.integrate import solve_ivp
 
     fixture = deepcopy(steady_fixture)
@@ -171,6 +175,27 @@ def check_environment(execute, worker, steady_fixture):
     require(abs(result['samples'][-1]['temperature_K'][0]-t) < .02)
     require(abs(result['samples'][-1]['run_energy']['defect_J']) < 1e-7)
     require(result['samples'][0]['environment_in_W'][0] < 0)
+
+    # Both roots are allowed to round just outside the authored window.
+    clipped = deepcopy(fixture)
+    first, last = math.nextafter(entry, math.inf), math.nextafter(exit_, -math.inf)
+    clipped['transient'].update(start=first, end=last, output_times=[first, last])
+    clipped['transient'].pop('schedules')
+    result = run(clipped, 'orbit-at-run-limits')
+    require([(r['time_s'], r['eclipsed']) for r in result['loading_history']] == [(first, True), (last, False)])
+    require([(e['time_s'], e['after']) for e in result['events'] if e['kind'] == 'eclipse'] == [(last, 0)])
+
+    # A small apparent disk can have an eclipse even when cos(half-width)
+    # rounds to exactly one. Resolve it against the analytic sine relation.
+    small = deepcopy(fixture)
+    small['mission']['orbit']['body_radius_m'] = 2e-8
+    small['transient'].pop('schedules')
+    result = run(small, 'small-body')
+    events = [e for e in result['events'] if e['kind'] == 'eclipse']
+    half_width = math.asin(1e-8)
+    require(len(events) == 2 and [e['after'] for e in events] == [1, 0])
+    require(abs(events[0]['time_s']-(math.pi-half_width)) < 1e-13
+            and abs(events[1]['time_s']-(math.pi+half_width)) < 1e-13)
 
     # At full phase an unobstructed panel normal to the body disk sees R²/r².
     body = deepcopy(fixture)
@@ -256,6 +281,102 @@ def check_environment(execute, worker, steady_fixture):
     require(result['exchange_builds'] == 1 and abs(result['loading_history'][-1]['solar_W']) < 1e-11)
     for row in result['loading_history']:
         require(abs(row['solar_W']-20*math.cos(math.pi*row['time_s']/2)) < 1e-11)
+
+    pair = deepcopy(moving)
+    pair['sampling']['samples'] = 4096
+    pair['mission']['maximum_interval_s'] = 1
+    entities = pair['thermal_input']['model']['entities']
+    next(e for e in entities if e['kind'] == 'environment')['solar_flux']['value'] = 0
+    next(e for e in entities if e.get('classification') == 'prescribed')['temperature']['value'] = 320
+    other_id = '00000000-0000-4000-8000-000000000024'
+    declared = next(e for e in entities if e['kind'] == 'facet')
+    entities.append(dict(declared, id=other_id))
+    next(e for e in entities if e['kind'] == 'radiation')['facet_ids'].append(other_id)
+    other = deepcopy(pair['facets'][0])
+    gap = .002
+    other.update(id=other_id, surface_id=other_id, node=2,
+                 vertices_m=[[gap, y, z] for _, y, z in reversed(other['vertices_m'])])
+    pair['facets'].append(other)
+    pair['mission']['joints'] = [dict(id='flap', facets=[other_id], pivot_m=[gap, 0, 0], axis=[0, 0, 1],
+                                    angles=[dict(time_s=0, angle_rad=0), dict(time_s=1, angle_rad=math.pi)])]
+    result = run(pair, 'mutual-exchange-flip')
+    initial, final = result['samples']
+    # The inset right triangle retains (1-d/r)^2 of the emitting area, with
+    # d=.02 m and inradius r. Its cone contributes d^2/(d^2+gap^2).
+    inset, inradius = .02, (3-math.sqrt(5))/2
+    lower = (1-inset/inradius)**2 * inset**2/(inset**2+gap**2)
+    power = sigma*(320**4-300**4)
+    require(result['exchange_builds'] == 2 and lower*power < initial['radiation_in_W'][0] <= power)
+    require(abs(initial['radiation_in_W'][0]+initial['radiation_in_W'][2]) < 1e-10
+            and abs(final['radiation_in_W'][0]) < 1e-10
+            and abs(final['run_energy']['defect_J']) < 1e-7)
+
+    check_portable_missions(execute, worker, work, run)
+
+
+def check_portable_missions(execute, worker, work, run):
+    from fcst_app.persistence import Package
+    from fcst_host import review
+    from p0_fixture import CASE, LOAD, NODES, SURFACES, edits, quantity, scaffold
+
+    seed = scaffold()
+    model = seed.model
+    entities = {e['id']: e for e in model['entities']}
+    entities.update((e['id'], e) for e in edits(model))
+    flight = entities[CASE]
+    environment = entities[flight['environment_id']]
+    environment.update(solar_flux=quantity(20, 'W/m2'), time_origin=quantity(.75, 's'))
+    radiation = next(e for e in entities.values() if e['kind'] == 'radiation')
+    mission = dict(sun_direction_inertial=[0, 0, 1], maximum_interval_s=.5,
+                   attitude=[dict(time_s=0, rotation=[1, 0, 0, 0])],
+                   orbit=dict(radius_m=2, body_radius_m=1, gravitational_parameter_m3_s2=8,
+                              phase_rad=0, plane_to_inertial=[math.sqrt(.5),0,math.sqrt(.5),0]),
+                   case_optics=[dict(facet_id=SURFACES[0], solar_absorptance=.5, ir_emittance=.6, condition='BOL')])
+    control_id = review.uid(143)
+    entities[control_id] = dict(id=control_id, kind='control', sensor_node_id=NODES[0], load_id=LOAD,
+                                on_below=quantity(400, 'K'), off_above=quantity(410, 'K'))
+    flight.update(end=quantity(4, 's'), mission=mission, control_ids=[control_id],
+                  overlays=[dict(entity_id=LOAD, field='power', value=quantity(7, 'W'))])
+    chamber_id, chamber_env, chamber_group = [review.uid(n) for n in (140, 141, 142)]
+    entities[chamber_env] = dict(environment, id=chamber_env, solar_flux=quantity(0, 'W/m2'),
+                                 background_temperature=quantity(320, 'K'))
+    entities[chamber_group] = dict(radiation, id=chamber_group, environment_id=chamber_env)
+    entities[chamber_id] = dict(flight, id=chamber_id, environment_id=chamber_env, load_ids=[], control_ids=[], overlays=[],
+                               mission=dict(sun_direction_inertial=[0, 0, 1], maximum_interval_s=4,
+                                            attitude=mission['attitude'],
+                                            case_optics=[dict(mission['case_optics'][0], ir_emittance=.85, condition='EOL')]))
+    model['entities'] = list(entities.values())
+    model['source_maps'] = [dict(id=review.uid(144), version='1.0.0', source_revision='0'*64,
+                                 source_tool='synthetic', source_version='1.0',
+                                 entries=[dict(namespace='example', handle='panel', entity_id=SURFACES[0])])]
+    artifacts = [(r['id'], r['role'], r['artifact']['path'], seed.files[r['artifact']['path']], r['dependencies'])
+                 for r in seed.manifest['artifacts'] if r['role'] == 'mesh']
+    path = work/'mission.fcst'
+    path.write_bytes(Package.create(model, artifacts).zip_bytes())
+    package = Package.open(path)
+    require(package.model['source_maps'] == model['source_maps'])
+    flag, flight_request = review.request(package.model, review.DEFAULT_SETTINGS, CASE,
+                                          read_mesh=package.files.__getitem__)
+    require(flag == '--environment-transient')
+    hot = run(flight_request, 'portable-flight')
+    cli = execute(sys.executable, ['-c', 'import sys; sys.path.insert(0, "python"); '
+                                  'from fcst_cli.__main__ import main; sys.exit(main())',
+                                  'solve-case', path, '--case', chamber_id, '--worker', worker], 'portable-chamber-cli')
+    require(cli.returncode == 0 and not cli.stderr)
+    chamber = json.loads(cli.stdout)
+    # +x in the orbital plane maps to -z inertially, centering the shadow
+    # at orbital phase zero. The TAI origin shifts both crossings by .75 s.
+    events = [e for e in hot['events'] if e['kind'] == 'eclipse']
+    require(len(events) == 2 and [e['after'] for e in events] == [1, 0])
+    require(abs(events[0]['time_s']-(.75-math.pi/6)) < 1e-12)
+    require(abs(events[1]['time_s']-(.75+math.pi/6)) < 1e-12)
+    require(hot['node_ids'] == chamber['node_ids'] == NODES and hot['model_hash'] == chamber['model_hash'])
+    require(hot['samples'][0]['load_in_W'][0] == 7 and chamber['samples'][0]['load_in_W'][0] == 0)
+    require(hot['samples'][-1]['duty_cycles'][control_id] == 1 and not chamber['samples'][-1]['duty_cycles'])
+    require(hot['environment_dependency_sha256'] != chamber['environment_dependency_sha256']
+            and all(r['solar_W'] == 0 and not r['eclipsed'] for r in chamber['loading_history']))
+    flight_request['mission'] = dict(flight_request['mission'], maximum_interval_s=1)
+    require(run(flight_request, 'portable-reject-substituted-mission', False).get('code') == 'environment_case')
 
 
 def check(subject, native, worker, output):
@@ -344,7 +465,7 @@ def check(subject, native, worker, output):
     rejected = execute(worker, ['--radiation-steady'], 'reject-steady-optics', json.dumps(bad_steady).encode())
     require(rejected.returncode == 1 and json.loads(rejected.stdout)['code'] == 'radiation_mapping')
     started = time.monotonic()
-    check_environment(execute, worker, steady_fixture)
+    check_environment(execute, worker, steady_fixture, work)
     records.append(dict(id='worker-environment-transient', status='passed', seconds=round(time.monotonic()-started, 3)))
     started = time.monotonic()
     check_spectral_beam(execute, worker, candidate)

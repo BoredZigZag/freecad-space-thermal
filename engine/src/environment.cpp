@@ -9,6 +9,11 @@ namespace fcst::environment {
 namespace {
 using thermal::Error;
 constexpr double pi=std::numbers::pi, sigma=5.670374419e-8;
+constexpr unsigned boundary_ulps=4;
+double advance_ulps(double time,double toward) {
+  for(unsigned i=0;i<boundary_ulps;++i)time=std::nextafter(time,toward);
+  return time;
+}
 double finite(double x) {
   if(!std::isfinite(x)) throw Error("environment_range");
   return x;
@@ -21,7 +26,8 @@ Vec3 cross(const Vec3& a,const Vec3& b) { return {a[1]*b[2]-a[2]*b[1],a[2]*b[0]-
 Vec3 unit(Vec3 v) {
   double n=finite(std::hypot(v[0],v[1],v[2]));
   if(n<=0)throw Error("environment_direction");
-  return scale(v,1/n);
+  for(double& x:v)x/=n;
+  return v;
 }
 Quaternion validate_rotation(Quaternion q) {
   double n=finite(std::hypot(std::hypot(q[0],q[1]),std::hypot(q[2],q[3])));
@@ -88,22 +94,33 @@ struct Circle {
     ratio=orbit.body_radius_m/orbit.radius_m;
     auto local=rotate(plane,sun,true);
     shadow_center=std::atan2(-local[1],-local[0]);
-    double projected=std::hypot(local[0],local[1]), threshold=std::sqrt((1-ratio)*(1+ratio));
-    if(projected>threshold)shadow_half_width=std::acos(threshold/projected);
+    double normal=std::abs(local[2]);
+    if(normal<ratio) {
+      double projected=std::hypot(local[0],local[1]);
+      double chord=std::sqrt(ratio-normal)*std::sqrt(ratio+normal);
+      shadow_half_width=std::asin(std::min(chord/projected,1.));
+    }
   }
   double angle(double time) const { return finite(phase+rate*time); }
   bool eclipse(double time) const { return std::abs(std::remainder(angle(time)-shadow_center,2*pi))<shadow_half_width; }
-  void transitions(std::map<double,bool>& events,double start,double end) const {
+  template<class Snap> void transitions(std::map<double,bool>& events,double start,double end,
+                                        double origin,const Snap& snap) const {
     if(shadow_half_width==0)return;
+    const double lower=advance_ulps(start,-std::numeric_limits<double>::infinity());
+    const double upper=advance_ulps(end,std::numeric_limits<double>::infinity());
     for(bool entry:{true,false}) {
       double boundary=shadow_center+(entry?-shadow_half_width:shadow_half_width);
-      double cycle=std::floor((angle(start)-boundary)/(2*pi));
+      // Include the preceding cycle if calculating the first cycle rounded up.
+      double cycle=std::floor((angle(std::isfinite(lower)?lower-origin:start-origin)-boundary)/(2*pi))-1;
       if(std::abs(cycle)>1e12)throw Error("environment_limit");
-      for(unsigned i=0;i<4098;++i,++cycle) {
-        double time=finite((boundary+cycle*(2*pi)-phase)/rate);
-        if(time>end)break;
-        if(time>=start && !events.emplace(time,entry).second)throw Error("environment_schedule");
-        if(i==4097)throw Error("environment_limit");
+      for(unsigned i=0;i<4100;++i,++cycle) {
+        double time=finite(origin+(boundary+cycle*(2*pi)-phase)/rate);
+        if(time>upper)break;
+        if(time>=lower) {
+          time=snap(time);
+          if(time>=start && time<=end && !events.emplace(time,entry).second)throw Error("environment_schedule");
+        }
+        if(i==4099)throw Error("environment_limit");
       }
     }
   }
@@ -214,19 +231,10 @@ History prepare(const Mission& mission,const std::vector<radiation::Facet>& face
       double before=*std::prev(after);
       if(std::abs(time-before)<std::abs(time-nearest))nearest=before;
     }
-    double bound=nearest;
-    for(unsigned i=0;i<4;++i)bound=std::nextafter(bound,time);
-    return bound==time?nearest:time;
+    return advance_ulps(nearest,time)==time?nearest:time;
   };
   std::map<double,bool> transitions;
-  if(circle) {
-    std::map<double,bool> relative;
-    circle->transitions(relative,start-mission.time_origin,end-mission.time_origin);
-    for(const auto& [time,entry]:relative) {
-      double absolute=snap(finite(time+mission.time_origin));
-      if(absolute<start || absolute>end || !transitions.emplace(absolute,entry).second)throw Error("environment_schedule");
-    }
-  }
+  if(circle)circle->transitions(transitions,start,end,mission.time_origin,snap);
   std::set<double> times{start,end};
   auto add_time=[&](double t){if(t>start && t<end)times.insert(t);};
   for(const auto& [t,entry]:transitions){(void)entry;add_time(t);prefer(t);}
@@ -330,6 +338,8 @@ thermal::TransientResult solve(thermal::Model model,const History& history,therm
       return (*bindings)[index][i].evaluate(time,t,jacobian);
     };
   }
-  return thermal::solve_transient(thermal::Assembly(std::move(model),std::move(active)),options,std::move(restart));
+  auto state=thermal::initial_operating_state(model);
+  return thermal::solve_transient(thermal::Assembly(std::move(model),std::move(active),{},std::move(state)),
+                                  options,std::move(restart));
 }
 } // namespace fcst::environment

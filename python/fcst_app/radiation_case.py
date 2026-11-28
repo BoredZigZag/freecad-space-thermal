@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Resolve the portable, static diffuse radiation inputs for a native case."""
+"""Resolve portable diffuse radiation inputs for a native case."""
 from math import hypot, isclose
 from uuid import UUID
 
@@ -11,7 +11,7 @@ from .persistence import reject
 SAMPLING = {"seed": 29, "samples": 16384, "maximum_entries": 4096}
 
 
-def facets(model, read_mesh):
+def facets(model, read_mesh, selected=None):
     """Resolve triangles in world metres and map each to one thermal node."""
     entities = {e["id"]: e for e in normalize(model)["entities"]}
     meshes = {}
@@ -24,7 +24,7 @@ def facets(model, read_mesh):
 
     result = {}
     for facet in entities.values():
-        if facet["kind"] != "facet":
+        if facet["kind"] != "facet" or (selected is not None and facet["id"] not in selected):
             continue
         key = facet["id"]
         assignments = targets.get(key, [])
@@ -75,17 +75,18 @@ def transient_request(model, envelope, options, read_mesh):
     entities = {e["id"]: e for e in normalize(model)["entities"]}
     case = entities[envelope["case_id"]]
     environment = entities[case["environment_id"]]
-    configurations = [e for e in entities.values() if e["kind"] == "radiation"]
-    if (len(configurations) != 1 or environment["solar_flux"]["value"] != 0
+    mission = case.get("mission")
+    configurations = [e for e in entities.values() if e["kind"] == "radiation" and e["environment_id"] == environment["id"]]
+    if (len(configurations) != 1 or (mission is None and environment["solar_flux"]["value"] != 0)
             or environment["time_scale"] != "TAI"
             or any(e["kind"] == "element" or (e["kind"] == "mesh" and e["role"] != "radiation")
                    for e in entities.values())):
         reject("radiation_case_unsupported")
     config = configurations[0]
-    triangles = facets(model, read_mesh)
-    if (triangles.keys() != set(config["facet_ids"]) or config["method"] != "diffuse"
-            or config["environment_id"] != environment["id"] or len(triangles) > 4096):
+    selected = set(config["facet_ids"])
+    if config["method"] != "diffuse" or len(selected) > 4096:
         reject("radiation_case_unsupported")
+    triangles = facets(model, read_mesh, selected)
     resolved = []
     for key, (points, _, node_index) in triangles.items():
         facet = entities[key]
@@ -99,8 +100,9 @@ def transient_request(model, envelope, options, read_mesh):
         resolved.append(dict(id=key, surface_id=key, group=facet["mesh_id"], node=node_index, vertices_m=points,
                              front=dict(**optical, active=facet["side"] == "front"),
                              back=dict(**optical, active=facet["side"] == "back")))
-    start, end = options["start"], options["end"]
-    mission = dict(sun_direction_inertial=[0, 0, 1], maximum_interval_s=end-start,
-                   attitude=[dict(time_s=t, rotation=[1, 0, 0, 0]) for t in (start, end)])
+    if mission is None:
+        start, end = options["start"], options["end"]
+        mission = dict(sun_direction_inertial=[0, 0, 1], maximum_interval_s=end-start,
+                       attitude=[dict(time_s=t, rotation=[1, 0, 0, 0]) for t in (start, end)])
     return dict(schema_version=1, facets=resolved, sampling=SAMPLING.copy(), mission=mission,
                 excluded_facets=config["excluded_facet_ids"], thermal_input=envelope, transient=options)

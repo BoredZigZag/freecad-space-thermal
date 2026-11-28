@@ -93,9 +93,25 @@ def build():
     entity("environment", {"frame_id": uuid, "background_temperature": q, "solar_flux": q,
                            "epoch": {"type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$"},
                            "time_scale": enum("TAI", "TT"), "time_origin": q})
+    quaternion = arr(number, minItems=4, maxItems=4)
+    fraction = {"type": "number", "minimum": 0, "maximum": 1}
+    mission = obj({
+        "sun_direction_inertial": vector, "maximum_interval_s": positive,
+        "attitude": arr(obj({"time_s": number, "rotation": quaternion}), minItems=1, maxItems=4096),
+        "orbit": obj({"radius_m": positive, "body_radius_m": positive, "gravitational_parameter_m3_s2": positive,
+                      "phase_rad": number, "plane_to_inertial": quaternion}),
+        "albedo": fraction, "body_exitance_W_m2": nonnegative,
+        "joints": arr(obj({"id": text, "facets": arr(uuid, minItems=1, maxItems=4096, uniqueItems=True),
+                          "pivot_m": vector, "axis": vector,
+                          "angles": arr(obj({"time_s": number, "angle_rad": number}), minItems=1, maxItems=4096)}),
+                      maxItems=4096),
+        "case_optics": arr(obj({"facet_id": uuid, "solar_absorptance": fraction, "ir_emittance": fraction,
+                               "condition": enum("BOL", "EOL", "unspecified")}), maxItems=4096),
+    }, ("orbit", "albedo", "body_exitance_W_m2", "joints", "case_optics"))
     entity("case", {"mode": enum("steady", "transient"), "start": q, "end": q,
                     "environment_id": uuid, "load_ids": arr(uuid, uniqueItems=True), "control_ids": arr(uuid, uniqueItems=True),
-                    "overlays": arr(obj({"entity_id": uuid, "field": enum("temperature", "power", "conductance"), "value": q}))})
+                    "overlays": arr(obj({"entity_id": uuid, "field": enum("temperature", "power", "conductance"), "value": q})),
+                    "mission": mission}, ("mission",))
     entity("control", {"sensor_node_id": uuid, "load_id": uuid, "on_below": q, "off_above": q})
     ast = {"oneOf": [obj({"op": {"const": "literal"}, "quantity": q}),
                      obj({"op": {"const": "symbol"}, "expression_id": uuid}),

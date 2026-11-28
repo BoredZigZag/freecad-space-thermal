@@ -284,7 +284,11 @@ def check_model(model):
         if record["id"] in ids or record["id"] == model["project_id"]:
             fail("duplicate_id")
         ids.add(record["id"])
-    entities = {item["id"]: item for item in model["entities"]}
+    radiation_by_environment = {}
+    for item in model["entities"]:
+        entities[item["id"]] = item
+        if item["kind"] == "radiation":
+            radiation_by_environment.setdefault(item["environment_id"], []).append(item)
     def target(key, kinds):
         if key not in entities or entities[key]["kind"] not in kinds.split():
             fail("reference")
@@ -355,6 +359,21 @@ def check_model(model):
             if kind == "case":
                 if e["start"]["value"] > e["end"]["value"]:
                     fail("range")
+                if "mission" in e:
+                    groups = radiation_by_environment.get(e["environment_id"], [])
+                    if (e["mode"] != "transient" or target(e["environment_id"], "environment")["time_scale"] != "TAI"
+                            or len(groups) != 1 or groups[0]["method"] != "diffuse"):
+                        fail("reference")
+                    active = set(groups[0]["facet_ids"]) - set(groups[0]["excluded_facet_ids"])
+                    mission = e["mission"]
+                    moving = [key for joint in mission.get("joints", []) for key in joint["facets"]]
+                    optical = [item["facet_id"] for item in mission.get("case_optics", [])]
+                    joint_ids = [joint["id"] for joint in mission.get("joints", [])]
+                    for keys in (moving, optical, joint_ids):
+                        if len(set(keys)) != len(keys):
+                            fail("duplicate_id")
+                    if not active or not set(moving + optical) <= active:
+                        fail("reference")
                 for overlay in e["overlays"]:
                     o = target(overlay["entity_id"], "node load conductor")
                     field = overlay["field"]
