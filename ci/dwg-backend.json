@@ -72,7 +72,7 @@
     "python/fcst_app/spatial_arrays.py": "ec1793b9aee9d0c7b16fa415a6921469a941300dd1e985254057bb8aef2cb1f7",
     "python/fcst_app/store.py": "7232b254199c11b07f82ad859ebf5c288578a3820ca136caaa6d814224d9be59",
     "python/fcst_cli/__init__.py": "c77a7b2bffa4f4daa04cd06e0c60e3d9b9cf541199ea87a48d527f1c8675526e",
-    "python/fcst_cli/__main__.py": "db3bbf3d326b9c39f7ee2e63722bb866db483f67ec23e198252fa1722acd91c2",
+    "python/fcst_cli/__main__.py": "5c252ea5a47146783e2ff0374302ec5b50aa1a2c9bb2ff4819fe1d1182027a10",
     "python/fcst_cli/campaign.py": "b1794533b46cef415f83cb9818e7f9237544870069a54e173644c296557dcf59",
     "python/fcst_cli/discretization.py": "ad730c0c60d76032f3e675429cdff4f72f47986b13737675c14fa4d9c99ba004",
     "python/fcst_cli/esatan.py": "57bddd9a44a5462ac7498ce5278aa60e6429417289e457fb9be2956594cfd1ca",

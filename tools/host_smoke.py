@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "python"))
 from fcst_tools.profiles import assess_host, file_hash
 
 
-def main():
+def provision():
     profile = json.loads((ROOT / "ci/host-profile.json").read_text(encoding="utf-8"))
     system = platform.system()
     if system != "Windows":
@@ -19,8 +19,6 @@ def main():
     asset = profile["platforms"][system]
     output = ROOT / ".local/host" / system
     output.mkdir(parents=True, exist_ok=True)
-    report = output / "host-smoke.json"
-    report.unlink(missing_ok=True)
     archive = verified_download("https://github.com/FreeCAD/FreeCAD/releases/download/" +
                                 profile["version"] + "/" + asset["asset"],
                                 ROOT / ".local/profile-downloads" / asset["asset"],
@@ -28,18 +26,19 @@ def main():
     unpack = output / "bundle"
     unpack.mkdir(exist_ok=True)
     cmake, _ = cmake_tools()
-    if system == "Windows":
-        if not list(unpack.rglob("FreeCADCmd.exe")):
-            run([cmake, "-E", "tar", "xf", str(archive)], unpack, output / "extract.log")
-        commands = [p for p in unpack.rglob("FreeCADCmd.exe") if p.parent.name.lower() == "bin"]
-        if len(commands) != 1:
-            raise ValueError("Ambiguous host executable")
-        command = [str(commands[0]), str(ROOT / "tools/host_smoke_payload.py")]
-    else:
-        archive.chmod(0o755)
-        if not (unpack / "squashfs-root/AppRun").is_file():
-            run([str(archive), "--appimage-extract"], unpack, output / "extract.log")
-        command = [str(unpack / "squashfs-root/AppRun"), "--console", str(ROOT / "tools/host_smoke_payload.py")]
+    if not list(unpack.rglob("FreeCADCmd.exe")):
+        run([cmake, "-E", "tar", "xf", str(archive)], unpack, output / "extract.log")
+    commands = [p for p in unpack.rglob("FreeCADCmd.exe") if p.parent.name.lower() == "bin"]
+    if len(commands) != 1:
+        raise ValueError("Ambiguous host executable")
+    return profile, asset, output, commands[0]
+
+
+def main():
+    profile, asset, output, host = provision()
+    report = output / "host-smoke.json"
+    report.unlink(missing_ok=True)
+    command = [str(host), str(ROOT / "tools/host_smoke_payload.py")]
     env = dict(os.environ, FCST_HOST_SMOKE_OUTPUT=str(output), FCST_HOST_SMOKE_SOURCE=str(ROOT),
                QT_QPA_PLATFORM="offscreen", OMP_NUM_THREADS="1")
     for name in ("PYTHONPATH", "PYTHONHOME"):
@@ -53,7 +52,7 @@ def main():
     data["asset_sha256"] = asset["sha256"]
     data["profile_sha256"] = file_hash(ROOT / "ci/host-profile.json")
     data["candidate"] = revision()
-    if not assess_host(data, profile, system):
+    if not assess_host(data, profile, "Windows"):
         raise ValueError("Incomplete host case coverage")
     report.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     print("Pinned host document/geometry smoke: passed", flush=True)

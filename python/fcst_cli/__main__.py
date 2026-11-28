@@ -20,6 +20,14 @@ def main() -> int:
     spatial_parsers(commands)
     from .campaign import parsers as campaign_parsers
     campaign_parsers(commands)
+    solve = commands.add_parser("solve-case")
+    solve.add_argument("path")
+    solve.add_argument("--case", required=True)
+    solve.add_argument("--worker", type=str, required=True)
+    qualify = commands.add_parser("qualify")
+    qualify.add_argument("--gate", choices=["P0"], required=True)
+    qualify.add_argument("--reports", required=True)
+    qualify.add_argument("--report", required=True)
     inspect = commands.add_parser("project-inspect")
     inspect.add_argument("path")
     inspect.add_argument("--previous", action="store_true")
@@ -59,6 +67,12 @@ def main() -> int:
             elif args.command.startswith("job-"):
                 from .jobs import execute
                 result = execute(args)
+            elif args.command == "solve-case":
+                from .solve import solve_case
+                result = solve_case(recover_package(args.path), args.case, args.worker)
+            elif args.command == "qualify":
+                from fcst_tools.p0 import write_report
+                result = write_report(Path(args.reports), Path(args.report))
             elif args.command == "project-inspect":
                 package = recover_package(args.path, previous=args.previous)
                 result = {"project_id": package.model["project_id"], "revision": package.model["revision"],
@@ -78,7 +92,7 @@ def main() -> int:
     else:
         parser.error("Choose a command or --capabilities")
     print(json.dumps(result, sort_keys=True))
-    if args.command == "campaign-run" and result["status"] != "passed":
+    if args.command in {"campaign-run", "qualify"} and result["status"] != "passed":
         return 1
     return 1 if args.command and args.command.startswith('spatial-') and result.get('status')=='failed' else 0
 

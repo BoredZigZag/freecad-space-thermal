@@ -1,5 +1,35 @@
 # CI execution and public download caches
 
+## WP-15 host startup experiment
+
+The warm pre-change Foundation run took 770 seconds from the first job start to
+the gate finish. The unit job took 112 seconds, the dependent Debug job took 631
+seconds, and the aggregate took 24 seconds. Debug radiation was the longest
+configured stage at 307.250 seconds. The preceding warm run recorded 211.547
+seconds, the same 208 processes and nearly identical peak job memory. Debug
+radiation CPU time rose from 210.313 to 304.531 seconds. The two commits changed
+neither the engine nor the verification workflow. Debug host acceptance also
+warned at 191.391 seconds against the retained baseline of 94.5 seconds. The
+radiation workload and both verification worker budgets stay fixed.
+[Pre-change warm run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46101138723).
+[Preceding warm run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46099457833).
+
+The experiment tests whether removing duplicate FreeCADCmd startup can offset
+the new GUI work on the Debug path. Both Windows drivers still verify and
+provision the pinned asset and exercise their own worker in the full GUI
+acceptance process. The dedicated host job executes the standalone document and
+geometry smoke. P0 reuses the existing Windows GUI and MCP acceptance stages.
+Three alternating local Windows pairs used the same Python, pinned host and warm
+unpacked asset. Provisioning plus the standalone command took a median 8.078
+seconds (7.984–8.156). Provisioning alone took 5.375 seconds (5.172–5.422).
+This measures duplicate startup overhead. The retained CI baseline remains
+tied to its existing passing candidate.
+
+A local Release trial completed the full GUI case list and wrote the P0 receipt,
+then reached the process deadline during DLL shutdown. That trial retains a
+failed supervisor verdict. The isolated Windows test macro now exits after
+closing the final receipt and returning the actual test outcome.
+
 Both Windows configurations retain all existing acceptance cases, fixed seeds,
 sample counts, scaling sizes and numerical tolerances. This change does not create
 a smaller qualification tier or move required acceptance to a scheduled workflow.

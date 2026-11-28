@@ -13,6 +13,9 @@ def input_hashes():
         ROOT/'python/fcst_tools/mcp.py',ROOT/'python/fcst_app/jobs.py',ROOT/'python/fcst_host/review.py',
         ROOT/'engine/src/contracts.cpp',ROOT/'engine/src/thermal_execution.inc',
         ROOT/'ci/mcp-acceptance.json',ROOT/'ci/mcp-requirements.lock',ROOT/'spec/mcp/2026-07-28.schema.json',ROOT/'spec/mcp/LICENSE']
+    paths += [ROOT/name for name in ('tools/p0_profiles.py','tools/p0_fixture.py','python/fcst_app/radiation_case.py',
+                                     'python/fcst_cli/solve.py','python/fcst_tools/p0.py','ci/p0-acceptance.json',
+                                     'tests/fixtures/radiation/p0-two-surfaces.json')]
     return {p.relative_to(ROOT).as_posix():sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
 
 

@@ -356,18 +356,32 @@ def main():
     Gui.activeDocument().activeView().saveImage(str(folder/'network.png'),900,650,'Current')
     passed('HOST-RENDER')
     session.close(); App.closeDocument(session.doc.Name)
+    mark('p0_integration')
+    sys.path.append(str(Path(os.environ['FCST_HOST_ROOT'])/'tools'))
+    from p0_host_payload import check as check_p0
+    p0=check_p0(folder,wait,rejects,os.environ['FCST_HOST_WORKER'])
+    passed('WP15-HOST-RADIATION')
     (folder/'host.json').write_text(json.dumps(dict(host_version=['1','1','4'],python_abi='cp311',
-        cases=cases,spatial_solver_qualified=False,scope='WP-13 host workflows and supported FEM field display; production spatial physics remains WP-16'),indent=2)+'\n')
+        cases=cases,p0=p0,spatial_solver_qualified=False,scope='Host workflows, FEM field display and P0 radiation integration'),indent=2)+'\n')
 
 
 def run():
+    from ctypes import WinDLL, wintypes
+
     (folder/'started.json').write_text('{"phase":"tests_started"}\n')
+    status=0
     try:
         main()
     except BaseException:
         (folder/'payload-error.log').write_text(traceback.format_exc())
-        os._exit(1)
-    os._exit(0)
+        status=1
+    # The macro owns this disposable Windows process. FreeCAD and the array
+    # DLLs can stall in process detach after the final receipt has been closed.
+    kernel=WinDLL('kernel32', use_last_error=True)
+    kernel.GetCurrentProcess.restype=wintypes.HANDLE
+    kernel.TerminateProcess.argtypes=(wintypes.HANDLE,wintypes.UINT)
+    kernel.TerminateProcess(kernel.GetCurrentProcess(),status)
+    os._exit(1)
 
 
 QtCore.QTimer.singleShot(500,run)

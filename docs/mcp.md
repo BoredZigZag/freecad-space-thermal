@@ -127,8 +127,9 @@ converter. Preview plans bind actor, operation, source bytes and model revision.
 `reports_generate` writes a local summary explicitly labeled unqualified.
 Vendor-specific conversion tools, `mesh_submit`, `radiation_submit` and
 `viewport_capture` are declared unavailable. No screenshot is captured implicitly.
-Integrated two-surface P0 parity remains WP-15; production spatial physics and
-complete vendor/Q1 qualification remain with their owning work packages.
+Use `solve_submit` for the packaged static diffuse-radiation case in the
+[experimental P0 demonstration](p0-demonstration.md). Production spatial physics
+and complete vendor/Q1 qualification remain with their owning work packages.
 
 ## Unattended verification and publication
 

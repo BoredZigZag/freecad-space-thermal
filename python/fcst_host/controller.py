@@ -249,18 +249,28 @@ class Session:
                     self.doc.removeObject(obj.Name)
             nodes = [e for e in model['entities'] if e['kind'] == 'node']
             self.objects = {}
+            surface_nodes = {}
+            if any(e['kind'] == 'facet' for e in model['entities']):
+                from fcst_app.radiation_case import facets
+                try:
+                    surface_nodes = facets(model, self.read_artifact)
+                except ValueError:
+                    # Other mesh profiles can still open for canonical review.
+                    pass
+            self.radiation_nodes = {key: data[1] for key, data in surface_nodes.items()}
             for entity in model['entities']:
                 name = 'FCST_'+entity['id'].replace('-', '')
                 obj = self.doc.getObject(name)
                 if obj is None:
-                    obj = ObjectsFem.makeMaterialSolid(self.doc,name) if entity['kind']=='material' else self.doc.addObject('PartDesign::Feature' if entity['kind'] in ('node', 'conductor', 'geometry', 'face') else 'App::FeaturePython', name)
+                    shape_kind = entity['kind'] in ('node', 'conductor', 'geometry', 'face', 'facet')
+                    obj = ObjectsFem.makeMaterialSolid(self.doc,name) if entity['kind']=='material' else self.doc.addObject('PartDesign::Feature' if shape_kind else 'App::FeaturePython', name)
                     for prop in ('EntityId', 'Kind', 'Data', 'AttachmentState'):
                         obj.addProperty('App::PropertyString', 'FCST'+prop, 'FCST')
                     obj.addProperty('App::PropertyLinkSub', 'FCSTAttachment', 'FCST')
                     obj.addProperty('App::PropertyString', 'FCSTAttachmentSignature', 'FCST')
                     obj.addProperty('App::PropertyString', 'FCSTSourceRevision', 'FCST')
                     root.addObject(obj)
-                    if hasattr(obj, 'ViewObject') and obj.ViewObject is not None and entity['kind'] not in ('node', 'conductor', 'geometry', 'face','material'):
+                    if hasattr(obj, 'ViewObject') and obj.ViewObject is not None and not shape_kind and entity['kind'] != 'material':
                         ViewProvider(obj.ViewObject)
                 obj.Label = entity.get('label') or entity['kind'].title()+' '+entity['id'][-8:]
                 obj.FCSTEntityId, obj.FCSTKind, obj.FCSTData = entity['id'], entity['kind'], encode(entity).decode()
@@ -311,6 +321,16 @@ class Session:
                 obj = self.objects[node['id']]
                 obj.Shape = Part.makeSphere(3, App.Vector((index % 8)*30, (index//8)*30, 0))
                 obj.ViewObject.ShapeColor = (.32,.65,.72)
+            for entity in (e for e in model['entities'] if e['kind']=='facet'):
+                obj = self.objects[entity['id']]
+                if entity['id'] in surface_nodes:
+                    points = [App.Vector(*(coordinate * 1000 for coordinate in point))
+                              for point in surface_nodes[entity['id']][0]]
+                    obj.Shape = Part.Face(Part.makePolygon(points + points[:1]))
+                    obj.FCSTAttachmentState = 'mapped to thermal node'
+                    obj.ViewObject.ShapeColor = (.65,.65,.65)
+                else:
+                    obj.Shape = Part.Shape()
             for entity in model['entities']:
                 if entity['kind'] == 'conductor':
                     a, b = (self.objects[entity[k]].Shape.BoundBox.Center for k in ('from_node_id', 'to_node_id'))
@@ -479,6 +499,12 @@ class Session:
             self.clear_display()
         return bad
 
+    def read_artifact(self, path):
+        for _, _, name, data, _ in self.store._artifacts():
+            if path == name:
+                return data
+        reject('artifact_unavailable')
+
     def clear_display(self):
         self.result = None
         if self.discretization_view is not None:self.discretization_view.hide()
@@ -490,6 +516,8 @@ class Session:
                 if obj is None:continue
                 if obj.FCSTKind == 'node':
                     obj.ViewObject.ShapeColor = (.48,.48,.48)
+                elif obj.FCSTKind == 'facet':
+                    obj.ViewObject.ShapeColor = (.65,.65,.65)
                 elif obj.FCSTKind=='geometry':obj.ViewObject.DiffuseColor=[(.65,.65,.65)]*len(obj.Shape.Faces)
 
     def import_field(self,value):
@@ -550,6 +578,9 @@ class Session:
         value = review.display(result, index, selected, unit)
         if self.discretization_view is not None:self.discretization_view.show(result,index)
         with self.projection():
+            colours_by_node = dict(zip(result['node_ids'], value['colours']))
+            for facet, node in self.radiation_nodes.items():
+                self.objects[facet].ViewObject.ShapeColor = colours_by_node[node]
             for key, rgb in zip(result['node_ids'], value['colours']):
                 self.objects[key].ViewObject.ShapeColor = rgb
                 obj=self.objects[key]

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "mcp_profile": "2026-07-28 stdio metadata client",
+  "host_profile": "FreeCAD 1.1.4 Windows cp311",
+  "samples": 21,
+  "temperature_error_K": 0.2,
+  "radiation_power_error_W": 0.9,
+  "environment_power_error_W": 0.9,
+  "energy_defect_J": 0.0001,
+  "parity_error_K": 1e-10,
+  "contour_rgb_error": 0.005,
+  "quadrature_agreement": 1e-8,
+  "quadrature_orders": [12, 18]
+}

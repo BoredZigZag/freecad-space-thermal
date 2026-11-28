@@ -100,6 +100,9 @@ def validate():
     gate_steps = workflow['jobs']['gate']['steps']
     assert any('summarize_ci_performance.py' in step.get('run','') for step in gate_steps), "Continuous CI timing comparison absent"
     assert any('publication_preflight.py' in step.get('run','') and '--file .local/ci-performance.json' in step['run'] for step in gate_steps), "CI performance summary lacks publication clearance"
+    assert any('qualify --gate P0' in step.get('run','') for step in gate_steps), 'P0 aggregate absent'
+    assert any('publication_preflight.py' in step.get('run','') and '--file .local/p0.json' in step['run'] for step in gate_steps), 'P0 aggregate lacks publication clearance'
+    assert any('.local/p0.json' in step.get('with',{}).get('path','') for step in gate_steps if step.get('uses','').startswith('actions/upload-artifact@')), 'P0 aggregate report absent'
     for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
         document = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
         for job in document["jobs"].values():

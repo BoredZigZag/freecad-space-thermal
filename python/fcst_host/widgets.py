@@ -160,7 +160,8 @@ class NativeJob(QtCore.QObject):
         if session.diverged or session.check_bindings(): reject('host_reconciliation_required')
         if not self.worker.is_file(): reject('worker_unavailable')
         self.model = session.store.snapshot()
-        self.flag, self.input = review.request(self.model, session.options, session.case_id, session.thermal_input)
+        self.flag, self.input = review.request(self.model, session.options, session.case_id, session.thermal_input,
+                                               read_mesh=session.read_artifact)
         self.worker_hash = sha256(self.worker.read_bytes()).hexdigest()
         self.id = str(uuid.uuid4()); self.state = 'queued'; self.output = bytearray(); self.error_bytes = 0
         session.store.db.execute('CREATE TABLE IF NOT EXISTS host_runs (id TEXT PRIMARY KEY, state TEXT NOT NULL, revision INTEGER NOT NULL, worker_sha256 TEXT NOT NULL)')
@@ -196,6 +197,7 @@ class NativeJob(QtCore.QObject):
     def started(self):
         if self.state != 'queued': return
         self.update('running')
+        if self.state != 'running': return
         self.process.write(encode(self.input)); self.process.closeWriteChannel()
 
     def read_output(self):
@@ -210,7 +212,9 @@ class NativeJob(QtCore.QObject):
         self.timer.stop(); self.read_output(); self.read_error()
         if self.state not in ('queued','running'): return
         if self.session.closed: return
-        if code != 0 or self.error_bytes or status != QtCore.QProcess.NormalExit:
+        if status != QtCore.QProcess.NormalExit:
+            self.update('interrupted'); return
+        if code != 0 or self.error_bytes:
             self.update('failed'); return
         try:
             if sha256(self.worker.read_bytes()).hexdigest()!=self.worker_hash:reject('worker_changed')
@@ -222,7 +226,8 @@ class NativeJob(QtCore.QObject):
             self.update('rejected')
 
     def failed(self, error):
-        if self.state in ('queued','running'): self.stop('failed')
+        if self.state in ('queued','running'):
+            self.stop('interrupted' if error == QtCore.QProcess.Crashed else 'failed')
 
     def stop(self, reason):
         if self.state not in ('queued','running'): return
@@ -390,7 +395,8 @@ class ReviewPanel(QtWidgets.QDockWidget):
             self.render_spatial()
         if self.session.result is None: return
         try:
-            selected=self.selected if self.selected in self.session.result['node_ids'] else None
+            selected=self.session.radiation_nodes.get(self.selected, self.selected)
+            if selected not in self.session.result['node_ids']: selected=None
             value=self.session.show_sample(self.time.value(),selected,self.unit.currentText())
             self.status.setText('CURRENT • native result • t = '+format(value['time_s'],'.6g')+' s')
             self.legend.setText(f"{value['lower']:.4g} — {value['upper']:.4g} {value['unit']}  /  fixed scale")

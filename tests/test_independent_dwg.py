@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Owned synthetic decoder fixtures; never copies of restricted TD payloads."""
 from copy import deepcopy
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,13 @@ def raw(data):
 
 
 class IndependentDwgTests(unittest.TestCase):
+    def test_pinned_backend_sources_match_checkout_bytes(self):
+        root = Path(__file__).resolve().parents[1]
+        profile = json.loads((root/'ci/dwg-backend.json').read_bytes())
+        for name, digest in profile['source_inputs'].items():
+            with self.subTest(source=name):
+                self.assertEqual(sha256((root/name).read_bytes()).hexdigest(), digest)
+
     def test_container_agreement_never_claims_thermal_semantics_or_qualification(self):
         a=drawing(); b=deepcopy(a)
         b['OBJECTS'].reverse(); b['OBJECTS'][1].update(size=25,bitsize=120,index=7)

@@ -95,7 +95,7 @@ def configuration(value, model):
     return deepcopy(value)
 
 
-def request(model, options, case_id=None, thermal_input=None):
+def request(model, options, case_id=None, thermal_input=None, *, read_mesh=None):
     model = read('model', model)
     options = settings(options)
     mode=options.pop('mode')
@@ -113,12 +113,13 @@ def request(model, options, case_id=None, thermal_input=None):
         case = normalize(case)
         options.update(start=case['start']['value'], end=case['end']['value'])
         mode=case['mode']
+    radiation = any(e['kind'] == 'radiation' for e in model['entities'])
     environment_power={}
-    if case_id:
-        # A geometry-free conductive network has no environmental receivers.
-        # Publish the empty coupling explicitly; spatial/radiation models still
-        # require their qualified callbacks and must never be reduced to zero.
-        if any(e['kind'] in {'geometry','face','mesh','facet','element','radiation'} for e in model['entities']):
+    if radiation:
+        if not case_id or mode != 'transient' or thermal_input is not None or read_mesh is None:
+            reject('radiation_case_unsupported')
+    elif case_id:
+        if any(e['kind'] in {'geometry','face','mesh','facet','element'} for e in model['entities']):
             reject('environment_callback_required')
         environment_power={case['environment_id']:[0.0 for e in model['entities'] if e['kind']=='node']}
     if mode=='steady':
@@ -127,6 +128,9 @@ def request(model, options, case_id=None, thermal_input=None):
     start, end = options['start'], options['end']
     options['output_times'] = [start+(end-start)*i/(count-1) for i in range(count)]
     options['include_steps'] = False
+    if radiation:
+        from fcst_app.radiation_case import transient_request
+        return '--environment-transient', transient_request(model, envelope, options, read_mesh)
     return '--thermal-transient', dict(thermal_input=envelope, transient=options,**(
         dict(environment_power_W=environment_power) if case_id else {}))
 

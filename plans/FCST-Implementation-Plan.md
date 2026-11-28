@@ -276,6 +276,15 @@ The foundation, planning, publication, exact host smoke and candidate packaging 
 
 ### 2.2 Privacy and sanitization before publication
 
+WP-15 runs the two-surface demonstration in the existing pinned host and MCP
+verification stages. TST-021 scans the staged sources, outgoing history and
+approved author metadata, the bounded `host.json` and `mcp.json` receipts, and
+the final `p0.json` and scalar timing summary before upload. The Foundation
+gate runs `python -m fcst_cli qualify --gate P0` on current-run reports for both
+presets. It rejects mismatched candidates, workers, fixture hashes, queried
+temperatures and recovery verdicts. Raw meshes, portable projects, process
+output, screenshots and operational stores stay local.
+
 WP-17 executes `tools/check_radiation.py` in Debug and Release. TST-021
 covers exact mission sources, synthetic test construction, outgoing history,
 approved identities, final GitHub prose and the bounded `radiation.json` and
@@ -1055,6 +1064,11 @@ Integrated two-surface parity remains WP-15, and these receipts do not grant Q1.
 
 ### Step 15 — WP-15: integrate and automatically demonstrate P0
 
+The [native P0 demonstration](../docs/p0-demonstration.md) uses a portable
+two-triangle scaffold, fixed-ID application edits, an independent quadrature
+and reduced transient oracle, and actual FreeCAD and MCP results. The Windows
+Foundation gate combines the candidate-bound receipts into one `p0.json`.
+
 1. Generate a two-node/two-surface project with explicit material, capacity, conductor, optical, environment/boundary and initial-condition values.
 2. Build/save/reopen it through CLI/API, FreeCAD and MCP operation sequences. Use fixed UUIDs or a declared identity map for parity.
 3. Compute a native conduction/radiation transient and compare against the corresponding analytic/reduced-model oracle under predeclared criteria.
@@ -1344,7 +1358,9 @@ The first tickets should produce reviewable, automatically checked artifacts in 
 9. Add native thermal/radiation minimal kernels and scripted FreeCAD/MCP construction/visualization, then execute P0.
 10. Expand according to WP-16 through WP-21, always landing executable fixtures/oracles and evidence collection with each feature.
 
-The following is the proposed command contract to implement; these product commands do **not** exist yet:
+The implemented experimental P0 command is
+`fcst qualify --gate P0 --reports <current-run-reports> --report <p0-report>`.
+The remaining proposed qualification commands are:
 
 ```text
 cmake --preset <pinned-platform-debug-or-release>
@@ -1352,7 +1368,6 @@ cmake --build --preset <pinned-platform-debug-or-release>
 ctest --preset <pinned-platform-test-profile> --output-on-failure
 python -m fcst_tests run --tier fast --profile <configuration>
 python -m fcst_tests run --suite vendor --profile <exact-vendor-configuration>
-python -m fcst_tests qualify --gate P0 --candidate <build-manifest>
 python -m fcst_tests qualify --gate Q1 --candidate <build-manifest>
 python -m fcst_tests qualify --gate Q2 --candidate <build-manifest>
 ```
