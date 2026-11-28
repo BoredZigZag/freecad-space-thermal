@@ -54,6 +54,10 @@ class HostTests(unittest.TestCase):
         with self.assertRaises(PersistenceError):review.request(review.example_model(),review.DEFAULT_SETTINGS,review.uid(99))
         flag,value=review.request(review.example_model(),{**review.DEFAULT_SETTINGS,'mode':'steady'})
         self.assertEqual(flag,'--thermal-steady');self.assertEqual(value['model'],review.example_model())
+        prepared=json.loads((ROOT/'tests/fixtures/radiation/steady.json').read_bytes())['thermal_input']['model']
+        prepared['entities']=[e for e in prepared['entities'] if e['kind']!='radiation']
+        flag,_=review.request(prepared,review.DEFAULT_SETTINGS)
+        self.assertEqual(flag,'--thermal-transient')
 
     def test_reopen_configuration_is_closed_typed_and_cannot_rebind_unknown_entities(self):
         model=review.example_model()

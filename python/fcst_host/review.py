@@ -113,13 +113,13 @@ def request(model, options, case_id=None, thermal_input=None, *, read_mesh=None)
         case = normalize(case)
         options.update(start=case['start']['value'], end=case['end']['value'])
         mode=case['mode']
-    radiation = any(e['kind'] in {'facet','radiation'} for e in model['entities'])
+    radiation = any(e['kind'] == 'radiation' for e in model['entities'])
     environment_power={}
     if radiation:
         if not case_id or mode != 'transient' or thermal_input is not None or read_mesh is None:
             reject('radiation_case_unsupported')
     elif case_id:
-        if any(e['kind'] in {'geometry','face','mesh','element'} for e in model['entities']):
+        if any(e['kind'] in {'geometry','face','mesh','facet','element'} for e in model['entities']):
             reject('environment_callback_required')
         environment_power={case['environment_id']:[0.0 for e in model['entities'] if e['kind']=='node']}
     if mode=='steady':
