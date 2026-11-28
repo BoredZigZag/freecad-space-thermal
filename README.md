@@ -20,6 +20,9 @@ Project development uses [the GitHub source repository](https://github.com/Bored
 
 Track the 22 work packages in the [FCST implementation project](https://github.com/users/BoredZigZag/projects/1). The **Target release** field identifies the first product release that requires a package. **Completion gate** records the technical checkpoint. The project also records prerequisites, requirement IDs and evidence-backed states.
 
+- [v1 scope](https://github.com/users/BoredZigZag/projects/1/views/2) shows work packages for the native Windows release.
+- [v2 scope](https://github.com/users/BoredZigZag/projects/1/views/3) shows work packages dedicated to thermal-software interoperability. Shared packages can also contribute compatibility evidence to v2.
+
 [FreeCAD FEM reuse](docs/decisions/0003-freecad-fem-reuse.md) is a required assessment before overlapping WP-13 host and WP-16 mesh work. Evaluate existing mesh, selection/material/load and result tools before replacing them; retain the standalone owned engine. FEM is currently a design reference, with no implemented FEM integration or adopted FEM source. Component selection, pinned API/license checks and unattended host/mesh acceptance remain planned.
 
 [WP-5.5 — FEM reuse and foundation reconciliation](plans/WP-05.5-Foundation-Reconciliation.md), canonical ID WP-05.5, collects the missing WP-01 through WP-05 handoff work and related issues. Its 25 implemented acceptance cases cover reuse/provenance, pinned probes, element/field/heat-flux contracts, compatibility, storage/recovery, independent spatial fixtures, representative host integration and privacy. [Completion evidence](plans/evidence/WP-05.5.json) records the completed P0 handoff before dependent feature acceptance in WP-06/WP-07/WP-13/WP-16; the completed baselines retain their original scope and evidence.
