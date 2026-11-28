@@ -4,6 +4,7 @@ import re
 
 
 COMMITTED_WORK_PACKAGES = frozenset({f"WP-{i:02d}" for i in range(1, 22)} | {"WP-05.5"})
+V2_ONLY_WORK_PACKAGES = frozenset({"WP-08", "WP-09", "WP-10", "WP-21"})
 FOUNDATION_CASES = frozenset(
     [f"WP055-INV-{i:03d}" for i in range(1, 3)]
     + [f"WP055-HOST-{i:03d}" for i in range(1, 5)]
@@ -17,6 +18,14 @@ FOUNDATION_CASES = frozenset(
 def package_from_title(title):
     match = re.match(r"^(WP-\d{2}(?:\.\d+)?):", title)
     return match[1] if match and match[1] in COMMITTED_WORK_PACKAGES else None
+
+
+def target_release(scope, package_id):
+    """Return the first product release that requires the work package."""
+    releases = scope["product_releases"]
+    if package_id in releases["v2_only_work_packages"]:
+        return releases["thermal_software_interoperability"]
+    return releases["completed_native_scope"]
 
 
 def validate_foundation_acceptance(rows, requirements, suites, evidence=None):
@@ -52,6 +61,19 @@ def validate_scope(scope, packages, evidence, gaps, presets, host):
     if active != set(scope.get("active_presets", [])):
         errors.append("active_presets_mismatch")
     by_id = {p["id"]: p for p in packages}
+    releases = scope.get("product_releases", {})
+    v2_packages = releases.get("v2_only_work_packages", [])
+    if (releases.get("current_development_line") != "v0.x"
+            or releases.get("completed_native_scope") != "v1"
+            or releases.get("thermal_software_interoperability") != "v2"
+            or len(v2_packages) != len(V2_ONLY_WORK_PACKAGES)
+            or set(v2_packages) != V2_ONLY_WORK_PACKAGES
+            or not releases.get("deferral_reason")):
+        errors.append("product_release_scope_mismatch")
+    for package_id, package in by_id.items():
+        if package_id not in V2_ONLY_WORK_PACKAGES and V2_ONLY_WORK_PACKAGES.intersection(
+                package.get("depends_on", "").split(";")):
+            errors.append("v1_package_depends_on_v2_interoperability")
     goal = scope.get("stretch_goals", {}).get("SG-PLATFORMS", {})
     if (set(by_id) != COMMITTED_WORK_PACKAGES
             or scope.get("windows_gates") != ["Q0", "P0", "Q1", "Q2"]

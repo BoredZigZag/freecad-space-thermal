@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "python"))
 from project_files import markdown_files
-from fcst_tools.delivery import COMMITTED_WORK_PACKAGES, validate_foundation_acceptance, validate_scope
+from fcst_tools.delivery import COMMITTED_WORK_PACKAGES, target_release, validate_foundation_acceptance, validate_scope
 PLANS = ROOT / "plans"
 
 
@@ -186,7 +186,8 @@ def main() -> None:
 
     def document(name):
         return json.loads((ROOT / name).read_text(encoding="utf-8"))
-    require(not validate_scope(document("plans/delivery-scope.json"), list(packages.values()),
+    scope = document("plans/delivery-scope.json")
+    require(not validate_scope(scope, list(packages.values()),
             document("plans/evidence/WP-01.json"), document("inventory/gaps.json"),
             document("CMakePresets.json"), document("ci/host-profile.json")), "Delivery scope drift")
 
@@ -200,6 +201,8 @@ def main() -> None:
     require(github["work_package_count"] == len(packages), "GitHub work-package count differs")
     require({row["work_package"]: row["issue"] for row in backlog} ==
             {row["work_package"]: row["issue"] for row in project}, "GitHub issue/project links differ")
+    require(all(row.get("target_release") == target_release(scope, row["work_package"]) for row in project),
+            "GitHub Project target releases differ from the delivery scope")
 
     for path in markdown_files(ROOT):
         for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", path.read_text(encoding="utf-8")):

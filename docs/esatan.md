@@ -1,5 +1,9 @@
 # Independent ESATAN exchange (WP-09)
 
+WP-09 targets **v2**. Engineering source documents needed for full ESATAN-TMS
+qualification are unavailable. The implemented slices remain under regression
+testing, and Q1 paired compatibility evidence is required for the v2 release.
+
 WP-09 is **in progress**. The owned D-deck converter supports a declared constant
 network subset. Direct ERG/ERE/ERK syntax inventories and safe TMD and XML readers
 provide additional inspection paths. Full native-project, campaign, geometry,

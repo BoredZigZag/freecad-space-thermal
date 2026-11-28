@@ -1,6 +1,6 @@
 # Contributing
 
-Use GitHub issues and pull requests linked to work packages, requirement IDs and compatibility profiles. Add executable fixtures, independent expected results and unattended checks with each feature. See [development instructions](docs/development.md).
+Use GitHub issues and pull requests linked to work packages, requirement IDs and applicable compatibility profiles. The GitHub Project’s **Target release** field identifies the first product release that requires each package. **Completion gate** identifies a technical checkpoint. Add executable fixtures, independent expected results and unattended checks with each feature. See [development instructions](docs/development.md).
 
 Keep personal details, private contact addresses, local home paths, machine/network identifiers, credentials and restricted engineering material out of every upload and post. Use synthetic examples and the publication preflight. Third-party attribution and license notices must be retained. Contributors need an approved public identity and privacy-preserving commit email before their commits can pass publication checks; maintainers review policy additions through a pull request.
 

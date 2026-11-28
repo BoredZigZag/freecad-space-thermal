@@ -1,5 +1,10 @@
 # Thermal Desktop / SINDA implementation (WP-08)
 
+WP-08 targets **v2**. Engineering source documents needed for full TD/SINDA
+qualification are unavailable. The independently implemented slices remain
+under regression testing, and Q1 paired compatibility evidence is required
+for the v2 release.
+
 **29 October scope correction:** product import/export must be independent of
 TD, OpenTD, AutoCAD and SINDA installations. The
 [independent exchange decision](decisions/0004-independent-thermal-exchange.md)

@@ -38,6 +38,7 @@
     "test_delivery_scope.DeliveryScopeTests.test_deferred_platform_cannot_enter_active_scope",
     "test_delivery_scope.DeliveryScopeTests.test_foundation_handoff_cannot_be_omitted_or_depend_on_its_consumers",
     "test_delivery_scope.DeliveryScopeTests.test_fractional_identity_and_acceptance_fail_closed",
+    "test_delivery_scope.DeliveryScopeTests.test_interoperability_is_deferred_without_blocking_v1",
     "test_delivery_scope.DeliveryScopeTests.test_inventory_closure_cannot_claim_qualification_or_lose_gap_owner",
     "test_delivery_scope.DeliveryScopeTests.test_stretch_goals_cannot_become_work_packages_or_release_gates",
     "test_discretization.DiscretizationTests.test_all_families_have_closed_identities_positive_mass_and_independent_volume",

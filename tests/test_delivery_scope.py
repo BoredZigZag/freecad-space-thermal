@@ -42,6 +42,23 @@ class DeliveryScopeTests(unittest.TestCase):
         self.assertIn("inventory_completion_or_qualification_claim_invalid", errors)
         self.assertIn("qualification_gap_not_assigned", errors)
 
+    def test_interoperability_is_deferred_without_blocking_v1(self):
+        self.assertEqual(validate_scope(*self.args), [])
+        for field, value in [("current_development_line", "v1"),
+                             ("completed_native_scope", "v2"),
+                             ("thermal_software_interoperability", "v1"),
+                             ("v2_only_work_packages", ["WP-08", "WP-09", "WP-21"])]:
+            with self.subTest(field=field):
+                changed = copy.deepcopy(self.args)
+                changed[0]["product_releases"][field] = value
+                self.assertIn("product_release_scope_mismatch", validate_scope(*changed))
+        for native, deferred in [("WP-15", "WP-08"), ("WP-19", "WP-10")]:
+            with self.subTest(native=native):
+                changed = copy.deepcopy(self.args)
+                package = next(row for row in changed[1] if row["id"] == native)
+                package["depends_on"] += ";" + deferred
+                self.assertIn("v1_package_depends_on_v2_interoperability", validate_scope(*changed))
+
     def test_foundation_handoff_cannot_be_omitted_or_depend_on_its_consumers(self):
         self.assertEqual(validate_scope(*self.args), [])
         changed = copy.deepcopy(self.args)

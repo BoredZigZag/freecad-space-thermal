@@ -15,6 +15,13 @@
     "Q1",
     "Q2"
   ],
+  "product_releases": {
+    "current_development_line": "v0.x",
+    "completed_native_scope": "v1",
+    "thermal_software_interoperability": "v2",
+    "v2_only_work_packages": ["WP-08", "WP-09", "WP-10", "WP-21"],
+    "deferral_reason": "Insufficient engineering source documents for thermal software interoperability qualification"
+  },
   "deferred_platforms": {
     "Linux": {
       "stretch_goal": "SG-PLATFORMS",
