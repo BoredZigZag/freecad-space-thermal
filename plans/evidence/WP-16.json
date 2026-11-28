@@ -51,8 +51,14 @@
     "Complete configured native inventory plus analytic spatial steady/transient solves in zero-capability Windows AppContainer",
     "New acceptance stages begin alongside the largest active historical estimates; no removed work, pass caching or baseline change"
   ],
+  "cad_contact_follow_up": {
+    "unit_case": "test_cad_mesh.CadMeshTests.test_face_contact_uses_area_weights_and_requires_explicit_reassignment",
+    "host_case": "WP16-CAD-CONTACT",
+    "required_configurations": ["windows-debug", "windows-release"],
+    "scope": "Paired exterior CAD face contact, area-weighted thermal-node mapping, mesh refinement and reassignment, portable receipt, and an independent two-solid resistance oracle"
+  },
   "blockers": [
-    "Every mandatory imported Q1 element/property and source-ecosystem case: licensed source runners, exact source profiles and paired result evidence remain unavailable per inventory/gaps.json",
+    "v2 imported Q1 element/property and source-ecosystem cases require licensed source runners, exact source profiles and paired result evidence per inventory/gaps.json",
     "Full clean offline installer/release FEM-REUSE-006 qualification remains shared with WP-19; kernel-confined native installation does not close that release gate"
   ],
   "full_wp16_qualified": false,

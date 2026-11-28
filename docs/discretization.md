@@ -95,8 +95,40 @@ first-order tet4 solids or tri3 shells, Delaunay algorithms, one thread, a fixed
 seed and explicit mesh-size bounds. It accepts constant region material cards;
 the native input separately supports the qualified temperature-dependent laws.
 The dialog accepts SI material values and explicit `FaceN` temperature, total
-power, surface flux or convection conditions. Unassigned exterior faces are
-adiabatic. Native mesh/result APIs display exterior faces of volume meshes.
+power, surface flux or convection conditions, and paired face contacts.
+Unassigned exterior faces are adiabatic. Native mesh/result APIs display
+exterior faces of volume meshes.
+
+Add a contact to the **Face conditions and contacts** JSON list. For example:
+
+```json
+[
+  {
+    "kind": "contact",
+    "from_face_ref": "Face1",
+    "to_face_ref": "Face8",
+    "area_m2": 0.0625,
+    "coefficient_SI": 8,
+    "gap_m": 0,
+    "minimum_temperature_K": 250,
+    "maximum_temperature_K": 450,
+    "maximum_power_W": 20,
+    "calibration_id": "60000000-0000-4000-8000-000000000001"
+  }
+]
+```
+
+The two exterior face meshes must have disjoint thermal nodes. Supply the
+effective contact area, bounded by the smaller CAD face, and a calibrated
+conductance per area in W/(m² K). The closed-contact model uses zero gap.
+Each linear triangle contributes a third of its area to each of its nodes.
+These contributions set the weights for the face-average temperatures and for
+distributing equal and opposite contact power. The assignment couples averages
+over whole selected faces. The user supplies the physical pairing and effective
+area. Duplicate pairs and shared-node interfaces are rejected. Contact receipts
+use version 2. Unchanged geometry preserves the face pair during remeshing and
+recomputes the weights. Geometry changes require explicit reassignment of both
+faces.
 
 Named FEM physical groups supply CAD face and solid ownership. Conduction
 elements, thermal nodes and radiation facets have separate UUIDs and preserve
@@ -107,20 +139,21 @@ and complete maps travel with the portable project. Refinement changes mesh and
 thermal identities while preserving accepted CAD face identities. Split, merge,
 reorder, delete and changed geometry revisions require explicit reassignment.
 Duplicate ownership, incomplete groups, unsupported order and stale receipts
-fail closed. Touching multi-solid internal interfaces require explicit contact
-preparation; this profile accepts exterior ownership only. Netgen generation,
+fail closed. This profile uses exterior ownership, including for paired contact
+assignments. Netgen generation,
 higher-order meshes and integration-point fields remain outside this profile.
 
-Mandatory imported Q1 element/property and source-ecosystem qualification still
-requires the licensed source runs and paired evidence recorded as missing in the
-inventory. Optional CalculiX/Elmer comparisons remain deferred and never replace
-native checks. Complete offline release qualification remains shared with WP-19.
+For v2, mandatory imported Q1 element/property and source-ecosystem qualification
+requires the licensed source runs and paired evidence tracked in the inventory.
+Complete offline release qualification remains shared with WP-19 for v1.
 
-`ci/discretization-acceptance.json` freezes the 22 native cases, tolerances and
+`ci/discretization-acceptance.json` freezes the native cases, tolerances and
 mesh/time refinement sequences. Candidate/source/worker-bound evidence runs in
 both Windows configurations and the final Foundation gate rejects missing,
 substituted or stale evidence. The pinned host harness also maps, solves, displays
-and saves/reopens a spatial case without manual acceptance execution.
+and saves/reopens a spatial case without manual acceptance execution. It also
+verifies a 10 W heat flow and a 20 K contact drop across two meshed solid regions
+against an independent series-resistance solution.
 
 ```powershell
 fcst spatial-primitive fd-rod --nx 8 --output rod.json

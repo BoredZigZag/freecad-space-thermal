@@ -91,6 +91,35 @@ def check(folder,wait,passed,worker):
     multi,_=prepare(regions.source,regions.brep,{'Solid1':card,'Solid2':second})
     assert len({e['material_id'] for e in multi['model']['entities'] if e['kind']=='element'})==2
     passed('WP16-CAD-PROFILES')
+    interface = {round(multiple.Shape.getElement(f['ref']).CenterOfMass.x): f
+                 for f in regions.source['geometry']['faces']
+                 if abs(multiple.Shape.getElement(f['ref']).normalAt(0, 0).x) > .99}
+    contact = dict(kind='contact', area_m2=.0625, coefficient_SI=8, gap_m=0,
+                   minimum_temperature_K=250, maximum_temperature_K=450,
+                   maximum_power_W=20, calibration_id=str(uuid.uuid4()))
+    paired = {**contact, 'from_face_id': interface[250]['id'], 'to_face_id': interface[500]['id']}
+    conditions = [dict(face_id=interface[x]['id'], kind='temperature', value=dict(value=t, unit='K'))
+                  for x, t in ((0, 380), (750, 300))]
+    assembly, contact_receipt = prepare(regions.source, regions.brep,
+                                        {'Solid1': card, 'Solid2': second}, [*conditions, paired])
+    output = subprocess.run([worker, '--thermal-steady'], input=json.dumps(assembly).encode(),
+                            capture_output=True, timeout=30)
+    assert output.returncode == 0 and not output.stderr
+    result = json.loads(output.stdout)
+    assert result['status'] == 'passed' and abs(result['energy_defect_W']) < 1e-8
+    temperatures = {node['node_id']: node for node in result['nodes']}
+    # The two 0.25 m bars and contact have resistances 4, 2 and 2 K/W.
+    # An 80 K difference drives 10 W, with a 20 K drop across the contact.
+    for point in assembly['spatial']['points']:
+        x = point['position'][0]
+        result_node = temperatures[point['node_id']]
+        expected = 380 - 160*x if x < .4 else 320 - 80*(x - .5)
+        assert abs(result_node['temperature_K'] - expected) < 1e-7
+    reaction = [node['boundary_power_W'] for node in result['nodes']]
+    assert abs(sum(p for p in reaction if p > 0) - 10) < 1e-8
+    assert abs(sum(p for p in reaction if p < 0) + 10) < 1e-8
+    assert validate_receipt(contact_receipt, regions.brep) == assembly
+    passed('WP16-CAD-CONTACT')
     # Installed-workbench solve, exterior-face contour, original geometry and
     # immutable receipt survive portable save/reopen without running the mesher.
     session=Session.from_cad(folder/'cad-session',receipt,job.brep)
@@ -110,11 +139,13 @@ def check(folder,wait,passed,worker):
     from fcst_host import workbench
     App.setActiveDocument(doc.Name);Gui.Selection.clearSelection();Gui.Selection.addSelection(solid)
     dialog=open_selected();dialog.findChild(QtWidgets.QDoubleSpinBox,'FCSTCad_size').setValue(.5)
+    dialog.findChild(QtWidgets.QPlainTextEdit, 'FCSTCadConditions').setPlainText(json.dumps([
+        {**contact, 'from_face_ref': left['ref'], 'to_face_ref': right['ref']}]))
     outcome=[];dialog.finished.connect(outcome.append)
     ticks=[];timer=QtCore.QTimer();timer.timeout.connect(lambda:ticks.append(True));timer.start(1)
     QtTest.QTest.mouseClick(dialog.findChild(QtWidgets.QDialogButtonBox).button(QtWidgets.QDialogButtonBox.Ok),QtCore.Qt.LeftButton)
     wait(lambda:bool(outcome));timer.stop()
     assert outcome==[QtWidgets.QDialog.Accepted] and ticks
-    created=workbench.current();assert created.thermal_input is not None
+    created=workbench.current();assert len(created.thermal_input['spatial']['contacts']) == 1
     created.close();App.closeDocument(created.doc.Name);App.closeDocument(doc.Name)
     passed('WP16-CAD-COMMAND')

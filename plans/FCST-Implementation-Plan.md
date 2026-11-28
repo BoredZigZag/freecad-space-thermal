@@ -40,6 +40,12 @@ proofs and request-reference persistence changes. Generated BREP/UNV/geo files,
 temporary AppContainer profiles/denial manifests, operational project databases
 and raw host/native logs remain local. The imported licensed Q1 qualification
 holds are never converted into synthetic passes.
+CAD face contacts add area-weight, remesh and reassignment checks in
+`tests/test_cad_mesh.py` and a generated two-solid resistance oracle in
+`tools/cad_acceptance_payload.py`. Both Windows drivers require the latter in
+`host.json`. Scan the exact implementation, synthetic fixtures, bounded verdicts,
+timing summaries, outgoing history and identities, and final GitHub prose.
+Original geometry, contact inputs, raw mesh files and solver outputs stay local.
 
 The WP-20 spectral beam prototype adds analytic split, side, wavelength,
 energy-closure, refinement and malformed-input checks to `tools/check_radiation.py`
@@ -1084,10 +1090,11 @@ The two public synthetic source fixtures belong to the v2 adapter track. WP-08 a
 
 The [native spatial profile](../docs/discretization.md) implements FD rods,
 first-order shells/solids, material storage/tensors, contacts, area loads and
-bounded reduced components. [Evidence](evidence/WP-16.json) retains production CAD
-mesher, full FEM reuse and mandatory imported Q1 qualification as open obligations.
-Candidate/source/worker-bound acceptance runs in both Windows configurations;
-passing the bounded profile does not close WP-16/Q1. TST-021 covers exact new
+bounded reduced components. Pinned FreeCAD/Gmsh generation prepares explicit
+face loads and calibrated face-to-face contact. Candidate/source/worker-bound
+acceptance runs in both Windows configurations. [Evidence](evidence/WP-16.json)
+tracks the full offline release gate with WP-19 for v1 and mandatory imported
+element/property qualification for v2. TST-021 covers exact new
 sources, schemas, synthetic fixtures, bounded reports and scalar timing summaries,
 with staged/history/identity/prose preflight before upload; raw host/model files,
 screenshots, logs and build trees remain local.
@@ -1102,7 +1109,7 @@ Complete WP-13's initial FEM mesh assessment before introducing a meshing stack.
 6. Implement limited MLI, insulation and reduced heat-pipe abstractions with parameter provenance, calibration/validity limits and explicit unsupported regimes.
 7. Run rod/slab cases, element patch tests, rotated anisotropy, manufactured solutions, contact tests and mesh/time refinement independently of vendor comparisons.
 
-**Outputs:** supported discretization library, qualified FEM reuse/replacement dispositions, mesh/attachment tooling, contact and reduced-component models. **Completion:** analytical/manufactured/conservation/refinement suites and mandatory imported Q1 element/property cases pass; unsupported element types are diagnosed before solving. Implement FEM-REUSE-003 and the spatial extensions of FEM-REUSE-001/004, plus FEM-REUSE-006 with WP-19. Verify mesh/element ordering, units, integrated loads, face-change/refinement invalidation and native engine independence. Selected external comparisons require their pinned profile evidence and never replace owned-engine checks.
+**Outputs:** supported discretization library, qualified FEM reuse/replacement dispositions, mesh/attachment tooling, contact and reduced-component models. **Completion:** v1 requires the native analytical, manufactured, conservation and refinement suites, with FEM-REUSE-006 shared with WP-19. Verify the spatial extensions of FEM-REUSE-001/004 and FEM-REUSE-003, including mesh/element ordering, units, integrated loads, face-change/refinement invalidation and pre-solve diagnostics for unsupported element types. v2 requires mandatory imported Q1 element/property cases and pinned evidence for selected external comparisons.
 
 ### Step 17 — WP-17: implement environments, motion and campaign events
 
