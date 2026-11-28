@@ -140,6 +140,7 @@
     "test_independent_dwg.IndependentDwgTests.test_decoder_duplicates_ambiguous_identities_bad_payloads_and_nonfinite_values_reject",
     "test_independent_dwg.IndependentDwgTests.test_decoder_structure_and_byte_budgets_are_enforced",
     "test_independent_dwg.IndependentDwgTests.test_missing_final_opaque_bits_cannot_pass_even_when_both_decoders_agree",
+    "test_independent_dwg.IndependentDwgTests.test_pinned_backend_sources_match_checkout_bytes",
     "test_independent_dwg.IndependentDwgTests.test_sinda_cli_import_export_and_package_work_with_vendor_imports_forbidden",
     "test_independent_dwg.IndependentDwgTests.test_verdicts_do_not_echo_private_decoder_names_values_or_paths",
     "test_inventory.InventoryTests.test_acquisition_never_overwrites_different_original_bytes",
