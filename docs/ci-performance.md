@@ -1,5 +1,28 @@
 # CI execution and public download caches
 
+## WP-17 portable missions
+
+The latest passing pre-change Foundation run took 767 seconds from first job
+start to gate finish. The unit job took 83 seconds, the dependent Debug job took
+653 seconds and the gate took 26 seconds. The overlapping Embree job took 633
+seconds. Debug used three acceptance workers and a warm download cache.
+Radiation was its longest configured stage at 308.031 seconds. The three
+million-facet BVH builds accounted for 123.67 seconds of its reported build
+time. The preceding passing main run measured 304.484 seconds for Debug
+radiation. The subsequent main run's Release MCP acceptance failed.
+[Passing candidate](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46160611720).
+[Passing main](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46159091106).
+[Subsequent main run](https://github.com/BoredZigZag/freecad-space-thermal/actions/runs/46168380200).
+
+The experiment reused triangle areas from validation while building the diffuse
+patch inventory. Three alternating local MSVC Debug pairs held the scene, seed,
+compiler settings and all three scaling refinements fixed. The 99,856-facet
+build median went from 2.719 s (2.643–2.759) to 2.624 s (2.611–2.687).
+The million-facet median went from 32.164 s (30.105–42.993) to 31.045 s
+(29.417–31.810). The raw hit rows and non-timing outputs matched. Both ranges
+overlapped and one million-facet pair ran slower with area reuse. The trial was
+reverted. The fixed ensemble, scaling repetitions and passing baseline are retained.
+
 ## WP-15 host startup experiment
 
 The warm pre-change Foundation run took 770 seconds from the first job start to

@@ -1,17 +1,22 @@
 {
   "work_package": "WP-17",
-  "status": "in_progress",
-  "scope": "Native circular mission trajectory, environment loading and transient events",
+  "status": "complete",
+  "scope": "Native v1 circular TAI missions, portable flight and chamber cases, moving exchange and transient events",
+  "contract": "docs/environment-engine.md",
+  "acceptance_register": "ci/radiation-acceptance-v1.json",
   "checks": [
     {
       "id": "worker-environment-transient",
       "driver": "tools/check_radiation.py",
-      "scope": "Debug and Release analytic eclipse, body disk, chamber, moving projection, independent thermal reference, simultaneous events, case overlay and checkpoint checks"
+      "status": "passed",
+      "required_presets": ["windows-debug", "windows-release"],
+      "requirements": ["RAD-006", "RAD-007", "RAD-008"],
+      "scope": "Analytic eclipse, small-body and run-limit crossings, independent temperature and flux, articulated exchange, time refinement, simultaneous schedule, duty, portable case replay and stale checkpoint checks"
     }
   ],
   "blockers": [],
   "follow_up": [
     "WP-10 owns the paired TD/RadCAD and ESATAN mission heating and temperature histories for v2."
   ],
-  "publication": "TST-021 applies to exact staged sources, synthetic fixture construction, bounded radiation and CI timing summaries, outgoing metadata and GitHub prose. Raw mission histories, checkpoints, vendor captures, timing traces and build outputs remain local."
+  "publication": "TST-021 applies to exact staged sources and portable schemas, synthetic fixture construction, bounded radiation and CI timing summaries, outgoing history, approved metadata and GitHub prose. Raw mission histories, checkpoints, generated packages, vendor captures, timing traces and build outputs remain local."
 }

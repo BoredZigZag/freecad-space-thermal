@@ -6,6 +6,18 @@ Supply the schema-version-1 facet, sampling and thermal input records used by
 `transient` settings used by `--thermal-transient`. The selected model environment
 supplies the solar flux, background temperature, TAI epoch label and time origin.
 
+A portable `.fcst` project stores a mission as a `mission` artifact in
+`missions/<case-id>.json`. Use the [mission schema](../spec/schemas/mission-v1.schema.json)
+for its `contract_version`, `project_id`, `case_id` and `mission` fields. The
+version-4 package manifest records its byte hash and dependency on the model
+artifact. The selected transient case supplies the TAI environment and diffuse
+radiation configuration. Run it with
+`fcst solve-case mission.fcst --case <case-id> --worker <worker>`. A case with
+zero solar flux can use the static background profile by omitting the artifact.
+When building a package through `Package.create`, provide the mission bytes as
+an artifact with role `mission` and the model artifact ID as its dependency.
+The package writer computes the byte hash and selects manifest version 4.
+
 A stationary deep-space or chamber mission can use this record.
 
 ```json
@@ -34,7 +46,11 @@ A stationary deep-space or chamber mission can use this record.
   and uniform outgoing planetary infrared exitance. Deep space and chambers
   use the selected environment's isotropic background temperature.
 - A thermal `case_id` selects the model's environment, loads, controls and
-  overlays. One diffuse radiation group is supported per selected environment.
+  overlays. Flight and chamber cases can select different environments and
+  still reference the same facets, thermal nodes and source records. Hot/cold
+  and operating/nonoperating cases select environment settings, load and heater
+  memberships and thermal overrides. Use one diffuse radiation configuration
+  per selected environment.
   For BOL/EOL variants, `mission.case_optics` accepts overrides with `facet_id`,
   `solar_absorptance`, `ir_emittance` and `condition`. These apply to the
   selected case's active facet side and preserve model entity and source IDs.
@@ -61,13 +77,18 @@ angles and reused only for consecutive identical geometry within preparation.
 Every request starts a fresh preparation.
 
 Generated times within four representable values of an authored boundary align
-to that boundary. This keeps analytically simultaneous schedule and eclipse
-events together despite arithmetic rounding. Resume with the same mission and
-time grid.
+to that boundary, including the start and end of the run. The first frame uses
+the state immediately after any transition at the start. A transition at the
+end supplies the final right-hand state and leaves the preceding energy integral
+on the left-hand state. Resume with the same mission and time grid.
 
-The acceptance driver exercises eclipse timing, a SciPy reduced-network
-temperature reference, an analytic projected body disk, chamber exchange, joint
-and attitude projection, time refinement and stale motion and optics checkpoints.
+The acceptance driver exercises eclipse timing in the orbital and inertial
+frames, time-origin shifts, transitions near run boundaries and small apparent
+disks. It checks a SciPy reduced-network temperature reference, an analytic
+projected body disk, chamber exchange, joint and attitude projection, an
+independent lower bound on exchange between facing triangles, time refinement
+and stale motion and optics checkpoints. A portable save and reopen exercises
+flight and chamber cases with shared identities and rejects a substituted mission.
 The current profile uses a circular trajectory, hard umbra, a fixed Sun vector
 and independent single-axis joints. WP-17 uses independent native cases for
 closure. WP-10 owns the paired TD/RadCAD and ESATAN captures of equivalent

@@ -95,7 +95,7 @@ def configuration(value, model):
     return deepcopy(value)
 
 
-def request(model, options, case_id=None, thermal_input=None, *, read_mesh=None):
+def request(model, options, case_id=None, thermal_input=None, *, read_mesh=None, mission=None):
     model = read('model', model)
     options = settings(options)
     mode=options.pop('mode')
@@ -115,6 +115,8 @@ def request(model, options, case_id=None, thermal_input=None, *, read_mesh=None)
         mode=case['mode']
     radiation = any(e['kind'] == 'radiation' for e in model['entities'])
     environment_power={}
+    if mission is not None and not radiation:
+        reject('mission_case')
     if radiation:
         if not case_id or mode != 'transient' or thermal_input is not None or read_mesh is None:
             reject('radiation_case_unsupported')
@@ -130,7 +132,7 @@ def request(model, options, case_id=None, thermal_input=None, *, read_mesh=None)
     options['include_steps'] = False
     if radiation:
         from fcst_app.radiation_case import transient_request
-        return '--environment-transient', transient_request(model, envelope, options, read_mesh)
+        return '--environment-transient', transient_request(model, envelope, options, read_mesh, mission)
     return '--thermal-transient', dict(thermal_input=envelope, transient=options,**(
         dict(environment_power_W=environment_power) if case_id else {}))
 

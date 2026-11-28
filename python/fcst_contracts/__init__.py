@@ -408,7 +408,8 @@ def read(kind, document):
     value = deepcopy(document)
     if not isinstance(value, dict):
         fail("schema")
-    expected_version = "3.0.0" if kind=='manifest3' else "2.0.0" if kind in {"spatial", "manifest2"} else VERSION
+    expected_version = {"manifest4": "4.0.0", "manifest3": "3.0.0", "manifest2": "2.0.0",
+                        "spatial": "2.0.0"}.get(kind, VERSION)
     if value.get("contract_version") != expected_version or "minimum_reader" in value and value["minimum_reader"] != expected_version:
         fail("version")
     if kind == "operation" and value.get("operation") not in BUNDLE["operations"]:
@@ -440,7 +441,7 @@ def read(kind, document):
     if kind == "spatial":
         from .spatial import check
         check(value)
-    if kind in {"manifest", "manifest2", "manifest3"}:
+    if kind in {"manifest", "manifest2", "manifest3", "manifest4"}:
         records = value["artifacts"]
         by_id = {r["id"]: r for r in records}
         if len(by_id) != len(records) or len({r["artifact"]["path"].lower() for r in records}) != len(records):

@@ -160,8 +160,11 @@ class NativeJob(QtCore.QObject):
         if session.diverged or session.check_bindings(): reject('host_reconciliation_required')
         if not self.worker.is_file(): reject('worker_unavailable')
         self.model = session.store.snapshot()
+        from fcst_app.radiation_case import read_case_mission
+        mission = read_case_mission(session.store._manifest(), self.model, session.case_id,
+                                    session.read_artifact) if session.case_id else None
         self.flag, self.input = review.request(self.model, session.options, session.case_id, session.thermal_input,
-                                               read_mesh=session.read_artifact)
+                                               read_mesh=session.read_artifact, mission=mission)
         self.worker_hash = sha256(self.worker.read_bytes()).hexdigest()
         self.id = str(uuid.uuid4()); self.state = 'queued'; self.output = bytearray(); self.error_bytes = 0
         session.store.db.execute('CREATE TABLE IF NOT EXISTS host_runs (id TEXT PRIMARY KEY, state TEXT NOT NULL, revision INTEGER NOT NULL, worker_sha256 TEXT NOT NULL)')

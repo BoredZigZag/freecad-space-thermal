@@ -11,8 +11,9 @@ import uuid
 
 if __package__ in (None,''):
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from fcst_contracts import VERSION, frame, unframe, loads, read
+from fcst_contracts import MAX_BYTES, VERSION, frame, unframe, loads, read
 from fcst_app.persistence import encode, read_bounded, reject
+from fcst_app.radiation_case import read_case_mission
 from fcst_app.jobs import reference
 from fcst_app.arrays import write_arrays
 from fcst_host import review
@@ -36,8 +37,11 @@ def run(worker,expected_hash,root,job_id):
     submit=unframe(header+sys.stdin.buffer.read(struct.unpack('<I',header)[0]))
     if submit['job_id']!=job_id or submit['sequence']!=1: reject('snapshot_binding')
     sequence=2
-    flag,request=review.request(model,job['execution']['settings'],job['case_id'],
-                                read_mesh=lambda path: read_bounded(root/path, int(job['budget']['artifact_bytes'])))
+    def read_artifact(path):
+        return read_bounded(root/path, int(job['budget']['artifact_bytes']))
+    manifest = loads(read_bounded(root/'snapshots/manifest.json', MAX_BYTES))
+    mission = read_case_mission(manifest, model, job['case_id'], read_artifact)
+    flag,request=review.request(model,job['execution']['settings'],job['case_id'], read_mesh=read_artifact, mission=mission)
     # Drain both pipes continuously; a noisy or hostile binary cannot exhaust memory.
     process=subprocess.Popen([str(worker),flag],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
         env={**{k:os.environ[k] for k in ('SystemRoot','WINDIR') if k in os.environ},'PATH':str(worker.parent)},
